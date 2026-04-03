@@ -1,0 +1,146 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  MANAGER
+  SELLER
+  CUSTOMER
+}
+
+enum DressCategory {
+  MIDI
+  LONGO
+  EVENTO
+  CASUAL
+  FESTA
+}
+
+enum AuditAction {
+  STOCK_ADJUSTMENT
+  PRODUCT_CREATED
+  PRODUCT_UPDATED
+  PRODUCT_DELETED
+  USER_CREATED
+  USER_UPDATED
+}
+
+enum SaleStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  DELIVERED
+}
+
+// ─── Models ─────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales      Sale[]
+  auditLogs  AuditLog[]
+
+  @@map("users")
+}
+
+model Product {
+  id               String        @id @default(uuid())
+  name             String
+  description      String?
+  price            Decimal       @db.Decimal(10, 2)
+  category         DressCategory
+  fabricComposition String?
+
+  // Dress measurements (in centimetres)
+  bust    Float?
+  waist   Float?
+  hips    Float?
+  length  Float?
+
+  sku     String  @unique
+  active  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inventory  Inventory?
+  saleItems  SaleItem[]
+
+  @@map("products")
+}
+
+model Inventory {
+  id        String @id @default(uuid())
+  productId String @unique
+  quantity  Int    @default(0)
+  minStock  Int    @default(5)
+
+  updatedAt DateTime @updatedAt
+
+  product   Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  auditLogs AuditLog[]
+
+  @@map("inventory")
+}
+
+model AuditLog {
+  id          String      @id @default(uuid())
+  userId      String
+  inventoryId String
+  action      AuditAction
+  oldQuantity Int
+  newQuantity Int
+  reason      String
+  createdAt   DateTime    @default(now())
+
+  user      User      @relation(fields: [userId], references: [id])
+  inventory Inventory @relation(fields: [inventoryId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model Sale {
+  id         String     @id @default(uuid())
+  sellerId   String
+  status     SaleStatus @default(PENDING)
+  totalAmount Decimal   @db.Decimal(10, 2)
+  commission  Decimal   @db.Decimal(10, 2)
+  notes      String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  seller    User       @relation(fields: [sellerId], references: [id])
+  items     SaleItem[]
+
+  @@map("sales")
+}
+
+model SaleItem {
+  id        String  @id @default(uuid())
+  saleId    String
+  productId String
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+  subtotal  Decimal @db.Decimal(10, 2)
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("sale_items")
+}
