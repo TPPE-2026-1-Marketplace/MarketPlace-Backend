@@ -3,7 +3,7 @@ services:
     image: marketplace-backend-prod
     build:
       context: .
-      target: production
+      target: runner
     env_file:
       - .env
     environment:

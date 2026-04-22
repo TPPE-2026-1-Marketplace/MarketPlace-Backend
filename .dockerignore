@@ -13,3 +13,6 @@ pnpm-debug.log*
 .turbo
 .cache
 .codex
+Dockerfile*
+compose*.yml
+README.md

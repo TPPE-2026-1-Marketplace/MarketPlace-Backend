@@ -32,6 +32,7 @@ help:
 	@echo "  make docker-prod-down Derruba o ambiente Docker de producao"
 	@echo "  make docker-prod-logs Exibe os logs do ambiente Docker de producao"
 	@echo "  make clean            Remove artefatos locais de build"
+	@echo "  make check           Verifica se a imagem do dockerfile está correta"
 
 env-setup:
 	cp -n .env.example .env
@@ -109,3 +110,6 @@ prod-build:
 
 clean:
 	rm -rf dist tsconfig.build.tsbuildinfo
+
+check:
+	docker build . --check

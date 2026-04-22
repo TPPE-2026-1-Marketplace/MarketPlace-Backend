@@ -23,22 +23,27 @@ RUN --mount=type=cache,target=/pnpm/store \
 
 FROM deps AS dev
 
-CMD ["pnpm", "start:dev"]
+# CMD ["pnpm", "start:dev"]
+CMD ["sh", "-c", "if [ ! -d node_modules ] || [ -z \"$(ls -A node_modules 2>/dev/null)\" ]; then pnpm install; fi && pnpm start:dev"]
 
 FROM deps AS build
+
 COPY . .
 RUN pnpm build
 
 FROM deps AS prod-deps
 RUN pnpm prune --prod
 
-FROM node:22-alpine AS production
-WORKDIR /app
+FROM base AS runner
 
 ENV NODE_ENV=production
 
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY package.json ./
+RUN addgroup -S nodejs && adduser -S nestjs -G nodejs
 
-CMD ["node", "dist/main"]
+COPY --from=prod-deps --chown=nestjs:nodejs /app/node_modules ./node_modules
+COPY --from=build --chown=nestjs:nodejs /app/dist ./dist
+COPY --chown=nestjs:nodejs package.json ./
+
+USER nestjs
+EXPOSE 3000
+CMD ["node", "dist/main.js"]
