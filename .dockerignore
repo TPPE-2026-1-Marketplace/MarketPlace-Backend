@@ -14,5 +14,5 @@ pnpm-debug.log*
 .cache
 .codex
 Dockerfile*
-compose*.yml
+compose*
 README.md

@@ -7,9 +7,9 @@ export COMPOSE_DOCKER_CLI_BUILD := 1
 
 .PHONY: help env-setup install dev lint test build start \
 	docker-build docker-up docker-down docker-logs docker-shell docker-rebuild docker-reset \
-	docker-prod-build docker-prod-up docker-prod-down docker-prod-logs \
+	docker-prod-build docker-prod-up docker-prod-down docker-prod-logs docker-prod-rebuild \
 	dev-up dev-down dev-logs dev-shell dev-build dev-rebuild \
-	prod-up prod-down prod-logs prod-build clean
+	prod-up prod-down prod-logs prod-build prod-rebuild clean
 
 help:
 	@echo "Comandos disponiveis:"
@@ -25,12 +25,13 @@ help:
 	@echo "  make docker-down      Derruba o ambiente Docker de desenvolvimento"
 	@echo "  make docker-logs      Exibe os logs do ambiente Docker de desenvolvimento"
 	@echo "  make docker-shell     Abre um shell no container da API"
-	@echo "  make docker-rebuild   Reconstrui a imagem Docker de desenvolvimento sem cache"
-	@echo "  make docker-reset     Derruba o ambiente Docker de desenvolvimento e remove volumes"
-	@echo "  make docker-prod-build Constroi a imagem Docker de producao"
-	@echo "  make docker-prod-up   Sobe o ambiente Docker de producao"
-	@echo "  make docker-prod-down Derruba o ambiente Docker de producao"
-	@echo "  make docker-prod-logs Exibe os logs do ambiente Docker de producao"
+	@echo "  make docker-rebuild        Constroi e sobe o ambiente Docker de desenvolvimento"
+	@echo "  make docker-reset          Derruba o ambiente Docker de desenvolvimento e remove volumes"
+	@echo "  make docker-prod-build     Constroi a imagem Docker de producao"
+	@echo "  make docker-prod-up        Sobe o ambiente Docker de producao"
+	@echo "  make docker-prod-down      Derruba o ambiente Docker de producao"
+	@echo "  make docker-prod-logs      Exibe os logs do ambiente Docker de producao"
+	@echo "  make docker-prod-rebuild   Constroi e sobe o ambiente Docker de producao"
 	@echo "  make clean            Remove artefatos locais de build"
 	@echo "  make check           Verifica se a imagem do dockerfile está correta"
 
@@ -67,6 +68,8 @@ docker-shell: dev-shell
 
 docker-rebuild: dev-rebuild
 
+docker-prod-rebuild: prod-rebuild
+
 docker-reset:
 	$(COMPOSE_DEV) down -v
 
@@ -79,7 +82,7 @@ docker-prod-down: prod-down
 docker-prod-logs: prod-logs
 
 dev-up:
-	$(COMPOSE_DEV) up -d --build
+	$(COMPOSE_DEV) up -d
 
 dev-down:
 	$(COMPOSE_DEV) down
@@ -94,10 +97,10 @@ dev-build:
 	$(COMPOSE_DEV) build api
 
 dev-rebuild:
-	$(COMPOSE_DEV) build --no-cache api
+	$(COMPOSE_DEV) up --build -d
 
 prod-up:
-	$(COMPOSE_PROD) up -d --build
+	$(COMPOSE_PROD) up -d
 
 prod-down:
 	$(COMPOSE_PROD) down
@@ -107,6 +110,9 @@ prod-logs:
 
 prod-build:
 	$(COMPOSE_PROD) build api
+
+prod-rebuild:
+	$(COMPOSE_PROD) up --build -d
 
 clean:
 	rm -rf dist tsconfig.build.tsbuildinfo

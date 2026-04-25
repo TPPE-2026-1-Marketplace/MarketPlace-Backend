@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-# O uso do ARG faz com o que a imagem pode mudar dinamicamente conforme o uso
+# O uso do ARG faz com que a imagem possa mudar dinamicamente conforme o uso
 # isso é bom para fazer uma validação da melhor imagem
 # Exemplo: docker build --build-arg NODE_VERSION=20-alpine .
 
@@ -23,16 +23,19 @@ RUN --mount=type=cache,target=/pnpm/store \
 
 FROM deps AS dev
 
-# CMD ["pnpm", "start:dev"]
-CMD ["sh", "-c", "if [ ! -d node_modules ] || [ -z \"$(ls -A node_modules 2>/dev/null)\" ]; then pnpm install; fi && pnpm start:dev"]
+CMD ["pnpm", "start:dev"]
 
-FROM deps AS build
+FROM base AS prod-deps
 
+COPY package.json pnpm-lock.yaml ./
+RUN --mount=type=cache,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prod --store-dir=/pnpm/store
+
+FROM base AS build
+
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm build
-
-FROM deps AS prod-deps
-RUN pnpm prune --prod
 
 FROM base AS runner
 
