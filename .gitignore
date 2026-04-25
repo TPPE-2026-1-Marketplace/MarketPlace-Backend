@@ -2,4 +2,7 @@ node_modules
 .codex
 dist
 .env
+.vscode
+.npmrc
 *.tsbuildinfo
+package-lock.json

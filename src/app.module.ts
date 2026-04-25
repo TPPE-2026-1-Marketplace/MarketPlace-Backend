@@ -12,6 +12,7 @@ const isProduction = nodeEnv === 'production';
       isGlobal: true,
     }),
     TypeOrmModule.forRoot({
+      synchronize: true, // Manter como True apenas em desenvolvimento, implementar Migrations para produção !!!
       type: 'postgres',
       host: process.env.POSTGRES_HOST,
       port: Number(process.env.POSTGRES_PORT ?? 5432),
@@ -24,4 +25,4 @@ const isProduction = nodeEnv === 'production';
     UsersModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
