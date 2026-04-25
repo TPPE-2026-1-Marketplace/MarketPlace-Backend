@@ -9,6 +9,7 @@ import { UsersModule } from './users/users.module';
       isGlobal: true,
     }),
     TypeOrmModule.forRoot({
+      synchronize: true, // Manter como True apenas em desenvolvimento, implementar Migrations para produção !!!
       type: 'postgres',
       host: process.env.POSTGRES_HOST ?? 'localhost',
       port: Number(process.env.POSTGRES_PORT ?? 5432),
@@ -16,9 +17,8 @@ import { UsersModule } from './users/users.module';
       password: process.env.POSTGRES_PASSWORD,
       database: process.env.POSTGRES_DB,
       autoLoadEntities: true,
-      synchronize: true,
     }),
     UsersModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
