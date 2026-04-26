@@ -10,7 +10,8 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "demo:flow": "bash scripts/demo-flow.sh"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.22",

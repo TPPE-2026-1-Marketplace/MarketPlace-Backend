@@ -5,3 +5,4 @@ dist
 .npmrc
 *.tsbuildinfo
 package-lock.json
+.demo-backend.log
