@@ -5,7 +5,7 @@ services:
       context: .
       target: dev
     env_file:
-      - .env
+      - .env.development
     environment:
       NODE_ENV: development
       POSTGRES_HOST: postgres
@@ -22,6 +22,8 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    env_file:
+      - .env.development
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}

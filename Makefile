@@ -1,42 +1,57 @@
-COMPOSE_DEV := docker compose -f compose.dev.yml
-COMPOSE_PROD := docker compose -f compose.prod.yml
+COMPOSE_PROJECT := marketplace-backend
+COMPOSE_DEV := docker compose -p $(COMPOSE_PROJECT) --env-file .env.development -f compose.dev.yml
+COMPOSE_PROD := docker compose -p $(COMPOSE_PROJECT) --env-file .env.production -f compose.prod.yml
 SERVICE := api
 
 export DOCKER_BUILDKIT := 1
 export COMPOSE_DOCKER_CLI_BUILD := 1
 
 .PHONY: help env-setup install dev lint test build start \
-	docker-build docker-up docker-down docker-logs docker-shell docker-rebuild docker-reset \
-	docker-prod-build docker-prod-up docker-prod-down docker-prod-logs docker-prod-rebuild \
-	dev-up dev-down dev-logs dev-shell dev-build dev-rebuild \
-	prod-up prod-down prod-logs prod-build prod-rebuild clean
+	dev-up dev-down dev-logs dev-shell dev-build dev-rebuild dev-restart dev-reset \
+	prod-up prod-down prod-logs prod-build prod-rebuild \
+	db-shell db-reset \
+	clean check
 
 help:
-	@echo "Comandos disponiveis:"
-	@echo "  make env-setup        Cria .env a partir de .env.example, sem sobrescrever"
+	@echo "Setup e local:"
+	@echo "  make env-setup        Cria .env.development e .env.production a partir dos .example"
 	@echo "  make install          Instala dependencias localmente com pnpm"
-	@echo "  make dev              Sobe o Nest localmente em modo desenvolvimento"
+	@echo "  make dev              Sobe o Nest localmente (sem Docker) em modo desenvolvimento"
 	@echo "  make lint             Executa o lint do projeto"
 	@echo "  make test             Executa os testes"
 	@echo "  make build            Gera o build local de producao"
 	@echo "  make start            Inicia a aplicacao local usando o build"
-	@echo "  make docker-build     Constroi a imagem Docker de desenvolvimento"
-	@echo "  make docker-up        Sobe o ambiente Docker de desenvolvimento"
-	@echo "  make docker-down      Derruba o ambiente Docker de desenvolvimento"
-	@echo "  make docker-logs      Exibe os logs do ambiente Docker de desenvolvimento"
-	@echo "  make docker-shell     Abre um shell no container da API"
-	@echo "  make docker-rebuild        Constroi e sobe o ambiente Docker de desenvolvimento"
-	@echo "  make docker-reset          Derruba o ambiente Docker de desenvolvimento e remove volumes"
-	@echo "  make docker-prod-build     Constroi a imagem Docker de producao"
-	@echo "  make docker-prod-up        Sobe o ambiente Docker de producao"
-	@echo "  make docker-prod-down      Derruba o ambiente Docker de producao"
-	@echo "  make docker-prod-logs      Exibe os logs do ambiente Docker de producao"
-	@echo "  make docker-prod-rebuild   Constroi e sobe o ambiente Docker de producao"
+	@echo ""
+	@echo "Desenvolvimento (Docker):"
+	@echo "  make dev-up           Sobe o ambiente Docker de desenvolvimento"
+	@echo "  make dev-down         Derruba o ambiente Docker de desenvolvimento"
+	@echo "  make dev-logs         Exibe logs do ambiente Docker de desenvolvimento"
+	@echo "  make dev-shell        Abre um shell no container da API"
+	@echo "  make dev-build        Apenas constroi a imagem de desenvolvimento"
+	@echo "  make dev-rebuild      Constroi e sobe o ambiente Docker de desenvolvimento"
+	@echo "  make dev-restart      Recria os containers (down + up) sem rebuild"
+	@echo "  make dev-reset        Derruba o ambiente e REMOVE TODOS OS VOLUMES (apaga banco e cache)"
+	@echo ""
+	@echo "Producao (Docker):"
+	@echo "  make prod-up          Sobe o ambiente Docker de producao"
+	@echo "  make prod-down        Derruba o ambiente Docker de producao"
+	@echo "  make prod-logs        Exibe logs do ambiente Docker de producao"
+	@echo "  make prod-build       Apenas constroi a imagem de producao"
+	@echo "  make prod-rebuild     Constroi e sobe o ambiente Docker de producao"
+	@echo ""
+	@echo "Banco de dados:"
+	@echo "  make db-shell         Abre um psql no container do postgres"
+	@echo "  make db-reset         Apaga apenas o volume do postgres (mantem cache de deps)"
+	@echo ""
+	@echo "Utilidades:"
 	@echo "  make clean            Remove artefatos locais de build"
-	@echo "  make check           Verifica se a imagem do dockerfile está correta"
+	@echo "  make check            Verifica se o Dockerfile esta correto"
 
 env-setup:
-	cp -n .env.example .env
+	cp -n .env.development.example .env.development || true
+	cp -n .env.production.example .env.production || true
+	@echo "Arquivos .env.development e .env.production criados (se ainda nao existiam)."
+	@echo "Edite-os com os valores reais antes de subir o ambiente."
 
 install:
 	pnpm install
@@ -56,31 +71,6 @@ build:
 start:
 	pnpm start:prod
 
-docker-build: dev-build
-
-docker-up: dev-up
-
-docker-down: dev-down
-
-docker-logs: dev-logs
-
-docker-shell: dev-shell
-
-docker-rebuild: dev-rebuild
-
-docker-prod-rebuild: prod-rebuild
-
-docker-reset:
-	$(COMPOSE_DEV) down -v
-
-docker-prod-build: prod-build
-
-docker-prod-up: prod-up
-
-docker-prod-down: prod-down
-
-docker-prod-logs: prod-logs
-
 dev-up:
 	$(COMPOSE_DEV) up -d
 
@@ -88,16 +78,23 @@ dev-down:
 	$(COMPOSE_DEV) down
 
 dev-logs:
-	$(COMPOSE_DEV) logs -f api postgres
+	$(COMPOSE_DEV) logs -f
 
 dev-shell:
-	$(COMPOSE_DEV) exec api sh
+	$(COMPOSE_DEV) exec $(SERVICE) sh
 
 dev-build:
-	$(COMPOSE_DEV) build api
+	$(COMPOSE_DEV) build $(SERVICE)
 
 dev-rebuild:
 	$(COMPOSE_DEV) up --build -d
+
+dev-restart:
+	$(COMPOSE_DEV) down
+	$(COMPOSE_DEV) up -d
+
+dev-reset:
+	$(COMPOSE_DEV) down -v
 
 prod-up:
 	$(COMPOSE_PROD) up -d
@@ -106,13 +103,21 @@ prod-down:
 	$(COMPOSE_PROD) down
 
 prod-logs:
-	$(COMPOSE_PROD) logs -f api
+	$(COMPOSE_PROD) logs -f
 
 prod-build:
-	$(COMPOSE_PROD) build api
+	$(COMPOSE_PROD) build $(SERVICE)
 
 prod-rebuild:
 	$(COMPOSE_PROD) up --build -d
+
+db-shell:
+	$(COMPOSE_DEV) exec postgres sh -c 'psql -U $${POSTGRES_USER} -d $${POSTGRES_DB}'
+
+db-reset:
+	$(COMPOSE_DEV) down
+	docker volume rm $(COMPOSE_PROJECT)_postgres_data || true
+	$(COMPOSE_DEV) up -d
 
 clean:
 	rm -rf dist tsconfig.build.tsbuildinfo
