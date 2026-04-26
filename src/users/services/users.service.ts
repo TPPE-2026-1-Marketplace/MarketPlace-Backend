@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { User } from '../entities/user.entity';
 import { Repository } from 'typeorm';
@@ -6,19 +6,29 @@ import { InjectRepository } from '@nestjs/typeorm';
 
 @Injectable()
 export class UsersService {
+  private static readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>
   ) {
-    console.log("Repositório de usuários injetado:", this.usersRepository);
+    UsersService.logger.log('Repositório de usuários inicializado');
   }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto, requestId = 'REQ-SEM-ID'): Promise<User> {
     try {
-      return await this.usersRepository.save(createUserDto);
+      const userEntity = this.usersRepository.create(createUserDto);
+      const createdUser = await this.usersRepository.save(userEntity);
+      UsersService.logger.log(`[${requestId}] Usuário salvo no banco (id=${createdUser.id})`);
+      return createdUser;
+
     } catch (error) {
-      console.error("Erro ao criar usuário:", error);
-      throw new Error('Falha ao criar o usuário no banco de dados.');
+      UsersService.logger.error(
+        `[${requestId}] Erro ao criar usuário no banco de dados`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      throw new InternalServerErrorException('Falha ao criar o usuário no banco de dados.');
     }
   }
 }
