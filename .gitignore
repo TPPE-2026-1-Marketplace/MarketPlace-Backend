@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+.vscode
+.npmrc
+*.tsbuildinfo
+package-lock.json
+.demo-backend.log
