@@ -7,7 +7,7 @@ export DOCKER_BUILDKIT := 1
 export COMPOSE_DOCKER_CLI_BUILD := 1
 
 .PHONY: help env-setup install dev lint test build start \
-	dev-up dev-down dev-logs dev-shell dev-build dev-rebuild dev-restart dev-reset \
+	dev-up dev-down dev-logs dev-logs-once dev-shell dev-build dev-rebuild dev-restart dev-reset \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
 	db-shell db-reset \
 	clean check
@@ -26,6 +26,7 @@ help:
 	@echo "  make dev-up           Sobe o ambiente Docker de desenvolvimento"
 	@echo "  make dev-down         Derruba o ambiente Docker de desenvolvimento"
 	@echo "  make dev-logs         Exibe logs do ambiente Docker de desenvolvimento"
+	@echo "  make dev-logs-once    Exibe logs (uma vez) do ambiente Docker de desenvolvimento"
 	@echo "  make dev-shell        Abre um shell no container da API"
 	@echo "  make dev-build        Apenas constroi a imagem de desenvolvimento"
 	@echo "  make dev-rebuild      Constroi e sobe o ambiente Docker de desenvolvimento"
@@ -79,6 +80,9 @@ dev-down:
 
 dev-logs:
 	$(COMPOSE_DEV) logs -f
+
+dev-logs-once:
+	$(COMPOSE_DEV) logs --tail $${TAIL:-120}
 
 dev-shell:
 	$(COMPOSE_DEV) exec $(SERVICE) sh
