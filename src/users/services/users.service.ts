@@ -1,6 +1,7 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { User } from '../entities/user.entity';
+import { IUserValidation } from '../interfaces/user.interface';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 
@@ -13,6 +14,20 @@ export class UsersService {
     private readonly usersRepository: Repository<User>
   ) {
     UsersService.logger.log('Repositório de usuários inicializado');
+  }
+
+  async findAll(): Promise<IUserValidation[]> {
+    const users = await this.usersRepository.find();
+    return users.map(({ password: _, ...rest }) => rest as IUserValidation);
+  }
+
+  async findOne(id: number): Promise<IUserValidation> {
+    const user = await this.usersRepository.findOneBy({ id });
+    if (!user) {
+      throw new NotFoundException(`Usuário com id=${id} não encontrado.`);
+    }
+    const { password: _, ...rest } = user;
+    return rest as IUserValidation;
   }
 
   async create(createUserDto: CreateUserDto, requestId = 'REQ-SEM-ID'): Promise<User> {
