@@ -99,6 +99,7 @@ dev-restart:
 
 dev-reset:
 	$(COMPOSE_DEV) down -v
+	rm -rf dist tsconfig.tsbuildinfo
 
 prod-up:
 	$(COMPOSE_PROD) up -d
@@ -124,7 +125,7 @@ db-reset:
 	$(COMPOSE_DEV) up -d
 
 clean:
-	rm -rf dist tsconfig.build.tsbuildinfo
+	rm -rf dist tsconfig.tsbuildinfo tsconfig.build.tsbuildinfo
 
 check:
 	docker build . --check
