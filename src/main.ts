@@ -11,6 +11,8 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
+  // o prefixo funciona apenas para as controllers
+  // como o swagger está por fora, basta acessar apenas pelo prefixo /docs
   app.setGlobalPrefix('api');
 
   const swaggerConfig = new DocumentBuilder()
