@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Logger } from '@nestjs/common';
+import { Controller, Post, Get, Param, ParseIntPipe, Body, Logger } from '@nestjs/common';
 import { CreateUserDto } from '../dtos/create-user.dto';
 import { UsersService } from '../services/users.service';
 import { User } from '../entities/user.entity';
@@ -8,6 +8,16 @@ export class UsersController {
   private static readonly logger = new Logger(UsersController.name);
 
   constructor(private usersService: UsersService) { }
+
+  @Get()
+  async findAll() {
+    return this.usersService.findAll();
+  }
+
+  @Get(':id')
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.usersService.findOne(id);
+  }
 
   @Post()
   async create(@Body() createUserDto: CreateUserDto) {
@@ -20,5 +30,6 @@ export class UsersController {
 
     UsersController.logger.log(`Usuário criado com sucesso: ${JSON.stringify(retorno)}`);
 
+    return retorno;
   }
 }
