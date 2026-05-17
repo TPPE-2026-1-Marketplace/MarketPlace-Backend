@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UsersModule } from './users/users.module';
 import { PeopleModule } from './people/people.module';
 import { AddressesModule } from './addresses/addresses.module';
 import { EmployeesModule } from './employees/employees.module';
@@ -13,6 +12,7 @@ import { CouponsModule } from './coupons/coupons.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const isProduction = nodeEnv === 'production';
@@ -31,6 +31,7 @@ const isProduction = nodeEnv === 'production';
       password: process.env.POSTGRES_PASSWORD,
       database: process.env.POSTGRES_DB,
       autoLoadEntities: true,
+      namingStrategy: new SnakeNamingStrategy()
     }),
     PeopleModule,
     AddressesModule,
