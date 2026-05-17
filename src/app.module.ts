@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UsersModule } from './users/users.module';
 import { PeopleModule } from './people/people.module';
 import { AddressesModule } from './addresses/addresses.module';
 import { EmployeesModule } from './employees/employees.module';
