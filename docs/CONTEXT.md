@@ -40,8 +40,8 @@ de desenvolvimento (16-22/05) divididos em 11 epics no GitHub Project #2.
 
 ### Dependências que NÃO usar
 
-- ❌ `class-validator` e `class-transformer` — substituídos por Zod
-- ❌ DTOs com decorators (`@IsString()`, `@IsInt()`, etc.) — substituídos por schemas Zod
+-  `class-validator` e `class-transformer` — substituídos por Zod
+-  DTOs com decorators (`@IsString()`, `@IsInt()`, etc.) — substituídos por schemas Zod
 
 ---
 
@@ -143,13 +143,13 @@ pnpm add -D @types/passport-jwt @types/bcrypt @types/uuid pino-pretty
 
 Evitar — adicionam complexidade sem ganho proporcional no prazo de 7 dias:
 
-- ❌ `class-validator` / `class-transformer` (decisão arquitetural — Zod no lugar)
-- ❌ `@nestjs/graphql` (frontend usa REST)
-- ❌ `@nestjs/microservices` (monolito é suficiente)
-- ❌ `@nestjs/cqrs` (overhead arquitetural não justificado)
-- ❌ `@nestjs/schedule` (cron jobs — calcular comissão sob demanda basta)
-- ❌ `@nestjs/terminus` (health checks — adicionar quando for pra prod real)
-- ❌ Mongoose / Prisma (já decidido TypeORM)
+-  `class-validator` / `class-transformer` (decisão arquitetural — Zod no lugar)
+-  `@nestjs/graphql` (frontend usa REST)
+-  `@nestjs/microservices` (monolito é suficiente)
+-  `@nestjs/cqrs` (overhead arquitetural não justificado)
+-  `@nestjs/schedule` (cron jobs — calcular comissão sob demanda basta)
+-  `@nestjs/terminus` (health checks — adicionar quando for pra prod real)
+-  Mongoose / Prisma (já decidido TypeORM)
 
 ### Para iteração futura (pós-22/05)
 
