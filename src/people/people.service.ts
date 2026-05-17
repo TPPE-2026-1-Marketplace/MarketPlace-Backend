@@ -4,17 +4,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import * as bcrypt from 'bcrypt';
 import { QueryFailedError, Repository } from 'typeorm';
 import { CreatePersonDto } from './dtos/create-person.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { Person } from './entities/person.entity';
 import { IPersonSafe } from './interfaces/person.interface';
 
-/**
- * Código de erro do Postgres para violação de UNIQUE constraint.
- * Usado para mapear duplicatas de CPF/email para HTTP 409.
- */
 const PG_UNIQUE_VIOLATION = '23505';
+const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class PeopleService {
@@ -33,15 +31,14 @@ export class PeopleService {
   }
 
   async create(dto: CreatePersonDto): Promise<IPersonSafe> {
-    // TODO(#34): aplicar hash bcrypt em `dto.senha` antes de persistir.
-    // Esta issue (#33) implementa apenas o CRUD; o hashing entra na issue
-    // seguinte do D0 ("feat(people): aplicar hash bcrypt em senhas").
+    const senhaHash = dto.senha ? await bcrypt.hash(dto.senha, BCRYPT_ROUNDS) : null;
+
     const person = this.peopleRepository.create({
       cpf: dto.cpf,
       nome: dto.nome,
       email: dto.email,
       telefone: dto.telefone ?? null,
-      senha: dto.senha ?? null,
+      senha: senhaHash,
     });
 
     try {
@@ -101,8 +98,11 @@ export class PeopleService {
       throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
     }
 
-    // TODO(#34): se `dto.senha` vier preenchida, aplicar bcrypt antes de persistir.
-    Object.assign(person, dto);
+    const updates: Partial<Person> = { ...dto } as Partial<Person>;
+    if (dto.senha) {
+      updates.senha = await bcrypt.hash(dto.senha, BCRYPT_ROUNDS);
+    }
+    Object.assign(person, updates);
 
     try {
       const saved = await this.peopleRepository.save(person);
@@ -123,6 +123,10 @@ export class PeopleService {
     if (result.affected === 0) {
       throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
     }
+  }
+
+  async validatePassword(plain: string, hashed: string): Promise<boolean> {
+    return bcrypt.compare(plain, hashed);
   }
 
   /**
