@@ -26,6 +26,7 @@ describe('PeopleService', () => {
   let repo: jest.Mocked<Repository<Person>>;
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     (bcrypt.hash as jest.Mock).mockResolvedValue('$2b$10$hashedpassword');
     (bcrypt.compare as jest.Mock).mockResolvedValue(true);
     const module: TestingModule = await Test.createTestingModule({
