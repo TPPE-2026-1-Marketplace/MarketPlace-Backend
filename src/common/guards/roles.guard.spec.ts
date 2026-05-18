@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RolesGuard } from './roles.guard';
 import { Role } from '../enums/role.enum';
+import { ROLES_KEY } from '../decorators/roles.decorator';
 
 describe('RolesGuard', () => {
     let guard: RolesGuard;
@@ -377,7 +378,7 @@ describe('RolesGuard', () => {
 
             guard.canActivate(mockExecutionContext);
 
-            expect(reflector.get).toHaveBeenCalledWith('roles', mockHandler);
+            expect(reflector.get).toHaveBeenCalledWith(ROLES_KEY, mockHandler);
         });
 
         it('deve passar handler correto para Reflector.get()', () => {
@@ -395,7 +396,7 @@ describe('RolesGuard', () => {
 
             guard.canActivate(mockExecutionContext);
 
-            expect(reflector.get).toHaveBeenCalledWith('roles', mockHandler);
+            expect(reflector.get).toHaveBeenCalledWith(ROLES_KEY, mockHandler);
         });
     });
 
