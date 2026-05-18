@@ -9,8 +9,10 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -22,6 +24,7 @@ import { z } from 'zod';
 import { CreatePersonDto } from './dtos/create-person.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { PeopleService } from './people.service';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 /**
  * Schema de paginação local. Será movido para `src/common/` em D2, quando
@@ -56,6 +59,8 @@ export class PeopleController {
   }
 
   @Get()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Lista pessoas com paginação' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
@@ -65,6 +70,8 @@ export class PeopleController {
   }
 
   @Get(':cpf')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Busca uma pessoa por CPF' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Pessoa encontrada' })
@@ -74,6 +81,8 @@ export class PeopleController {
   }
 
   @Patch(':cpf')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Atualiza dados de uma pessoa' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Pessoa atualizada' })
@@ -84,6 +93,8 @@ export class PeopleController {
   }
 
   @Delete(':cpf')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove uma pessoa' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
