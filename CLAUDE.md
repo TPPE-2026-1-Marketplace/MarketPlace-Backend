@@ -97,6 +97,7 @@ Documentos antigos do projeto e issues podem mencionar decorators do
 
 ```typescript
 export enum Role {
+  CLIENTE = 'cliente',
   CAIXA = 'caixa',
   VENDEDOR = 'vendedor',
   GERENTE = 'gerente',
@@ -104,7 +105,8 @@ export enum Role {
 }
 ```
 
-Hierarquia (cada nível inclui o anterior):
+`CLIENTE` é role de acesso externo — qualquer `Person` sem vínculo com `Employee`.
+Hierarquia de funcionários (cada nível inclui o anterior):
 
 - `caixa`: registro de vendas, associar vendedores
 - `vendedor`: + participação em ranking e comissão
