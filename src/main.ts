@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -10,6 +11,9 @@ async function bootstrap() {
   logger.log('Inicializando aplicação NestJS...');
 
   const app = await NestFactory.create(AppModule);
+
+  // Adicionar ZodValidationPipe globalmente
+  app.useGlobalPipes(new ZodValidationPipe());
 
   // o prefixo funciona apenas para as controllers
   // como o swagger está por fora, basta acessar apenas pelo prefixo /docs
