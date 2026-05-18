@@ -2,8 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { PeopleService } from './people.service';
 import { Person } from './entities/person.entity';
+
+jest.mock('bcrypt');
 
 const mockPerson: Person = {
   cpf: '12345678901',
@@ -23,6 +26,9 @@ describe('PeopleService', () => {
   let repo: jest.Mocked<Repository<Person>>;
 
   beforeEach(async () => {
+    jest.clearAllMocks();
+    (bcrypt.hash as jest.Mock).mockResolvedValue('$2b$10$hashedpassword');
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PeopleService,
@@ -58,6 +64,29 @@ describe('PeopleService', () => {
       expect(result.cpf).toBe(mockPerson.cpf);
       expect(result.nome).toBe(mockPerson.nome);
       expect(result.email).toBe(mockPerson.email);
+    });
+
+    it('aplica hash bcrypt quando senha é fornecida', async () => {
+      repo.create.mockReturnValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+
+      await service.create({
+        cpf: mockPerson.cpf,
+        nome: mockPerson.nome,
+        email: mockPerson.email,
+        senha: 'senha123',
+      });
+
+      expect(bcrypt.hash).toHaveBeenCalledWith('senha123', 10);
+    });
+
+    it('não chama bcrypt.hash quando senha é omitida', async () => {
+      repo.create.mockReturnValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+
+      await service.create({ cpf: mockPerson.cpf, nome: mockPerson.nome, email: mockPerson.email });
+
+      expect(bcrypt.hash).not.toHaveBeenCalled();
     });
 
     it('lança ConflictException quando CPF ou email já existe', async () => {
@@ -138,6 +167,24 @@ describe('PeopleService', () => {
       expect(result.nome).toBe('João Atualizado');
     });
 
+    it('aplica hash bcrypt ao atualizar senha', async () => {
+      repo.findOne.mockResolvedValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+
+      await service.update(mockPerson.cpf, { senha: 'novaSenha123' });
+
+      expect(bcrypt.hash).toHaveBeenCalledWith('novaSenha123', 10);
+    });
+
+    it('não chama bcrypt.hash quando senha não está no payload de update', async () => {
+      repo.findOne.mockResolvedValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+
+      await service.update(mockPerson.cpf, { nome: 'Apenas nome' });
+
+      expect(bcrypt.hash).not.toHaveBeenCalled();
+    });
+
     it('lança NotFoundException quando CPF não existe', async () => {
       repo.findOne.mockResolvedValue(null);
 
@@ -165,6 +212,20 @@ describe('PeopleService', () => {
       repo.delete.mockResolvedValue({ affected: 0, raw: [] });
 
       await expect(service.remove('00000000000')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('validatePassword', () => {
+    it('retorna true para senha correta', async () => {
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      const result = await service.validatePassword('senha123', '$2b$10$hash');
+      expect(result).toBe(true);
+    });
+
+    it('retorna false para senha incorreta', async () => {
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      const result = await service.validatePassword('errada', '$2b$10$hash');
+      expect(result).toBe(false);
     });
   });
 
