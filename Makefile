@@ -6,7 +6,7 @@ SERVICE := api
 export DOCKER_BUILDKIT := 1
 export COMPOSE_DOCKER_CLI_BUILD := 1
 
-.PHONY: help env-setup install dev lint test build start \
+.PHONY: help env-setup gen-secrets install dev lint test build start \
 	dev-up dev-down dev-logs dev-logs-once dev-shell dev-build dev-rebuild dev-restart dev-reset \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
 	db-shell db-reset \
@@ -45,6 +45,7 @@ help:
 	@echo "  make db-reset         Apaga apenas o volume do postgres (mantem cache de deps)"
 	@echo ""
 	@echo "Utilidades:"
+	@echo "  make gen-secrets      Gera JWT_SECRET aleatorio nos arquivos .env"
 	@echo "  make clean            Remove artefatos locais de build"
 	@echo "  make check            Verifica se o Dockerfile esta correto"
 
@@ -53,6 +54,20 @@ env-setup:
 	cp -n .env.production.example .env.production || true
 	@echo "Arquivos .env.development e .env.production criados (se ainda nao existiam)."
 	@echo "Edite-os com os valores reais antes de subir o ambiente."
+	@echo "Execute 'make gen-secrets' para gerar o JWT_SECRET automaticamente."
+
+gen-secrets:
+	$(eval SECRET := $(shell openssl rand -base64 32))
+	@for env_file in .env.development .env.production; do \
+		if [ -f $$env_file ]; then \
+			if grep -q "^JWT_SECRET=" $$env_file; then \
+				sed -i "s|^JWT_SECRET=.*|JWT_SECRET=$(SECRET)|" $$env_file; \
+			else \
+				echo "JWT_SECRET=$(SECRET)" >> $$env_file; \
+			fi; \
+			echo "JWT_SECRET atualizado em $$env_file"; \
+		fi; \
+	done
 
 install:
 	pnpm install
