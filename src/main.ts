@@ -23,7 +23,17 @@ async function bootstrap() {
     .setTitle('API DK Fashion')
     .setDescription('Documentação da API com Swagger')
     .setVersion('1.0.0')
-    .addBearerAuth()
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Insira **APENAS** o token JWT gerado no login. Não digite a palavra "Bearer ".',
+        in: 'header',
+      },
+      'bearer', // Nome do scheme de segurança, que o @ApiBearerAuth() usa por padrão
+    )
     .build();
 
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
