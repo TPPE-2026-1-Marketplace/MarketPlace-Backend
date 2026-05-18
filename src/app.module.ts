@@ -13,6 +13,7 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+import { AuthModule } from './auth/auth.module';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const isProduction = nodeEnv === 'production';
@@ -44,6 +45,7 @@ const isProduction = nodeEnv === 'production';
     ReviewsModule,
     OrdersModule,
     PaymentsModule,
+    AuthModule,
   ],
 })
 export class AppModule { }
