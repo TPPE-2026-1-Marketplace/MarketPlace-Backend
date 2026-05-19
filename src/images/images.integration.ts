@@ -102,7 +102,7 @@ describe('ImagesModule integration', () => {
       .where('url LIKE :url', { url: 'https://example.test/%' })
       .execute();
     await productVariantsRepository.delete([skuA, skuB]);
-    await productsRepository.delete({ SKU: productSku });
+    await productsRepository.delete({ sku: productSku });
 
     const product = await productsRepository.save({
       titulo: 'Produto de teste imagens',
@@ -114,7 +114,7 @@ describe('ImagesModule integration', () => {
       silhueta: null,
       tags: null,
       precoBase: 100,
-      SKU: productSku,
+      sku: productSku,
     });
 
     await productVariantsRepository.save([
@@ -156,7 +156,7 @@ describe('ImagesModule integration', () => {
       await productVariantsRepository.delete([skuA, skuB]);
     }
     if (productsRepository) {
-      await productsRepository.delete({ SKU: productSku });
+      await productsRepository.delete({ sku: productSku });
     }
     if (app) {
       await app.close();

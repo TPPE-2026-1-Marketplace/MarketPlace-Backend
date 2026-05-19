@@ -11,7 +11,7 @@ export const CreateProductSchema = z.object({
   silhueta: z.string().max(120).optional(),
   tags: z.array(z.string().min(1)).optional(),
   preco_base: z.number().positive(),
-  SKU: z.string().min(1).max(80),
+  sku: z.string().min(1).max(80),
 });
 
 export class CreateProductDto extends createZodDto(CreateProductSchema) {}

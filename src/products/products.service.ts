@@ -27,7 +27,7 @@ export class ProductsService {
       silhueta: dto.silhueta ?? null,
       tags: dto.tags ?? null,
       precoBase: dto.preco_base,
-      SKU: dto.SKU,
+      sku: dto.sku,
     });
 
     return this.productsRepository.save(product);
@@ -108,7 +108,7 @@ export class ProductsService {
       silhueta: dto.silhueta === undefined ? product.silhueta : dto.silhueta,
       tags: dto.tags === undefined ? product.tags : dto.tags,
       precoBase: dto.preco_base ?? product.precoBase,
-      SKU: dto.SKU ?? product.SKU,
+      sku: dto.sku ?? product.sku,
     });
 
     await this.productsRepository.save(product);
