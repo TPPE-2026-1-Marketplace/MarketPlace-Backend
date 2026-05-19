@@ -10,6 +10,7 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
+    "test:integration": "jest --testRegex '.*\\.integration\\.ts$' --runInBand",
     "test:watch": "jest --watch",
     "demo:flow": "bash scripts/demo-flow.sh"
   },
