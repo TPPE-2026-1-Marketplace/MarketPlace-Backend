@@ -1,5 +1,6 @@
-import { Column, Entity, OneToMany, PrimaryColumn } from 'typeorm';
+import { Column, Entity, ManyToOne, OneToMany, PrimaryColumn } from 'typeorm';
 import { CatalogImage } from '../../images/entities/catalog-image.entity';
+import { Product } from '../../products/entities/product.entity';
 
 @Entity()
 export class ProductVariant {
@@ -11,4 +12,10 @@ export class ProductVariant {
 
   @OneToMany(() => CatalogImage, (catalogImage) => catalogImage.variant)
   catalogImages: CatalogImage[];
+
+  @ManyToOne(() => Product, (product) => product.variants, {
+    nullable: true,
+    onDelete: 'CASCADE',
+  })
+  product: Product | null;
 }
