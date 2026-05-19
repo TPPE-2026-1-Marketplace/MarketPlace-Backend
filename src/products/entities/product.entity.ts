@@ -1,4 +1,11 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  JoinTable,
+  ManyToMany,
+  PrimaryGeneratedColumn,
+} from 'typeorm';
+import { Category } from '../../categories/entities/category.entity';
 
 @Entity()
 export class Product {
@@ -34,4 +41,23 @@ export class Product {
 
   @Column({ type: 'varchar', length: 80 })
   SKU: string;
+
+  @ManyToMany(() => Category, (category) => category.products, {
+    cascade: false,
+    onDelete: 'CASCADE',
+  })
+  @JoinTable({
+    name: 'product_category',
+    joinColumn: {
+      name: 'product_id',
+      referencedColumnName: 'idProduto',
+      foreignKeyConstraintName: 'fk_product_category_product',
+    },
+    inverseJoinColumn: {
+      name: 'category_id',
+      referencedColumnName: 'idCategoria',
+      foreignKeyConstraintName: 'fk_product_category_category',
+    },
+  })
+  categories: Category[];
 }
