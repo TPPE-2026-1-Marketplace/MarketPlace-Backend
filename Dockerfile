@@ -18,8 +18,8 @@ WORKDIR /app
 FROM base AS deps
 
 COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,target=/pnpm/store \
-    pnpm install --frozen-lockfile --store-dir=/pnpm/store
+RUN --mount=type=cache,target=/app/.pnpm-store \
+    pnpm install --frozen-lockfile --store-dir=/app/.pnpm-store
 
 FROM deps AS dev
 
@@ -28,8 +28,8 @@ CMD ["pnpm", "start:dev"]
 FROM base AS prod-deps
 
 COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod --store-dir=/pnpm/store
+RUN --mount=type=cache,target=/app/.pnpm-store \
+    pnpm install --frozen-lockfile --prod --store-dir=/app/.pnpm-store
 
 FROM base AS build
 
