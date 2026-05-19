@@ -17,8 +17,28 @@ export class CategoriesService {
     return this.categoriesRepository.save(category);
   }
 
-  async findAll(): Promise<Category[]> {
-    return this.categoriesRepository.find({ order: { nome: 'ASC' } });
+  async findAll(
+    page: number,
+    limit: number,
+  ): Promise<{
+    data: Category[];
+    meta: { page: number; limit: number; total: number; totalPages: number };
+  }> {
+    const [data, total] = await this.categoriesRepository.findAndCount({
+      order: { nome: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
   }
 
   async findOne(id: number): Promise<Category> {
