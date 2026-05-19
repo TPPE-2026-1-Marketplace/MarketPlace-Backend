@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { CatalogImage } from '../../images/entities/catalog-image.entity';
 import { Product } from '../../products/entities/product.entity';
+import { Measurements } from '../interfaces/measurements.interface';
 
 @Entity()
 export class ProductVariant {
@@ -25,6 +26,9 @@ export class ProductVariant {
 
   @Column({ type: 'varchar', length: 40, nullable: true })
   tamanho: string | null;
+
+  @Column({ type: 'jsonb', nullable: true, default: null })
+  medidas: Measurements | null;
 
   @OneToMany(() => CatalogImage, (catalogImage) => catalogImage.variant)
   catalogImages: CatalogImage[];
