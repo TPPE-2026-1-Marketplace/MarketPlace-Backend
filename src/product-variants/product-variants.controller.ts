@@ -33,8 +33,10 @@ export class ProductVariantsController {
 
   @Get()
   @ApiOperation({ summary: 'Lista variantes de produto' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'ativo', required: false, type: Boolean })
-  @ApiResponse({ status: 200, description: 'Lista de variantes' })
+  @ApiResponse({ status: 200, description: 'Lista paginada de variantes' })
   findAll(@Query() query: QueryProductVariantsDto) {
     return this.productVariantsService.findAll(query);
   }

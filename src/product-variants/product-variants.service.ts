@@ -39,12 +39,30 @@ export class ProductVariantsService {
     return this.variantsRepository.save(variant);
   }
 
-  async findAll(query: QueryProductVariantsDto): Promise<ProductVariant[]> {
-    return this.variantsRepository.find({
+  async findAll(query: QueryProductVariantsDto): Promise<{
+    data: ProductVariant[];
+    meta: { page: number; limit: number; total: number; totalPages: number };
+  }> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+
+    const [data, total] = await this.variantsRepository.findAndCount({
       where: { ativo: query.ativo ?? true },
       relations: { product: true },
       order: { codigoSku: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
     });
+
+    return {
+      data,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
   }
 
   async findOne(sku: string): Promise<ProductVariant> {
@@ -71,6 +89,7 @@ export class ProductVariantsService {
       ativo: dto.ativo ?? variant.ativo,
       cor: dto.cor === undefined ? variant.cor : dto.cor,
       tamanho: dto.tamanho === undefined ? variant.tamanho : dto.tamanho,
+      medidas: dto.medidas === undefined ? variant.medidas : dto.medidas,
     });
 
     await this.variantsRepository.save(variant);
