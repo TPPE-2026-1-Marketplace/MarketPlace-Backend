@@ -4,9 +4,9 @@ import { CatalogImage } from './catalog-image.entity';
 @Entity()
 export class Image {
   @PrimaryGeneratedColumn()
-  id: number;
+  idImagem: number;
 
-  @Column({ type: 'varchar', length: 500 })
+  @Column({ type: 'text' })
   url: string;
 
   @Column({ type: 'int', default: 0 })

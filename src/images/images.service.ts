@@ -31,7 +31,7 @@ export class ImagesService {
 
   async linkImageToVariant(dto: CreateCatalogImageDto): Promise<CatalogImage> {
     const image = await this.imagesRepository.findOne({
-      where: { id: dto.imageId },
+      where: { idImagem: dto.imageId },
     });
     if (!image) {
       throw new NotFoundException(`Imagem com id ${dto.imageId} não encontrada`);
@@ -47,6 +47,8 @@ export class ImagesService {
     }
 
     const catalogImage = this.catalogImagesRepository.create({
+      idImagem: image.idImagem,
+      codigoSku: variant.codigoSku,
       image,
       variant,
       ordemNoCatalogo: dto.ordem_no_catalogo ?? 0,

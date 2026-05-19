@@ -94,7 +94,7 @@ describe('ImagesModule integration', () => {
     await catalogImagesRepository
       .createQueryBuilder()
       .delete()
-      .where('variant_codigo_sku IN (:...skus)', { skus: [skuA, skuB] })
+      .where('codigo_sku IN (:...skus)', { skus: [skuA, skuB] })
       .execute();
     await imagesRepository
       .createQueryBuilder()
@@ -142,7 +142,7 @@ describe('ImagesModule integration', () => {
       await catalogImagesRepository
         .createQueryBuilder()
         .delete()
-        .where('variant_codigo_sku IN (:...skus)', { skus: [skuA, skuB] })
+        .where('codigo_sku IN (:...skus)', { skus: [skuA, skuB] })
         .execute();
     }
     if (imagesRepository) {
@@ -185,7 +185,7 @@ describe('ImagesModule integration', () => {
     await request(app.getHttpServer())
       .post('/api/images/catalog')
       .send({
-        imageId: imageA.body.id,
+        imageId: imageA.body.idImagem,
         variantSku: skuA,
         ordem_no_catalogo: 20,
       })
@@ -194,7 +194,7 @@ describe('ImagesModule integration', () => {
     await request(app.getHttpServer())
       .post('/api/images/catalog')
       .send({
-        imageId: imageB.body.id,
+        imageId: imageB.body.idImagem,
         variantSku: skuA,
         ordem_no_catalogo: 10,
       })
@@ -203,7 +203,7 @@ describe('ImagesModule integration', () => {
     await request(app.getHttpServer())
       .post('/api/images/catalog')
       .send({
-        imageId: imageA.body.id,
+        imageId: imageA.body.idImagem,
         variantSku: skuB,
         ordem_no_catalogo: 5,
       })
@@ -218,13 +218,13 @@ describe('ImagesModule integration', () => {
       10,
       20,
     ]);
-    expect(catalog.body.map((item: CatalogImage) => item.image.id)).toEqual([
-      imageB.body.id,
-      imageA.body.id,
+    expect(catalog.body.map((item: CatalogImage) => item.image.idImagem)).toEqual([
+      imageB.body.idImagem,
+      imageA.body.idImagem,
     ]);
 
     const linkedToVariantB = await catalogImagesRepository.find({
-      where: { variant: { codigoSku: skuB }, image: { id: imageA.body.id } },
+      where: { variant: { codigoSku: skuB }, image: { idImagem: imageA.body.idImagem } },
       relations: { image: true, variant: true },
     });
     expect(linkedToVariantB).toHaveLength(1);
@@ -252,7 +252,7 @@ describe('ImagesModule integration', () => {
 
     await request(app.getHttpServer())
       .post('/api/images/catalog')
-      .send({ imageId: image.body.id, variantSku: 'IT-IMG-NOT-FOUND' })
+      .send({ imageId: image.body.idImagem, variantSku: 'IT-IMG-NOT-FOUND' })
       .expect(404);
 
     await request(app.getHttpServer())
