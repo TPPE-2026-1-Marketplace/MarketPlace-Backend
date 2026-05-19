@@ -63,6 +63,10 @@ arquivo desse tipo. Não criar profilaticamente.
   `@ApiProperty` — o `nestjs-zod` gera a partir do Zod.
 - **Paginação padrão:** `?page=1&limit=20`, max `limit=100`. Resposta:
   `{ data: [...], meta: { page, limit, total, totalPages } }`.
+  Schema Zod usa `z.coerce.number()` (query params chegam como string).
+  Service recebe `(page: number, limit: number)` separados — não o DTO inteiro.
+  Exemplo: `src/people/people.controller.ts` (PaginationSchema inline, será movido
+  para `src/common/` quando mais módulos reusarem).
 - **Versionamento:** prefixo único `/api`, sem `/v1`.
 
 ### Tradução `class-validator` → Zod
