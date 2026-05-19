@@ -38,11 +38,11 @@ export class Product {
   @Column({ type: 'simple-array', nullable: true })
   tags: string[] | null;
 
-  @Column({ type: 'numeric', precision: 12, scale: 2 })
+  @Column({ type: 'numeric', precision: 10, scale: 2 })
   precoBase: number;
 
-  @Column({ type: 'varchar', length: 80 })
-  SKU: string;
+  @Column({ type: 'varchar', length: 80, unique: true })
+  sku: string;
 
   @ManyToMany(() => Category, (category) => category.products, {
     cascade: false,
