@@ -3,9 +3,11 @@ import {
   Entity,
   JoinTable,
   ManyToMany,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { Category } from '../../categories/entities/category.entity';
+import { ProductVariant } from '../../product-variants/entities/product-variant.entity';
 
 @Entity()
 export class Product {
@@ -60,4 +62,7 @@ export class Product {
     },
   })
   categories: Category[];
+
+  @OneToMany(() => ProductVariant, (variant) => variant.product)
+  variants: ProductVariant[];
 }
