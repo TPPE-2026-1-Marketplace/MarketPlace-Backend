@@ -7,7 +7,7 @@ export DOCKER_BUILDKIT := 1
 export COMPOSE_DOCKER_CLI_BUILD := 1
 
 .PHONY: help env-setup gen-secrets install dev lint test build start \
-	dev-up dev-down dev-logs dev-logs-once dev-shell dev-build dev-rebuild dev-restart dev-reset \
+	dev-up dev-down dev-logs dev-logs-once dev-shell dev-build dev-rebuild dev-restart dev-reset dev-test dev-test-integration \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
 	db-shell db-reset \
 	clean check
@@ -28,6 +28,8 @@ help:
 	@echo "  make dev-logs         Exibe logs do ambiente Docker de desenvolvimento"
 	@echo "  make dev-logs-once    Exibe logs (uma vez) do ambiente Docker de desenvolvimento"
 	@echo "  make dev-shell        Abre um shell no container da API"
+	@echo "  make dev-test         Executa os testes no container (path=<pattern> para filtrar)"
+	@echo "  make dev-test-integration  Executa os testes de integração no container (path=<pattern> para filtrar)"
 	@echo "  make dev-build        Apenas constroi a imagem de desenvolvimento"
 	@echo "  make dev-rebuild      Constroi e sobe o ambiente Docker de desenvolvimento"
 	@echo "  make dev-restart      Recria os containers (down + up) sem rebuild"
@@ -101,6 +103,12 @@ dev-logs-once:
 
 dev-shell:
 	$(COMPOSE_DEV) exec $(SERVICE) sh
+
+dev-test:
+	$(COMPOSE_DEV) exec $(SERVICE) pnpm test $(if $(path),--testPathPattern="$(path)",)
+
+dev-test-integration:
+	$(COMPOSE_DEV) exec $(SERVICE) pnpm test:integration $(if $(path),--testPathPattern="$(path)",)
 
 dev-build:
 	$(COMPOSE_DEV) build $(SERVICE)
