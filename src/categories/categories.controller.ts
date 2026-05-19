@@ -9,14 +9,17 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { CreateCategoryDto } from './dtos/create-category.dto';
+import { QueryCategoriesDto } from './dtos/query-categories.dto';
 import { UpdateCategoryDto } from './dtos/update-category.dto';
 import { CategoriesService } from './categories.service';
 
@@ -36,9 +39,11 @@ export class CategoriesController {
 
   @Get()
   @ApiOperation({ summary: 'Lista categorias' })
-  @ApiResponse({ status: 200, description: 'Lista de categorias' })
-  findAll() {
-    return this.categoriesService.findAll();
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, description: 'Lista paginada de categorias' })
+  findAll(@Query() query: QueryCategoriesDto) {
+    return this.categoriesService.findAll(query.page, query.limit);
   }
 
   @Get(':id')

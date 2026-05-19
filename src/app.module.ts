@@ -14,6 +14,7 @@ import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { AuthModule } from './auth/auth.module';
+import { ImagesModule } from './images/images.module';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const isProduction = nodeEnv === 'production';
@@ -46,6 +47,7 @@ const isProduction = nodeEnv === 'production';
     OrdersModule,
     PaymentsModule,
     AuthModule,
+    ImagesModule,
   ],
 })
 export class AppModule { }
