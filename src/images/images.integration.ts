@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 import { ProductVariantsModule } from '../product-variants/product-variants.module';
+import { Product } from '../products/entities/product.entity';
 import { CatalogImage } from './entities/catalog-image.entity';
 import { Image } from './entities/image.entity';
 import { ImagesModule } from './images.module';
@@ -51,9 +52,11 @@ describe('ImagesModule integration', () => {
   let imagesRepository: Repository<Image>;
   let catalogImagesRepository: Repository<CatalogImage>;
   let productVariantsRepository: Repository<ProductVariant>;
+  let productsRepository: Repository<Product>;
 
   const skuA = 'IT-IMG-A';
   const skuB = 'IT-IMG-B';
+  const productSku = 'IT-IMG-PRODUCT';
 
   beforeAll(async () => {
     loadDevelopmentEnv();
@@ -84,13 +87,14 @@ describe('ImagesModule integration', () => {
     imagesRepository = moduleRef.get(getRepositoryToken(Image));
     catalogImagesRepository = moduleRef.get(getRepositoryToken(CatalogImage));
     productVariantsRepository = moduleRef.get(getRepositoryToken(ProductVariant));
+    productsRepository = moduleRef.get(getRepositoryToken(Product));
   });
 
   beforeEach(async () => {
     await catalogImagesRepository
       .createQueryBuilder()
       .delete()
-      .where('variant_sku IN (:...skus)', { skus: [skuA, skuB] })
+      .where('variant_codigo_sku IN (:...skus)', { skus: [skuA, skuB] })
       .execute();
     await imagesRepository
       .createQueryBuilder()
@@ -98,10 +102,38 @@ describe('ImagesModule integration', () => {
       .where('url LIKE :url', { url: 'https://example.test/%' })
       .execute();
     await productVariantsRepository.delete([skuA, skuB]);
+    await productsRepository.delete({ SKU: productSku });
+
+    const product = await productsRepository.save({
+      titulo: 'Produto de teste imagens',
+      descricao: null,
+      destaque: false,
+      qualMedida: null,
+      material: null,
+      composicao: null,
+      silhueta: null,
+      tags: null,
+      precoBase: 100,
+      SKU: productSku,
+    });
 
     await productVariantsRepository.save([
-      { sku: skuA, ativo: true },
-      { sku: skuB, ativo: true },
+      {
+        codigoSku: skuA,
+        precoVariante: 100,
+        ativo: true,
+        cor: null,
+        tamanho: null,
+        product,
+      },
+      {
+        codigoSku: skuB,
+        precoVariante: 120,
+        ativo: true,
+        cor: null,
+        tamanho: null,
+        product,
+      },
     ]);
   });
 
@@ -110,7 +142,7 @@ describe('ImagesModule integration', () => {
       await catalogImagesRepository
         .createQueryBuilder()
         .delete()
-        .where('variant_sku IN (:...skus)', { skus: [skuA, skuB] })
+        .where('variant_codigo_sku IN (:...skus)', { skus: [skuA, skuB] })
         .execute();
     }
     if (imagesRepository) {
@@ -122,6 +154,9 @@ describe('ImagesModule integration', () => {
     }
     if (productVariantsRepository) {
       await productVariantsRepository.delete([skuA, skuB]);
+    }
+    if (productsRepository) {
+      await productsRepository.delete({ SKU: productSku });
     }
     if (app) {
       await app.close();
@@ -189,7 +224,7 @@ describe('ImagesModule integration', () => {
     ]);
 
     const linkedToVariantB = await catalogImagesRepository.find({
-      where: { variant: { sku: skuB }, image: { id: imageA.body.id } },
+      where: { variant: { codigoSku: skuB }, image: { id: imageA.body.id } },
       relations: { image: true, variant: true },
     });
     expect(linkedToVariantB).toHaveLength(1);
