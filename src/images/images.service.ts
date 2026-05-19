@@ -38,7 +38,7 @@ export class ImagesService {
     }
 
     const variant = await this.productVariantsRepository.findOne({
-      where: { sku: dto.variantSku },
+      where: { codigoSku: dto.variantSku },
     });
     if (!variant) {
       throw new NotFoundException(
@@ -57,14 +57,14 @@ export class ImagesService {
 
   async findCatalogByVariantSku(variantSku: string): Promise<CatalogImage[]> {
     const variant = await this.productVariantsRepository.findOne({
-      where: { sku: variantSku },
+      where: { codigoSku: variantSku },
     });
     if (!variant) {
       throw new NotFoundException(`Variante com SKU ${variantSku} não encontrada`);
     }
 
     return this.catalogImagesRepository.find({
-      where: { variant: { sku: variantSku } },
+      where: { variant: { codigoSku: variantSku } },
       relations: { image: true, variant: true },
       order: { ordemNoCatalogo: 'ASC' },
     });
