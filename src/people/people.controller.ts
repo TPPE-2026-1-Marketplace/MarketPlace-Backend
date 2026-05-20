@@ -22,11 +22,14 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
+import { Role } from '../common/enums/role.enum';
+import { Roles } from '../common/decorators/roles.decorator';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { PeopleService } from './people.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 /**
  * Schema de paginação local. Será movido para `src/common/` em D2, quando
@@ -50,6 +53,9 @@ export class PeopleController {
   @ApiResponse({ status: 201, description: 'Pessoa registrada com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 409, description: 'Email já cadastrado' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CAIXA, Role.VENDEDOR, Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   registerPerson(@Body() dto: RegisterPersonDto) {
     return this.peopleService.registerPerson(dto);
   }
