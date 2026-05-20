@@ -34,19 +34,19 @@ export class PeopleService {
   /**
    * Fluxo 1: Caixa registra uma pessoa na loja física.
    *
-   * - Verifica se existe Person com esse email
-   * - Se existe: retorna erro (email deve ser único)
+   * - Verifica se existe Person com esse CPF
+   * - Se existe: retorna erro (CPF deve ser único)
    * - Se não existe: cria Person sem senha
    *
    * Depois, a pessoa pode completar o cadastro via registerUser (fluxo 2).
    */
   async registerPerson(dto: RegisterPersonDto): Promise<IPersonSafe> {
-    const existingEmail = await this.peopleRepository.findOne({
-      where: { email: dto.email },
+    const existingCpf = await this.peopleRepository.findOne({
+      where: { cpf: dto.cpf },
     });
 
-    if (existingEmail) {
-      throw new ConflictException('Email já cadastrado');
+    if (existingCpf) {
+      throw new ConflictException('CPF já cadastrado');
     }
 
     const person = this.peopleRepository.create({
