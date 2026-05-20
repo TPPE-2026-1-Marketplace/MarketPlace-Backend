@@ -9,12 +9,12 @@ import { Column, Entity, PrimaryColumn } from 'typeorm';
  * por funcionários.
  *
  * Decisões de modelagem (ver CONTEXT.md):
- * - PK: CPF (string de 11 dígitos sem formatação). Permite cadastro sem CPF
- *   pelo caixa não é suportado nesta versão — clientes sem CPF são tratados
- *   em iteração posterior (US11 cobre apenas o caixa criando com dados básicos).
+ * - PK: CPF (string de 11 dígitos sem formatação).
  * - `email` é único — usado para login.
  * - `senha` é nullable: clientes cadastrados pelo caixa (US11) entram sem
  *   senha e completam o cadastro depois (definindo a senha em fluxo separado).
+ * - Endereço está em tabela separada (N:1 com Person) — apenas pessoas
+ *   que completam auto-cadastro têm endereço(s).
  * - Nomes de coluna em português (alinhamento com o domínio de negócio).
  */
 @Entity()
