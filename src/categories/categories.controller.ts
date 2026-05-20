@@ -10,14 +10,20 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import {
+  ApiBearerAuth,
   ApiOperation,
   ApiParam,
   ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { CreateCategoryDto } from './dtos/create-category.dto';
 import { QueryCategoriesDto } from './dtos/query-categories.dto';
 import { UpdateCategoryDto } from './dtos/update-category.dto';
@@ -26,9 +32,12 @@ import { CategoriesService } from './categories.service';
 @ApiTags('categories')
 @Controller('categories')
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) {}
+  constructor(private readonly categoriesService: CategoriesService) { }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Cria uma categoria' })
   @ApiResponse({ status: 201, description: 'Categoria criada com sucesso' })
@@ -56,6 +65,9 @@ export class CategoriesController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Atualiza uma categoria' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Categoria atualizada' })
@@ -69,6 +81,9 @@ export class CategoriesController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove uma categoria' })
   @ApiParam({ name: 'id', type: Number })
