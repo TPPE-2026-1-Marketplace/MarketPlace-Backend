@@ -1,5 +1,9 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { CreateCatalogImageDto } from './dtos/create-catalog-image.dto';
 import { CreateImageDto } from './dtos/create-image.dto';
 import { ImagesService } from './images.service';
@@ -7,9 +11,12 @@ import { ImagesService } from './images.service';
 @ApiTags('images')
 @Controller('images')
 export class ImagesController {
-  constructor(private readonly imagesService: ImagesService) {}
+  constructor(private readonly imagesService: ImagesService) { }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Registra uma URL de imagem' })
   @ApiResponse({ status: 201, description: 'Imagem registrada com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
@@ -18,6 +25,9 @@ export class ImagesController {
   }
 
   @Post('catalog')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Vincula uma imagem a uma variante de produto' })
   @ApiResponse({ status: 201, description: 'Imagem vinculada ao catálogo' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
