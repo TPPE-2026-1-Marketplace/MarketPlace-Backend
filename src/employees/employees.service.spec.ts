@@ -240,7 +240,9 @@ describe('EmployeesService', () => {
 
             expect(personRepo.save).toHaveBeenCalled();
             expect(employeesRepo.save).toHaveBeenCalled();
-            expect(result).toEqual(updatedEmployee);
+            expect(result.cpf).toBe(mockEmployee.cpf);
+            expect(result.role_perfil).toBe(Role.GERENTE);
+            expect(result.person).not.toHaveProperty('senha');
         });
 
         it('lança NotFoundException quando employee não existe', async () => {
