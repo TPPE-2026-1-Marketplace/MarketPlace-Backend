@@ -38,12 +38,12 @@ describe('EmployeesController', () => {
         expect(guards).toEqual([JwtAuthGuard, RolesGuard]);
     });
 
-    it('restrige o acesso ao papel de administrador', () => {
+    it('restringe o acesso ao papel de administrador', () => {
         const roles = Reflect.getMetadata(ROLES_KEY, EmployeesController);
         expect(roles).toEqual([Role.ADMINISTRADOR]);
     });
 
-    it('delegates create to service', async () => {
+    it('delega create ao service', async () => {
         mockEmployeesService.create.mockResolvedValue({ cpf: '12345678901' });
 
         await controller.create({
