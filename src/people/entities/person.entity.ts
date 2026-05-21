@@ -22,8 +22,8 @@ export class Person {
   @PrimaryColumn({ type: 'varchar', length: 11 })
   cpf: string;
 
-  @Column({ type: 'varchar', length: 120 })
-  nome: string;
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  nome: string | null;
 
   @Column({ type: 'varchar', length: 160, unique: true })
   email: string;
