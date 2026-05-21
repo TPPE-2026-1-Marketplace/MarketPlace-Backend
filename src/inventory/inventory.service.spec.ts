@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
+import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { Between, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 import { MovementType, StockLog } from './entities/stock-log.entity';
@@ -46,9 +46,27 @@ describe('InventoryService', () => {
   let stockRepo: jest.Mocked<Repository<Stock>>;
   let stockLogRepo: jest.Mocked<Repository<StockLog>>;
   let variantRepo: jest.Mocked<Repository<ProductVariant>>;
+  let txStockRepo: { findOne: jest.Mock; create: jest.Mock; save: jest.Mock };
+  let txLogRepo: { create: jest.Mock; save: jest.Mock };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+
+    txStockRepo = { findOne: jest.fn(), create: jest.fn(), save: jest.fn() };
+    txLogRepo = { create: jest.fn(), save: jest.fn() };
+
+    const mockManager = {
+      getRepository: jest.fn((entity: unknown) => {
+        if (entity === Stock) return txStockRepo;
+        if (entity === StockLog) return txLogRepo;
+      }),
+    };
+
+    const mockDataSource = {
+      transaction: jest.fn((cb: (m: typeof mockManager) => Promise<unknown>) =>
+        cb(mockManager),
+      ),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -73,6 +91,10 @@ describe('InventoryService', () => {
         {
           provide: getRepositoryToken(ProductVariant),
           useValue: { existsBy: jest.fn() },
+        },
+        {
+          provide: getDataSourceToken(),
+          useValue: mockDataSource,
         },
       ],
     }).compile();
@@ -132,11 +154,11 @@ describe('InventoryService', () => {
 
   describe('adjust', () => {
     it('atualiza qtdOnline do estoque existente', async () => {
-      const current = { ...mockStock };
-      stockRepo.findOne.mockResolvedValue(current);
-      stockRepo.save.mockResolvedValue({ ...current, qtdOnline: 20 });
-      stockLogRepo.create.mockReturnValue(mockLog);
-      stockLogRepo.save.mockResolvedValue(mockLog);
+      variantRepo.existsBy.mockResolvedValue(true);
+      txStockRepo.findOne.mockResolvedValue({ ...mockStock });
+      txStockRepo.save.mockResolvedValue({ ...mockStock, qtdOnline: 20 });
+      txLogRepo.create.mockReturnValue(mockLog);
+      txLogRepo.save.mockResolvedValue(mockLog);
 
       await service.adjust(
         'CAMISETA-P',
@@ -144,39 +166,40 @@ describe('InventoryService', () => {
         '12345678901',
       );
 
-      expect(stockRepo.save).toHaveBeenCalledWith(
+      expect(txStockRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ qtdOnline: 20 }),
       );
     });
 
     it('preserva qtdLojaFisica quando apenas qtdOnline é fornecido', async () => {
-      stockRepo.findOne.mockResolvedValue({ ...mockStock });
-      stockRepo.save.mockResolvedValue({ ...mockStock, qtdOnline: 20 });
-      stockLogRepo.create.mockReturnValue(mockLog);
-      stockLogRepo.save.mockResolvedValue(mockLog);
+      variantRepo.existsBy.mockResolvedValue(true);
+      txStockRepo.findOne.mockResolvedValue({ ...mockStock });
+      txStockRepo.save.mockResolvedValue({ ...mockStock, qtdOnline: 20 });
+      txLogRepo.create.mockReturnValue(mockLog);
+      txLogRepo.save.mockResolvedValue(mockLog);
 
       await service.adjust('CAMISETA-P', { qtdOnline: 20, tipoMovimentacao: MovementType.AJUSTE });
 
-      expect(stockRepo.save).toHaveBeenCalledWith(
+      expect(txStockRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ qtdLojaFisica: 5 }),
       );
     });
 
     it('cria registro de estoque quando variante existe mas ainda não tem estoque', async () => {
       const newStock = { codigoSku: 'CAMISETA-P', qtdOnline: 0, qtdLojaFisica: 0 } as Stock;
-      stockRepo.findOne.mockResolvedValue(null);
       variantRepo.existsBy.mockResolvedValue(true);
-      stockRepo.create.mockReturnValue(newStock);
-      stockRepo.save.mockResolvedValue({ ...newStock, qtdOnline: 15 });
-      stockLogRepo.create.mockReturnValue(mockLog);
-      stockLogRepo.save.mockResolvedValue(mockLog);
+      txStockRepo.findOne.mockResolvedValue(null);
+      txStockRepo.create.mockReturnValue(newStock);
+      txStockRepo.save.mockResolvedValue({ ...newStock, qtdOnline: 15 });
+      txLogRepo.create.mockReturnValue(mockLog);
+      txLogRepo.save.mockResolvedValue(mockLog);
 
       await service.adjust(
         'CAMISETA-P',
         { qtdOnline: 15, tipoMovimentacao: MovementType.ENTRADA },
       );
 
-      expect(stockRepo.create).toHaveBeenCalledWith({
+      expect(txStockRepo.create).toHaveBeenCalledWith({
         codigoSku: 'CAMISETA-P',
         qtdOnline: 0,
         qtdLojaFisica: 0,
@@ -184,21 +207,21 @@ describe('InventoryService', () => {
     });
 
     it('lança NotFoundException quando variante não existe', async () => {
-      stockRepo.findOne.mockResolvedValue(null);
       variantRepo.existsBy.mockResolvedValue(false);
 
       await expect(
         service.adjust('INEXISTENTE', { qtdOnline: 10, tipoMovimentacao: MovementType.AJUSTE }),
       ).rejects.toBeInstanceOf(NotFoundException);
 
-      expect(stockRepo.save).not.toHaveBeenCalled();
+      expect(txStockRepo.save).not.toHaveBeenCalled();
     });
 
     it('registra log com valores anterior e novo corretos', async () => {
-      stockRepo.findOne.mockResolvedValue({ ...mockStock, qtdOnline: 10, qtdLojaFisica: 5 });
-      stockRepo.save.mockResolvedValue({ ...mockStock, qtdOnline: 15 });
-      stockLogRepo.create.mockReturnValue(mockLog);
-      stockLogRepo.save.mockResolvedValue(mockLog);
+      variantRepo.existsBy.mockResolvedValue(true);
+      txStockRepo.findOne.mockResolvedValue({ ...mockStock, qtdOnline: 10, qtdLojaFisica: 5 });
+      txStockRepo.save.mockResolvedValue({ ...mockStock, qtdOnline: 15 });
+      txLogRepo.create.mockReturnValue(mockLog);
+      txLogRepo.save.mockResolvedValue(mockLog);
 
       await service.adjust(
         'CAMISETA-P',
@@ -206,7 +229,7 @@ describe('InventoryService', () => {
         '12345678901',
       );
 
-      expect(stockLogRepo.create).toHaveBeenCalledWith(
+      expect(txLogRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           valorAnteriorOnline: 10,
           valorNovoOnline: 15,
@@ -218,10 +241,11 @@ describe('InventoryService', () => {
     });
 
     it('grava motivo no log quando fornecido', async () => {
-      stockRepo.findOne.mockResolvedValue({ ...mockStock });
-      stockRepo.save.mockResolvedValue(mockStock);
-      stockLogRepo.create.mockReturnValue(mockLog);
-      stockLogRepo.save.mockResolvedValue(mockLog);
+      variantRepo.existsBy.mockResolvedValue(true);
+      txStockRepo.findOne.mockResolvedValue({ ...mockStock });
+      txStockRepo.save.mockResolvedValue(mockStock);
+      txLogRepo.create.mockReturnValue(mockLog);
+      txLogRepo.save.mockResolvedValue(mockLog);
 
       await service.adjust('CAMISETA-P', {
         qtdOnline: 10,
@@ -229,22 +253,35 @@ describe('InventoryService', () => {
         motivo: 'Inventário mensal',
       });
 
-      expect(stockLogRepo.create).toHaveBeenCalledWith(
+      expect(txLogRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ motivo: 'Inventário mensal' }),
       );
     });
 
     it('grava null no log quando origem não é fornecida', async () => {
-      stockRepo.findOne.mockResolvedValue({ ...mockStock });
-      stockRepo.save.mockResolvedValue(mockStock);
-      stockLogRepo.create.mockReturnValue(mockLog);
-      stockLogRepo.save.mockResolvedValue(mockLog);
+      variantRepo.existsBy.mockResolvedValue(true);
+      txStockRepo.findOne.mockResolvedValue({ ...mockStock });
+      txStockRepo.save.mockResolvedValue(mockStock);
+      txLogRepo.create.mockReturnValue(mockLog);
+      txLogRepo.save.mockResolvedValue(mockLog);
 
       await service.adjust('CAMISETA-P', { qtdOnline: 10, tipoMovimentacao: MovementType.AJUSTE });
 
-      expect(stockLogRepo.create).toHaveBeenCalledWith(
+      expect(txLogRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ origem: null }),
       );
+    });
+
+    it('não persiste Stock se o insert do StockLog falhar', async () => {
+      variantRepo.existsBy.mockResolvedValue(true);
+      txStockRepo.findOne.mockResolvedValue({ ...mockStock });
+      txStockRepo.save.mockResolvedValue(mockStock);
+      txLogRepo.create.mockReturnValue(mockLog);
+      txLogRepo.save.mockRejectedValue(new Error('DB error'));
+
+      await expect(
+        service.adjust('CAMISETA-P', { qtdOnline: 10, tipoMovimentacao: MovementType.AJUSTE }),
+      ).rejects.toThrow('DB error');
     });
   });
 
