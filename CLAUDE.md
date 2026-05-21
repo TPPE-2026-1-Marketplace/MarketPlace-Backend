@@ -315,6 +315,7 @@ PK composta (id_imagem, codigo_sku).
 | `valor_anterior_loja`     | int                                           |            |
 | `valor_novo_loja`         | int                                           |            |
 | `origem`                  | varchar (cpf do usuário ou identificador)     |            |
+| `motivo`                  | varchar(200)                                  | NULL       |
 
 #### `coupon` (D5)
 
