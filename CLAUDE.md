@@ -182,23 +182,18 @@ PK: `cpf` (varchar 11, sem máscara).
 | Coluna     | Tipo          | Constraint        |
 | ---------- | ------------- | ----------------- |
 | `cpf`      | varchar(11)   | PK                |
-| `nome`     | varchar(120)  | NOT NULL          |
+| `nome`     | varchar(120)  | NULL              |
 | `email`    | varchar(160)  | UNIQUE, NOT NULL  |
 | `telefone` | varchar(20)   | NULL              |
 | `senha`    | varchar(120)  | NULL (hash bcrypt)|
 
 **Notas:**
+- `nome` é nullable para suportar auto-cadastro pelo website (US02) — usuário
+  pode criar conta com só email + senha e preencher nome depois.
 - `senha` é nullable para suportar cadastro pelo caixa (US11) — cliente sem
   senha não consegue fazer login (validação no AuthService).
-- Hash bcrypt **ainda não aplicado** (issue #34, próxima da D0).
 
-### Tabelas planejadas (ainda não implementadas)
-
-Forma final esperada com base no diagrama ER. **Sempre que criar uma entity
-nova, conferir aqui se a FK aponta pra coluna certa** (várias apontam pra
-`person.cpf`, não `person.id`).
-
-#### `employee` (D2)
+#### `employee` ✅ (issue #46)
 
 Especialização 1:1 de `person`. PK = FK.
 
@@ -209,21 +204,35 @@ Especialização 1:1 de `person`. PK = FK.
 | `role_perfil`        | enum Role     | NOT NULL                          |
 | `taxa_comissao`      | numeric(5,4)  | DEFAULT 0.025 (2,5%)              |
 | `meta_vendas`        | numeric(12,2) | NULL                              |
-| `codigo_funcionario` | varchar(20)   | UNIQUE                            |
+| `codigo_funcionario` | varchar(20)   | UNIQUE, NULL                      |
 
-#### `address` (D2)
+**Notas:**
+- `create` retorna `senha_temporaria` em texto plano para o admin repassar ao funcionário.
+- `eager: true` na relação com `Person` — sempre carrega person aninhada, sem senha.
 
-| Coluna       | Tipo          | Constraint                        |
-| ------------ | ------------- | --------------------------------- |
-| `id`         | uuid / serial | PK                                |
-| `cpf_pessoa` | varchar(11)   | FK → `person.cpf`                 |
-| `cep`        | varchar(9)    | NOT NULL                          |
-| `logradouro` | varchar       |                                   |
-| `numero`     | varchar       |                                   |
-| `complemento`| varchar       | NULL                              |
-| `bairro`     | varchar       |                                   |
-| `cidade`     | varchar       |                                   |
-| `uf`         | varchar(2)    |                                   |
+#### `address` ✅ (issue #45)
+
+| Coluna        | Tipo    | Constraint            |
+| ------------- | ------- | --------------------- |
+| `id`          | serial  | PK                    |
+| `cpf_pessoa`  | varchar(11) | FK → `person.cpf` |
+| `cep`         | varchar(8)  | NOT NULL              |
+| `logradouro`  | varchar | NOT NULL              |
+| `numero`      | varchar | NOT NULL              |
+| `complemento` | varchar | NULL                  |
+| `bairro`      | varchar | NOT NULL              |
+| `cidade`      | varchar | NOT NULL              |
+| `uf`          | varchar(2) | NOT NULL             |
+
+**Notas:**
+- Criada junto com `registerUser` (fluxo 2) quando `endereco` vem no payload.
+- `AddressesService.create(cpf, dto)` é o método público — usado pelo `PeopleService`.
+
+### Tabelas planejadas (ainda não implementadas)
+
+Forma final esperada com base no diagrama ER. **Sempre que criar uma entity
+nova, conferir aqui se a FK aponta pra coluna certa** (várias apontam pra
+`person.cpf`, não `person.id`).
 
 #### `category` (D1)
 
