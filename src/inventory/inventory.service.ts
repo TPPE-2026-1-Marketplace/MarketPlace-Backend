@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import {
   Between,
+  DataSource,
   FindOptionsWhere,
   LessThanOrEqual,
   MoreThanOrEqual,
@@ -27,6 +28,8 @@ export class InventoryService {
     private readonly stockLogRepository: Repository<StockLog>,
     @InjectRepository(ProductVariant)
     private readonly variantRepository: Repository<ProductVariant>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   async findPublic(
@@ -61,46 +64,51 @@ export class InventoryService {
     dto: UpdateStockDto,
     origem?: string,
   ): Promise<Stock> {
-    let stock = await this.stockRepository.findOne({ where: { codigoSku } });
-
-    if (!stock) {
-      const variantExists = await this.variantRepository.existsBy({ codigoSku });
-      if (!variantExists) {
-        throw new NotFoundException(
-          `Variante com SKU ${codigoSku} não encontrada`,
-        );
-      }
-      stock = this.stockRepository.create({ codigoSku, qtdOnline: 0, qtdLojaFisica: 0 });
+    const variantExists = await this.variantRepository.existsBy({ codigoSku });
+    if (!variantExists) {
+      throw new NotFoundException(
+        `Variante com SKU ${codigoSku} não encontrada`,
+      );
     }
 
-    const anteriorOnline = stock.qtdOnline;
-    const anteriorLoja = stock.qtdLojaFisica;
+    return this.dataSource.transaction(async (manager) => {
+      const stockRepo = manager.getRepository(Stock);
+      const logRepo = manager.getRepository(StockLog);
 
-    stock.qtdOnline = dto.qtdOnline ?? anteriorOnline;
-    stock.qtdLojaFisica = dto.qtdLojaFisica ?? anteriorLoja;
+      let stock = await stockRepo.findOne({ where: { codigoSku } });
+      if (!stock) {
+        stock = stockRepo.create({ codigoSku, qtdOnline: 0, qtdLojaFisica: 0 });
+      }
 
-    await this.stockRepository.save(stock);
+      const anteriorOnline = stock.qtdOnline;
+      const anteriorLoja = stock.qtdLojaFisica;
 
-    const quantidadeMovimentada =
-      Math.abs(stock.qtdOnline - anteriorOnline) +
-      Math.abs(stock.qtdLojaFisica - anteriorLoja);
+      stock.qtdOnline = dto.qtdOnline ?? anteriorOnline;
+      stock.qtdLojaFisica = dto.qtdLojaFisica ?? anteriorLoja;
 
-    const log = this.stockLogRepository.create({
-      codigoSku,
-      tipoMovimentacao: dto.tipoMovimentacao,
-      quantidadeMovimentada,
-      valorAnteriorOnline: anteriorOnline,
-      valorNovoOnline: stock.qtdOnline,
-      valorAnteriorLoja: anteriorLoja,
-      valorNovoLoja: stock.qtdLojaFisica,
-      origem: origem ?? null,
-      motivo: dto.motivo ?? null,
-      idPedido: null,
+      await stockRepo.save(stock);
+
+      const quantidadeMovimentada =
+        Math.abs(stock.qtdOnline - anteriorOnline) +
+        Math.abs(stock.qtdLojaFisica - anteriorLoja);
+
+      const log = logRepo.create({
+        codigoSku,
+        tipoMovimentacao: dto.tipoMovimentacao,
+        quantidadeMovimentada,
+        valorAnteriorOnline: anteriorOnline,
+        valorNovoOnline: stock.qtdOnline,
+        valorAnteriorLoja: anteriorLoja,
+        valorNovoLoja: stock.qtdLojaFisica,
+        origem: origem ?? null,
+        motivo: dto.motivo ?? null,
+        idPedido: null,
+      });
+
+      await logRepo.save(log);
+
+      return stock;
     });
-
-    await this.stockLogRepository.save(log);
-
-    return stock;
   }
 
   async getLogs(
