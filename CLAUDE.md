@@ -119,9 +119,17 @@ Hierarquia de funcionários (cada nível inclui o anterior):
 
 ---
 
-## Resposta de erro padronizada
+## Pipes e filtros globais
 
-`AllExceptionsFilter` em `src/common/filters/`, registrado globalmente:
+`ZodValidationPipe` registrado globalmente em `main.ts` (`app.useGlobalPipes`).
+Toda classe DTO que extends `createZodDto(schema)` é validada automaticamente
+antes de chegar ao controller — sem precisar de `@UsePipes()` no endpoint.
+
+### Resposta de erro padronizada (pendente)
+
+`AllExceptionsFilter` **ainda não implementado** — mencionado no design mas
+ausente em `src/common/filters/`. Erros de validação do Zod retornam o formato
+padrão do `nestjs-zod`. Formato alvo quando implementado:
 
 ```json
 {
@@ -133,9 +141,6 @@ Hierarquia de funcionários (cada nível inclui o anterior):
   "errors": [{ "field": "email", "message": "Invalid email format" }]
 }
 ```
-
-Para erros do Zod, mapear `error.errors` → `errors[]`. Para `HttpException`,
-preservar `statusCode` e `message`.
 
 ---
 
@@ -228,94 +233,104 @@ Especialização 1:1 de `person`. PK = FK.
 - Criada junto com `registerUser` (fluxo 2) quando `endereco` vem no payload.
 - `AddressesService.create(cpf, dto)` é o método público — usado pelo `PeopleService`.
 
-### Tabelas planejadas (ainda não implementadas)
+#### `category` ✅ (issue #D1)
 
-Forma final esperada com base no diagrama ER. **Sempre que criar uma entity
-nova, conferir aqui se a FK aponta pra coluna certa** (várias apontam pra
-`person.cpf`, não `person.id`).
+| Coluna        | Tipo        | Constraint |
+| ------------- | ----------- | ---------- |
+| `id_categoria`| serial      | PK         |
+| `nome`        | varchar(80) | NOT NULL   |
 
-#### `category` (D1)
+**Nota:** a constraint UNIQUE em `nome` prevista no diagrama **não foi aplicada** na entity — sem `unique: true` no `@Column`. Confirmar se é intencional.
 
-| Coluna        | Tipo  | Constraint |
-| ------------- | ----- | ---------- |
-| `id_categoria`| serial| PK         |
-| `nome`        | varchar(80) | UNIQUE, NOT NULL |
-
-#### `product` (D1)
+#### `product` ✅ (issue #D1)
 
 | Coluna        | Tipo           | Constraint        |
 | ------------- | -------------- | ----------------- |
 | `id_produto`  | serial         | PK                |
 | `titulo`      | varchar(180)   | NOT NULL          |
-| `descricao`   | text           |                   |
+| `descricao`   | text           | NULL              |
 | `destaque`    | boolean        | DEFAULT false     |
-| `qual_medida` | varchar        |                   |
-| `material`    | varchar        |                   |
-| `composicao`  | varchar        |                   |
-| `silhueta`    | varchar        |                   |
-| `tags`        | text[] ou varchar |                |
+| `qual_medida` | varchar(80)    | NULL              |
+| `material`    | varchar(120)   | NULL              |
+| `composicao`  | varchar(180)   | NULL              |
+| `silhueta`    | varchar(120)   | NULL              |
+| `tags`        | simple-array   | NULL (varchar CSV interno ao TypeORM) |
 | `preco_base`  | numeric(10,2)  | NOT NULL          |
-| `sku`         | varchar        | UNIQUE            |
+| `sku`         | varchar(80)    | UNIQUE, NOT NULL  |
 
-Relação N:N com `category` via `@ManyToMany` + `@JoinTable({ name: 'product_category' })`.
-TypeORM cria a tabela de junção sozinho.
+Relação N:N com `category` via `@JoinTable({ name: 'product_category' })`.
+Colunas da junção: `product_id` → `product.id_produto`, `category_id` → `category.id_categoria`.
 
-#### `product_variant` (D1)
+#### `product_variant` ✅ (issue #D1)
 
 | Coluna           | Tipo           | Constraint                  |
 | ---------------- | -------------- | --------------------------- |
-| `codigo_sku`     | varchar(40)    | PK                          |
+| `codigo_sku`     | varchar(**80**)| PK ⚠️ (diagrama dizia 40)   |
 | `id_produto`     | int            | FK → `product.id_produto`   |
-| `preco_variante` | numeric(10,2)  | NOT NULL                    |
+| `preco_variante` | numeric(12,2)  | NOT NULL                    |
 | `ativo`          | boolean        | DEFAULT true                |
-| `cor`            | varchar        |                             |
-| `tamanho`        | varchar        |                             |
-| `medidas`        | jsonb          | Estrutura aberta (busto, cintura, quadril, comprimento, manga, pulso — em cm) |
+| `cor`            | varchar(80)    | NULL                        |
+| `tamanho`        | varchar(40)    | NULL                        |
+| `medidas`        | jsonb          | NULL (interface `Measurements` em `product-variants/interfaces/`) |
 
-#### `image` (D1)
+#### `image` ✅ (issue #D1)
 
-| Coluna                  | Tipo           | Constraint |
-| ----------------------- | -------------- | ---------- |
-| `id_imagem`             | serial         | PK         |
-| `url`                   | text           | NOT NULL   |
-| `ordem`                 | int            |            |
-| `descricao`             | varchar        |            |
-| `local_renderizacao`    | varchar        |            |
+| Coluna               | Tipo         | Constraint |
+| -------------------- | ------------ | ---------- |
+| `id_imagem`          | serial       | PK         |
+| `url`                | text         | NOT NULL   |
+| `ordem`              | int          | DEFAULT 0  |
+| `descricao`          | varchar(255) | NULL       |
+| `local_renderizacao` | varchar(120) | NULL       |
 
-#### `catalog_image` (D1)
+#### `catalog_image` ✅ (issue #D1)
 
-| Coluna                | Tipo        | Constraint                        |
-| --------------------- | ----------- | --------------------------------- |
-| `id_imagem`           | int         | FK → `image.id_imagem`            |
-| `codigo_sku`          | varchar(40) | FK → `product_variant.codigo_sku` |
-| `ordem_no_catalogo`   | int         |                                   |
+PK composta (`id_imagem`, `codigo_sku`).
 
-PK composta (id_imagem, codigo_sku).
+| Coluna            | Tipo        | Constraint                        |
+| ----------------- | ----------- | --------------------------------- |
+| `id_imagem`       | int         | PK, FK → `image.id_imagem`        |
+| `codigo_sku`      | varchar(40) | PK, FK → `product_variant.codigo_sku` |
+| `ordem_no_catalogo` | int       | DEFAULT 0                         |
 
-#### `stock` (D3)
+#### `stock` ✅ (issues #50–52)
 
-| Coluna             | Tipo        | Constraint                                       |
-| ------------------ | ----------- | ------------------------------------------------ |
-| `codigo_sku`       | varchar(40) | PK, FK → `product_variant.codigo_sku` (1:1)      |
-| `qtd_online`       | int         | DEFAULT 0, CHECK >= 0                            |
-| `qtd_loja_fisica`  | int         | DEFAULT 0, CHECK >= 0                            |
+| Coluna            | Tipo        | Constraint                                  |
+| ----------------- | ----------- | ------------------------------------------- |
+| `codigo_sku`      | varchar(40) | PK, FK → `product_variant.codigo_sku` (1:1) |
+| `qtd_online`      | int         | DEFAULT 0, CHECK >= 0                       |
+| `qtd_loja_fisica` | int         | DEFAULT 0, CHECK >= 0                       |
 
-#### `stock_log` (D3)
+**Notas:**
+- Registro criado automaticamente no primeiro `adjust` caso a variante ainda não tenha estoque.
+- `adjust` usa `dataSource.transaction` para garantir atomicidade com o `StockLog`.
 
-| Coluna                    | Tipo                                          | Constraint |
-| ------------------------- | --------------------------------------------- | ---------- |
-| `id_log`                  | serial                                        | PK         |
-| `codigo_sku`              | varchar(40)                                   | FK → `product_variant.codigo_sku` |
-| `id_pedido`               | int                                           | FK → `orders.id_pedido`, NULL |
-| `tipo_movimentacao`       | enum (entrada, saida, ajuste, venda)          | NOT NULL   |
-| `quantidade_movimentada`  | int                                           | NOT NULL   |
-| `data_criacao`            | timestamp                                     | DEFAULT now() |
-| `valor_anterior_online`   | int                                           |            |
-| `valor_novo_online`       | int                                           |            |
-| `valor_anterior_loja`     | int                                           |            |
-| `valor_novo_loja`         | int                                           |            |
-| `origem`                  | varchar (cpf do usuário ou identificador)     |            |
-| `motivo`                  | varchar(200)                                  | NULL       |
+#### `stock_log` ✅ (issues #50, #53–54)
+
+| Coluna                   | Tipo                                     | Constraint                        |
+| ------------------------ | ---------------------------------------- | --------------------------------- |
+| `id_log`                 | serial                                   | PK                                |
+| `codigo_sku`             | varchar(40)                              | FK → `product_variant.codigo_sku` |
+| `id_pedido`              | int                                      | NULL (sem FK TypeORM até orders existir) |
+| `tipo_movimentacao`      | enum (entrada, saida, ajuste, venda)     | NOT NULL                          |
+| `quantidade_movimentada` | int                                      | NOT NULL                          |
+| `data_criacao`           | timestamp                                | DEFAULT now()                     |
+| `valor_anterior_online`  | int                                      |                                   |
+| `valor_novo_online`      | int                                      |                                   |
+| `valor_anterior_loja`    | int                                      |                                   |
+| `valor_novo_loja`        | int                                      |                                   |
+| `origem`                 | varchar(80)                              | NULL (cpf do usuário)             |
+| `motivo`                 | varchar(200)                             | NULL                              |
+
+**Notas:**
+- Gerado automaticamente em toda alteração de `Stock`, na mesma transação.
+- Quando o módulo `orders` for implementado, adicionar `@ManyToOne(() => Order)` em `id_pedido`.
+
+### Tabelas planejadas (ainda não implementadas)
+
+Forma final esperada com base no diagrama ER. **Sempre que criar uma entity
+nova, conferir aqui se a FK aponta pra coluna certa** (várias apontam pra
+`person.cpf`, não `person.id`).
 
 #### `coupon` (D5)
 
