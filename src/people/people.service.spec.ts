@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { AddressesService } from '../addresses/addresses.service';
 import { PeopleService } from './people.service';
 import { Person } from './entities/person.entity';
 
@@ -24,6 +25,7 @@ const uniqueViolationError = new QueryFailedError('INSERT', [], {
 describe('PeopleService', () => {
   let service: PeopleService;
   let repo: jest.Mocked<Repository<Person>>;
+  let addressesService: jest.Mocked<AddressesService>;
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -42,11 +44,16 @@ describe('PeopleService', () => {
             delete: jest.fn(),
           },
         },
+        {
+          provide: AddressesService,
+          useValue: { create: jest.fn() },
+        },
       ],
     }).compile();
 
     service = module.get(PeopleService);
     repo = module.get(getRepositoryToken(Person));
+    addressesService = module.get(AddressesService);
   });
 
   describe('registerPerson', () => {
@@ -139,6 +146,41 @@ describe('PeopleService', () => {
           senha: 'senha123',
         }),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('persiste endereço quando fornecido no cadastro de pessoa nova', async () => {
+      repo.findOne.mockResolvedValue(null);
+      repo.create.mockReturnValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+      addressesService.create.mockResolvedValue({} as any);
+
+      await service.registerUser({
+        email: mockPerson.email,
+        senha: 'senha123',
+        endereco: {
+          cep: '70040010',
+          logradouro: 'Esplanada dos Ministérios',
+          numero: '1',
+          bairro: 'Zona Cívico-Administrativa',
+          cidade: 'Brasília',
+          uf: 'DF',
+        },
+      });
+
+      expect(addressesService.create).toHaveBeenCalledWith(
+        mockPerson.cpf,
+        expect.objectContaining({ cep: '70040010', uf: 'DF' }),
+      );
+    });
+
+    it('não chama addressesService quando endereço não é fornecido', async () => {
+      repo.findOne.mockResolvedValue(null);
+      repo.create.mockReturnValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+
+      await service.registerUser({ email: mockPerson.email, senha: 'senha123' });
+
+      expect(addressesService.create).not.toHaveBeenCalled();
     });
   });
 

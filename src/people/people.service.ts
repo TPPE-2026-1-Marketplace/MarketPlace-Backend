@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { QueryFailedError, Repository } from 'typeorm';
+import { AddressesService } from '../addresses/addresses.service';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
@@ -20,7 +21,8 @@ export class PeopleService {
   constructor(
     @InjectRepository(Person)
     private readonly peopleRepository: Repository<Person>,
-  ) { }
+    private readonly addressesService: AddressesService,
+  ) {}
 
   /**
    * Remove o campo `senha` antes de devolver uma Person.
@@ -96,14 +98,13 @@ export class PeopleService {
         }
 
         existing.senha = senhaHash;
-        if (dto.nome) {
-          existing.nome = dto.nome;
-        }
-        if (dto.telefone) {
-          existing.telefone = dto.telefone;
-        }
+        if (dto.nome) existing.nome = dto.nome;
+        if (dto.telefone) existing.telefone = dto.telefone;
 
         const updated = await this.peopleRepository.save(existing);
+        if (dto.endereco) {
+          await this.addressesService.create(updated.cpf, dto.endereco);
+        }
         return this.stripPassword(updated);
       }
     }
@@ -119,6 +120,9 @@ export class PeopleService {
 
     try {
       const saved = await this.peopleRepository.save(person);
+      if (dto.endereco) {
+        await this.addressesService.create(saved.cpf, dto.endereco);
+      }
       return this.stripPassword(saved);
     } catch (err) {
       if (
