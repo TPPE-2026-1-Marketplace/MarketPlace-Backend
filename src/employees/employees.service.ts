@@ -24,7 +24,15 @@ export class EmployeesService {
         private readonly dataSource: DataSource,
     ) { }
 
-    async create(dto: CreateEmployeeDto): Promise<Employee> {
+  private stripPersonPassword(employee: Employee): Employee {
+    if (employee.person) {
+      const { senha: _ignored, ...personSafe } = employee.person;
+      return { ...employee, person: personSafe as Employee['person'] };
+    }
+    return employee;
+  }
+
+  async create(dto: CreateEmployeeDto): Promise<Employee> {
         return this.dataSource.transaction(async (manager) => {
             const peopleRepository = manager.getRepository(Person);
             const employeesRepository = manager.getRepository(Employee);
@@ -80,15 +88,8 @@ export class EmployeesService {
             try {
                 const savedEmployee = await employeesRepository.save(employee);
 
-                // Removemos o hash da senha do objeto de retorno para não vazar pro frontend
-                if (savedEmployee.person) {
-                    delete (savedEmployee.person as any).senha;
-                }
-
-                // Retornamos a entidade original adicionando a senha em texto plano 
-                // apenas para o admin repassar ao funcionário
                 return {
-                    ...savedEmployee,
+                    ...this.stripPersonPassword(savedEmployee),
                     senha_temporaria: senhaTemporaria,
                 };
             } catch (err) {
@@ -118,7 +119,7 @@ export class EmployeesService {
         });
 
         return {
-            data: rows,
+            data: rows.map((e) => this.stripPersonPassword(e)),
             meta: {
                 page,
                 limit,
@@ -137,7 +138,7 @@ export class EmployeesService {
             throw new NotFoundException(`Employee com CPF ${cpf} não encontrado`);
         }
 
-        return employee;
+        return this.stripPersonPassword(employee);
     }
 
     async update(cpf: string, dto: UpdateEmployeeDto): Promise<Employee> {
