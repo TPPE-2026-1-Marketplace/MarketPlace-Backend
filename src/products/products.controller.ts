@@ -32,7 +32,7 @@ import { ProductsService } from './products.service';
 @ApiTags('products')
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly productsService: ProductsService) {}
+  constructor(private readonly productsService: ProductsService) { }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -98,6 +98,9 @@ export class ProductsController {
   }
 
   @Post(':id/categories/:categoryId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Associa uma categoria a um produto' })
   @ApiParam({ name: 'id', type: Number })
   @ApiParam({ name: 'categoryId', type: Number })
@@ -111,6 +114,9 @@ export class ProductsController {
   }
 
   @Delete(':id/categories/:categoryId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Remove uma categoria de um produto' })
   @ApiParam({ name: 'id', type: Number })
   @ApiParam({ name: 'categoryId', type: Number })
