@@ -168,7 +168,8 @@ export class EmployeesService {
 
             try {
                 await peopleRepository.save(person);
-                return await employeesRepository.save(employee);
+                const updated = await employeesRepository.save(employee);
+                return this.stripPersonPassword(updated);
             } catch (err) {
                 if (
                     err instanceof QueryFailedError &&
