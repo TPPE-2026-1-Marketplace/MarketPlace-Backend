@@ -78,7 +78,7 @@ describe('PeopleService', () => {
       });
     });
 
-    it('retorna ConflictException quando email já existe', async () => {
+    it('retorna ConflictException quando CPF já existe', async () => {
       repo.findOne.mockResolvedValue(mockPerson);
 
       await expect(
