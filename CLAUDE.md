@@ -315,6 +315,7 @@ PK composta (id_imagem, codigo_sku).
 | `valor_anterior_loja`     | int                                           |            |
 | `valor_novo_loja`         | int                                           |            |
 | `origem`                  | varchar (cpf do usuário ou identificador)     |            |
+| `motivo`                  | varchar(200)                                  | NULL       |
 
 #### `coupon` (D5)
 
@@ -418,7 +419,11 @@ make dev-logs      # acompanha logs
 make dev-shell     # shell no container da API
 make db-shell      # psql no container do postgres
 make dev-reset     # derruba tudo e apaga volumes (banco incluso)
+make dev-test path=<modulo>  # roda testes de um módulo dentro do container
 ```
+
+**Testes:** sempre usar `make dev-test path=<modulo>` (ex: `make dev-test path=inventory`).
+Os testes rodam dentro do container Docker — chamar `pnpm test` direto na máquina host não reflete o ambiente correto.
 
 ---
 
