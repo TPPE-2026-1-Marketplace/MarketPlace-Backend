@@ -111,7 +111,7 @@ export class PeopleService {
     // CPF não existe ou não foi informado: cria Person nova
     const person = this.peopleRepository.create({
       cpf: dto.cpf,
-      nome: dto.nome || 'Usuário',
+      nome: dto.nome ?? null,
       email: dto.email,
       telefone: dto.telefone ?? null,
       senha: senhaHash,
