@@ -9,8 +9,13 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { CreateProductVariantDto } from './dtos/create-product-variant.dto';
 import { QueryProductVariantsDto } from './dtos/query-product-variants.dto';
 import { UpdateProductVariantDto } from './dtos/update-product-variant.dto';
@@ -19,9 +24,12 @@ import { ProductVariantsService } from './product-variants.service';
 @ApiTags('product-variants')
 @Controller('product-variants')
 export class ProductVariantsController {
-  constructor(private readonly productVariantsService: ProductVariantsService) {}
+  constructor(private readonly productVariantsService: ProductVariantsService) { }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Cria uma variante de produto' })
   @ApiResponse({ status: 201, description: 'Variante criada com sucesso' })
@@ -51,6 +59,9 @@ export class ProductVariantsController {
   }
 
   @Patch(':sku')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Atualiza uma variante' })
   @ApiParam({ name: 'sku', type: String })
   @ApiResponse({ status: 200, description: 'Variante atualizada' })
@@ -61,6 +72,9 @@ export class ProductVariantsController {
   }
 
   @Delete(':sku')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMINISTRADOR)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove uma variante' })
   @ApiParam({ name: 'sku', type: String })
