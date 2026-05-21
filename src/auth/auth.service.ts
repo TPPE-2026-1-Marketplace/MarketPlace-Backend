@@ -3,22 +3,22 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
-import { Person } from '../people/entities/person.entity';
-import { LoginDto } from './dtos/login.dto';
+import { Employee } from '../employees/entities/employee.entity';
+import { PeopleService } from '../people/people.service';
 import { Role } from '../common/enums/role.enum';
+import { LoginDto } from './dtos/login.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(Person)
-    private readonly personRepository: Repository<Person>,
+    private readonly peopleService: PeopleService,
+    @InjectRepository(Employee)
+    private readonly employeeRepository: Repository<Employee>,
     private readonly jwtService: JwtService,
   ) {}
 
   async login(dto: LoginDto): Promise<{ access_token: string }> {
-    const person = await this.personRepository.findOne({
-      where: { email: dto.email },
-    });
+    const person = await this.peopleService.findByEmailWithPassword(dto.email);
 
     if (!person) {
       throw new UnauthorizedException('Email ou senha inválidos');
@@ -33,13 +33,17 @@ export class AuthService {
       throw new UnauthorizedException('Email ou senha inválidos');
     }
 
-    const payload = {
+    const employee = await this.employeeRepository.findOne({
+      where: { cpf: person.cpf },
+    });
+
+    const role = employee ? employee.role_perfil : Role.CLIENTE;
+
+    const access_token = this.jwtService.sign({
       sub: person.cpf,
       email: person.email,
-      role: Role.CLIENTE, // Será atualizado em D2 quando Employee for implementado
-    };
-
-    const access_token = this.jwtService.sign(payload);
+      role,
+    });
 
     return { access_token };
   }

@@ -5,7 +5,9 @@ import { UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
 import { AuthService } from './auth.service';
+import { Employee } from '../employees/entities/employee.entity';
 import { Person } from '../people/entities/person.entity';
+import { PeopleService } from '../people/people.service';
 import { LoginDto } from './dtos/login.dto';
 import { Role } from '../common/enums/role.enum';
 
@@ -19,12 +21,23 @@ const mockPerson: Person = {
   senha: '$2b$10$hashedpassword123456789',
 };
 
+const mockEmployee: Employee = {
+  cpf: mockPerson.cpf,
+  person: mockPerson,
+  ativo: true,
+  role_perfil: Role.CAIXA,
+  taxa_comissao: 0.025,
+  meta_vendas: null,
+  codigo_funcionario: null,
+};
+
 const mockJwtToken =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwMSIsImVtYWlsIjoiam9hb0BlbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlhdCI6MTU2NzgwMDAwMCwiZXhwIjoxNTY3ODg2NDAwfQ.signature';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let personRepo: jest.Mocked<Repository<Person>>;
+  let peopleService: jest.Mocked<PeopleService>;
+  let employeeRepo: jest.Mocked<Repository<Employee>>;
   let jwtService: jest.Mocked<JwtService>;
 
   beforeEach(async () => {
@@ -35,51 +48,42 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         {
-          provide: getRepositoryToken(Person),
-          useValue: {
-            findOne: jest.fn(),
-          },
+          provide: PeopleService,
+          useValue: { findByEmailWithPassword: jest.fn() },
+        },
+        {
+          provide: getRepositoryToken(Employee),
+          useValue: { findOne: jest.fn() },
         },
         {
           provide: JwtService,
-          useValue: {
-            sign: jest.fn().mockReturnValue(mockJwtToken),
-          },
+          useValue: { sign: jest.fn().mockReturnValue(mockJwtToken) },
         },
       ],
     }).compile();
 
     service = module.get(AuthService);
-    personRepo = module.get(getRepositoryToken(Person));
+    peopleService = module.get(PeopleService);
+    employeeRepo = module.get(getRepositoryToken(Employee));
     jwtService = module.get(JwtService);
   });
 
   describe('login', () => {
     it('retorna access_token quando credenciais são válidas', async () => {
-      personRepo.findOne.mockResolvedValue(mockPerson);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      peopleService.findByEmailWithPassword.mockResolvedValue(mockPerson);
+      employeeRepo.findOne.mockResolvedValue(null);
 
-      const loginDto: LoginDto = {
-        email: mockPerson.email,
-        senha: 'senha123',
-      };
-
-      const result = await service.login(loginDto);
+      const result = await service.login({ email: mockPerson.email, senha: 'senha123' });
 
       expect(result).toHaveProperty('access_token');
       expect(result.access_token).toBe(mockJwtToken);
     });
 
-    it('gera JWT com payload contendo sub (CPF), email e role', async () => {
-      personRepo.findOne.mockResolvedValue(mockPerson);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+    it('gera JWT com role CLIENTE quando person não é funcionário', async () => {
+      peopleService.findByEmailWithPassword.mockResolvedValue(mockPerson);
+      employeeRepo.findOne.mockResolvedValue(null);
 
-      const loginDto: LoginDto = {
-        email: mockPerson.email,
-        senha: 'senha123',
-      };
-
-      await service.login(loginDto);
+      await service.login({ email: mockPerson.email, senha: 'senha123' });
 
       expect(jwtService.sign).toHaveBeenCalledWith({
         sub: mockPerson.cpf,
@@ -88,103 +92,71 @@ describe('AuthService', () => {
       });
     });
 
-    it('lança UnauthorizedException quando email não existe', async () => {
-      personRepo.findOne.mockResolvedValue(null);
+    it('gera JWT com role do funcionário quando person é employee', async () => {
+      peopleService.findByEmailWithPassword.mockResolvedValue(mockPerson);
+      employeeRepo.findOne.mockResolvedValue(mockEmployee);
 
-      const loginDto: LoginDto = {
-        email: 'naoexiste@email.com',
-        senha: 'senha123',
-      };
+      await service.login({ email: mockPerson.email, senha: 'senha123' });
+
+      expect(jwtService.sign).toHaveBeenCalledWith({
+        sub: mockPerson.cpf,
+        email: mockPerson.email,
+        role: Role.CAIXA,
+      });
+    });
+
+    it('lança UnauthorizedException quando email não existe', async () => {
+      peopleService.findByEmailWithPassword.mockResolvedValue(null);
+
+      const loginDto: LoginDto = { email: 'naoexiste@email.com', senha: 'senha123' };
 
       await expect(service.login(loginDto)).rejects.toBeInstanceOf(UnauthorizedException);
       await expect(service.login(loginDto)).rejects.toThrow('Email ou senha inválidos');
     });
 
     it('lança UnauthorizedException quando senha está vazia (NULL)', async () => {
-      const personWithoutPassword: Person = {
-        ...mockPerson,
-        senha: null,
-      };
-      personRepo.findOne.mockResolvedValue(personWithoutPassword);
+      peopleService.findByEmailWithPassword.mockResolvedValue({ ...mockPerson, senha: null });
 
-      const loginDto: LoginDto = {
-        email: mockPerson.email,
-        senha: 'qualquer_senha',
-      };
-
-      await expect(service.login(loginDto)).rejects.toBeInstanceOf(UnauthorizedException);
-      await expect(service.login(loginDto)).rejects.toThrow('Email ou senha inválidos');
+      await expect(
+        service.login({ email: mockPerson.email, senha: 'qualquer_senha' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
     it('lança UnauthorizedException quando senha é incorreta', async () => {
-      personRepo.findOne.mockResolvedValue(mockPerson);
+      peopleService.findByEmailWithPassword.mockResolvedValue(mockPerson);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-      const loginDto: LoginDto = {
-        email: mockPerson.email,
-        senha: 'senhaerrada',
-      };
-
-      await expect(service.login(loginDto)).rejects.toBeInstanceOf(UnauthorizedException);
-      await expect(service.login(loginDto)).rejects.toThrow('Email ou senha inválidos');
-    });
-
-    it('valida senha com bcrypt.compare', async () => {
-      personRepo.findOne.mockResolvedValue(mockPerson);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-
-      const loginDto: LoginDto = {
-        email: mockPerson.email,
-        senha: 'senha123',
-      };
-
-      await service.login(loginDto);
-
-      expect(bcrypt.compare).toHaveBeenCalledWith('senha123', mockPerson.senha);
-    });
-
-    it('busca pessoa por email no repositório', async () => {
-      personRepo.findOne.mockResolvedValue(mockPerson);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-
-      const loginDto: LoginDto = {
-        email: mockPerson.email,
-        senha: 'senha123',
-      };
-
-      await service.login(loginDto);
-
-      expect(personRepo.findOne).toHaveBeenCalledWith({
-        where: { email: mockPerson.email },
-      });
+      await expect(
+        service.login({ email: mockPerson.email, senha: 'senhaerrada' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
     });
 
     it('não chama bcrypt.compare se pessoa não for encontrada', async () => {
-      personRepo.findOne.mockResolvedValue(null);
+      peopleService.findByEmailWithPassword.mockResolvedValue(null);
 
-      const loginDto: LoginDto = {
-        email: 'nao@existe.com',
-        senha: 'senha123',
-      };
-
-      await expect(service.login(loginDto)).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(
+        service.login({ email: 'nao@existe.com', senha: 'senha123' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(bcrypt.compare).not.toHaveBeenCalled();
     });
 
     it('não chama bcrypt.compare se pessoa não tem senha', async () => {
-      const personWithoutPassword: Person = {
-        ...mockPerson,
-        senha: null,
-      };
-      personRepo.findOne.mockResolvedValue(personWithoutPassword);
+      peopleService.findByEmailWithPassword.mockResolvedValue({ ...mockPerson, senha: null });
 
-      const loginDto: LoginDto = {
-        email: mockPerson.email,
-        senha: 'senha123',
-      };
-
-      await expect(service.login(loginDto)).rejects.toBeInstanceOf(UnauthorizedException);
+      await expect(
+        service.login({ email: mockPerson.email, senha: 'senha123' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
       expect(bcrypt.compare).not.toHaveBeenCalled();
+    });
+
+    it('não chama employeeRepo se autenticação falhar', async () => {
+      peopleService.findByEmailWithPassword.mockResolvedValue(mockPerson);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(
+        service.login({ email: mockPerson.email, senha: 'errada' }),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+      expect(employeeRepo.findOne).not.toHaveBeenCalled();
     });
   });
 });

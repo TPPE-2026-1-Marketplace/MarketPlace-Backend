@@ -6,7 +6,9 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { QueryFailedError, Repository } from 'typeorm';
-import { CreatePersonDto } from './dtos/create-person.dto';
+import { AddressesService } from '../addresses/addresses.service';
+import { RegisterPersonDto } from './dtos/register-person.dto';
+import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { Person } from './entities/person.entity';
 import { IPersonSafe } from './interfaces/person.interface';
@@ -19,7 +21,8 @@ export class PeopleService {
   constructor(
     @InjectRepository(Person)
     private readonly peopleRepository: Repository<Person>,
-  ) { }
+    private readonly addressesService: AddressesService,
+  ) {}
 
   /**
    * Remove o campo `senha` antes de devolver uma Person.
@@ -30,15 +33,30 @@ export class PeopleService {
     return safe;
   }
 
-  async create(dto: CreatePersonDto): Promise<IPersonSafe> {
-    const senhaHash = dto.senha ? await bcrypt.hash(dto.senha, BCRYPT_ROUNDS) : null;
+  /**
+   * Fluxo 1: Caixa registra uma pessoa na loja física.
+   *
+   * - Verifica se existe Person com esse CPF
+   * - Se existe: retorna erro (CPF deve ser único)
+   * - Se não existe: cria Person sem senha
+   *
+   * Depois, a pessoa pode completar o cadastro via registerUser (fluxo 2).
+   */
+  async registerPerson(dto: RegisterPersonDto): Promise<IPersonSafe> {
+    const existingCpf = await this.peopleRepository.findOne({
+      where: { cpf: dto.cpf },
+    });
+
+    if (existingCpf) {
+      throw new ConflictException('CPF já cadastrado');
+    }
 
     const person = this.peopleRepository.create({
       cpf: dto.cpf,
       nome: dto.nome,
       email: dto.email,
       telefone: dto.telefone ?? null,
-      senha: senhaHash,
+      senha: null, // Sem senha — cliente não faz login ainda
     });
 
     try {
@@ -49,12 +67,69 @@ export class PeopleService {
         err instanceof QueryFailedError &&
         (err.driverError as { code?: string })?.code === PG_UNIQUE_VIOLATION
       ) {
-        // O detalhe do erro do PG indica qual constraint foi violada.
-        // Em vez de parsear a string, devolvemos uma mensagem genérica e
-        // deixamos o cliente lidar.
-        throw new ConflictException(
-          'CPF ou email já cadastrado',
-        );
+        throw new ConflictException('CPF ou email já cadastrado');
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Fluxo 2: Usuário completa auto-cadastro pelo site.
+   *
+   * - Verifica se existe Person com esse CPF (do fluxo 1)
+   *   - Se existe: atualiza com senha (não cria nova)
+   *   - Se não existe: cria Person nova com senha
+   * - Se endereço vem no payload: será persistido em tabela separada
+   *   (será feito via AddressService em future)
+   */
+  async registerUser(dto: RegisterUserDto): Promise<IPersonSafe> {
+    const senhaHash = await bcrypt.hash(dto.senha, BCRYPT_ROUNDS);
+
+    // Se CPF foi informado, verifica se já existe
+    if (dto.cpf) {
+      const existing = await this.peopleRepository.findOne({
+        where: { cpf: dto.cpf },
+      });
+
+      if (existing) {
+        // Pessoa já existe (do fluxo 1): atualiza com senha
+        if (existing.senha) {
+          throw new ConflictException('Este CPF já possui uma conta completa');
+        }
+
+        existing.senha = senhaHash;
+        if (dto.nome) existing.nome = dto.nome;
+        if (dto.telefone) existing.telefone = dto.telefone;
+
+        const updated = await this.peopleRepository.save(existing);
+        if (dto.endereco) {
+          await this.addressesService.create(updated.cpf, dto.endereco);
+        }
+        return this.stripPassword(updated);
+      }
+    }
+
+    // CPF não existe ou não foi informado: cria Person nova
+    const person = this.peopleRepository.create({
+      cpf: dto.cpf,
+      nome: dto.nome ?? null,
+      email: dto.email,
+      telefone: dto.telefone ?? null,
+      senha: senhaHash,
+    });
+
+    try {
+      const saved = await this.peopleRepository.save(person);
+      if (dto.endereco) {
+        await this.addressesService.create(saved.cpf, dto.endereco);
+      }
+      return this.stripPassword(saved);
+    } catch (err) {
+      if (
+        err instanceof QueryFailedError &&
+        (err.driverError as { code?: string })?.code === PG_UNIQUE_VIOLATION
+      ) {
+        throw new ConflictException('Email já cadastrado');
       }
       throw err;
     }

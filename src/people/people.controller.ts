@@ -21,10 +21,15 @@ import {
 } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
-import { CreatePersonDto } from './dtos/create-person.dto';
+
+import { Role } from '../common/enums/role.enum';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RegisterPersonDto } from './dtos/register-person.dto';
+import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { PeopleService } from './people.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 /**
  * Schema de paginação local. Será movido para `src/common/` em D2, quando
@@ -42,20 +47,27 @@ class PaginationDto extends createZodDto(PaginationSchema) { }
 export class PeopleController {
   constructor(private readonly peopleService: PeopleService) { }
 
-  /**
-   * IMPORTANTE: este endpoint é o CRUD genérico de pessoas, sem guard nesta
-   * issue (#33). A versão pública para auto-cadastro de cliente
-   * (`POST /people/register`) e o cadastro restrito ao caixa (`POST /people`
-   * com guard) entram na issue de D2.
-   */
-  @Post()
+  @Post('register-person')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Cria uma nova pessoa (CRUD básico)' })
-  @ApiResponse({ status: 201, description: 'Pessoa criada com sucesso' })
+  @ApiOperation({ summary: 'Registra uma pessoa na loja (funcionário caixa)' })
+  @ApiResponse({ status: 201, description: 'Pessoa registrada com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
-  @ApiResponse({ status: 409, description: 'CPF ou email já cadastrado' })
-  create(@Body() dto: CreatePersonDto) {
-    return this.peopleService.create(dto);
+  @ApiResponse({ status: 409, description: 'Email já cadastrado' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CAIXA, Role.VENDEDOR, Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
+  registerPerson(@Body() dto: RegisterPersonDto) {
+    return this.peopleService.registerPerson(dto);
+  }
+
+  @Post('register-user')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Registra um usuário no site (auto-cadastro)' })
+  @ApiResponse({ status: 201, description: 'Usuário registrado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Payload inválido' })
+  @ApiResponse({ status: 409, description: 'Email já cadastrado ou CPF já possui conta completa' })
+  registerUser(@Body() dto: RegisterUserDto) {
+    return this.peopleService.registerUser(dto);
   }
 
   @Get()
