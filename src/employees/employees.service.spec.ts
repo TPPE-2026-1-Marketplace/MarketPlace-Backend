@@ -96,7 +96,7 @@ describe('EmployeesService', () => {
 
             const result = await service.create({
                 cpf: localPerson.cpf,
-                nome: localPerson.nome,
+                nome: localPerson.nome!,
                 email: localPerson.email,
                 role_perfil: Role.CAIXA,
             });
@@ -170,7 +170,7 @@ describe('EmployeesService', () => {
             await expect(
                 service.create({
                     cpf: mockPerson.cpf,
-                    nome: mockPerson.nome,
+                    nome: mockPerson.nome!,
                     email: mockPerson.email,
                     role_perfil: Role.CAIXA,
                 }),
@@ -187,7 +187,7 @@ describe('EmployeesService', () => {
             await expect(
                 service.create({
                     cpf: mockPerson.cpf,
-                    nome: mockPerson.nome,
+                    nome: mockPerson.nome!,
                     email: mockPerson.email,
                     role_perfil: Role.CAIXA,
                 }),
@@ -207,12 +207,13 @@ describe('EmployeesService', () => {
     });
 
     describe('findOne', () => {
-        it('retorna employee quando CPF existe', async () => {
+        it('retorna employee quando CPF existe sem senha na person aninhada', async () => {
             employeesRepo.findOne.mockResolvedValue(mockEmployee);
 
             const result = await service.findOne(mockEmployee.cpf);
 
-            expect(result).toEqual(mockEmployee);
+            expect(result.cpf).toBe(mockEmployee.cpf);
+            expect(result.person).not.toHaveProperty('senha');
         });
 
         it('lança NotFoundException quando employee não existe', async () => {
