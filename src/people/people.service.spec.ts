@@ -58,7 +58,7 @@ describe('PeopleService', () => {
       const result = await service.registerPerson({
         cpf: mockPerson.cpf,
         email: mockPerson.email,
-        nome: mockPerson.nome,
+        nome: mockPerson.nome!,
       });
 
       expect(result).not.toHaveProperty('senha');
@@ -78,7 +78,7 @@ describe('PeopleService', () => {
         service.registerPerson({
           cpf: mockPerson.cpf,
           email: mockPerson.email,
-          nome: mockPerson.nome,
+          nome: mockPerson.nome!,
         }),
       ).rejects.toBeInstanceOf(ConflictException);
 
