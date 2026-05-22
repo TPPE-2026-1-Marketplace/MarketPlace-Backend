@@ -14,10 +14,8 @@ import { z } from 'zod';
 export const RegisterPersonSchema = z.object({
   email: z.string().email().max(160),
   nome: z.string().min(1).max(120),
-  cpf: z
-    .string()
-    .regex(/^\d{11}$/, 'CPF deve conter exatamente 11 dígitos numéricos'),
+  cpf: z.string().regex(/^\d{11}$/, 'CPF deve conter exatamente 11 dígitos numéricos'),
   telefone: z.string().max(20).optional(),
 });
 
-export class RegisterPersonDto extends createZodDto(RegisterPersonSchema) { }
+export class RegisterPersonDto extends createZodDto(RegisterPersonSchema) {}

@@ -7,6 +7,4 @@ export const CreateCatalogImageSchema = z.object({
   ordem_no_catalogo: z.number().int().optional(),
 });
 
-export class CreateCatalogImageDto extends createZodDto(
-  CreateCatalogImageSchema,
-) {}
+export class CreateCatalogImageDto extends createZodDto(CreateCatalogImageSchema) {}

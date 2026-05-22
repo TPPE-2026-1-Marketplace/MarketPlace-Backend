@@ -1,9 +1,10 @@
-import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
-import { AppModule } from './app.module';
-
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ZodValidationPipe } from 'nestjs-zod';
+
+import { AppModule } from './app.module';
+import { DEFAULT_API_PORT } from './common/constants';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -29,7 +30,8 @@ async function bootstrap() {
         scheme: 'bearer',
         bearerFormat: 'JWT',
         name: 'JWT',
-        description: 'Insira **APENAS** o token JWT gerado no login. Não digite a palavra "Bearer ".',
+        description:
+          'Insira **APENAS** o token JWT gerado no login. Não digite a palavra "Bearer ".',
         in: 'header',
       },
       'bearer', // Nome do scheme de segurança, que o @ApiBearerAuth() usa por padrão
@@ -40,7 +42,7 @@ async function bootstrap() {
 
   SwaggerModule.setup('docs', app, swaggerDocument);
 
-  const port = process.env.PORT ?? 3001;
+  const port = process.env.PORT ?? DEFAULT_API_PORT;
 
   // Importante para Docker
   await app.listen(port, '0.0.0.0');

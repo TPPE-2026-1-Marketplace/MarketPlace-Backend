@@ -8,6 +8,7 @@ export COMPOSE_DOCKER_CLI_BUILD := 1
 
 .PHONY: help env-setup gen-secrets install dev lint test build start \
 	dev-up dev-down dev-logs dev-logs-once dev-shell dev-build dev-rebuild dev-restart dev-reset dev-test dev-test-integration \
+	dev-lint dev-lint-fix dev-format dev-typecheck dev-check dev-openapi \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
 	db-shell db-reset \
 	clean check
@@ -34,6 +35,14 @@ help:
 	@echo "  make dev-rebuild      Constroi e sobe o ambiente Docker de desenvolvimento"
 	@echo "  make dev-restart      Recria os containers (down + up) sem rebuild"
 	@echo "  make dev-reset        Derruba o ambiente e REMOVE TODOS OS VOLUMES (apaga banco e cache)"
+	@echo ""
+	@echo "Qualidade de codigo (rodam dentro do container):"
+	@echo "  make dev-lint         Executa ESLint (sem fix)"
+	@echo "  make dev-lint-fix     Executa ESLint com auto-fix"
+	@echo "  make dev-format       Aplica Prettier nos arquivos"
+	@echo "  make dev-typecheck    Verifica tipos com tsc --noEmit"
+	@echo "  make dev-check        Roda lint + typecheck + format:check (espelha o CI)"
+	@echo "  make dev-openapi      Gera openapi.json a partir do AppModule"
 	@echo ""
 	@echo "Producao (Docker):"
 	@echo "  make prod-up          Sobe o ambiente Docker de producao"
@@ -109,6 +118,24 @@ dev-test:
 
 dev-test-integration:
 	$(COMPOSE_DEV) exec $(SERVICE) pnpm test:integration $(if $(path),--testPathPattern="$(path)",)
+
+dev-lint:
+	$(COMPOSE_DEV) exec $(SERVICE) pnpm lint
+
+dev-lint-fix:
+	$(COMPOSE_DEV) exec $(SERVICE) pnpm lint:fix
+
+dev-format:
+	$(COMPOSE_DEV) exec $(SERVICE) pnpm format
+
+dev-typecheck:
+	$(COMPOSE_DEV) exec $(SERVICE) pnpm typecheck
+
+dev-check:
+	$(COMPOSE_DEV) exec $(SERVICE) sh -c "pnpm lint && pnpm typecheck && pnpm format:check"
+
+dev-openapi:
+	$(COMPOSE_DEV) exec $(SERVICE) pnpm openapi:export
 
 dev-build:
 	$(COMPOSE_DEV) build $(SERVICE)

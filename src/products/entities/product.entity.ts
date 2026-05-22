@@ -1,12 +1,7 @@
-import {
-  Column,
-  Entity,
-  JoinTable,
-  ManyToMany,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Column, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+
 import { Category } from '../../categories/entities/category.entity';
+import { Coupon } from '../../coupons/entities/coupon.entity';
 import { ProductVariant } from '../../product-variants/entities/product-variant.entity';
 
 @Entity()
@@ -44,6 +39,18 @@ export class Product {
   @Column({ type: 'varchar', length: 80, unique: true })
   sku: string;
 
+  @Column({
+    name: 'media_avaliacao',
+    type: 'numeric',
+    precision: 3,
+    scale: 2,
+    default: 0.0,
+  })
+  mediaAvaliacao: number;
+
+  @Column({ name: 'total_avaliacoes', type: 'integer', default: 0 })
+  totalAvaliacoes: number;
+
   @ManyToMany(() => Category, (category) => category.products, {
     cascade: false,
     onDelete: 'CASCADE',
@@ -65,4 +72,7 @@ export class Product {
 
   @OneToMany(() => ProductVariant, (variant) => variant.product)
   variants: ProductVariant[];
+
+  @ManyToMany(() => Coupon, (coupon) => coupon.products)
+  coupons: Coupon[];
 }

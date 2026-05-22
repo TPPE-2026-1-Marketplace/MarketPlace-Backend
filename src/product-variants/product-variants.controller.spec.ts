@@ -1,12 +1,15 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Role } from '../common/enums/role.enum';
-import { ROLES_KEY } from '../common/decorators/roles.decorator';
+import { Test } from '@nestjs/testing';
+
 import { ProductVariantsController } from './product-variants.controller';
 import { ProductVariantsService } from './product-variants.service';
+import { ROLES_KEY } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+
+import type { TestingModule } from '@nestjs/testing';
 
 const mockProductVariantsService = {
   create: jest.fn(),

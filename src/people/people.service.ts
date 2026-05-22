@@ -1,20 +1,15 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { QueryFailedError, Repository } from 'typeorm';
+
 import { AddressesService } from '../addresses/addresses.service';
+import { BCRYPT_ROUNDS, PG_UNIQUE_VIOLATION } from '../common/constants';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { Person } from './entities/person.entity';
 import { IPersonSafe } from './interfaces/person.interface';
-
-const PG_UNIQUE_VIOLATION = '23505';
-const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class PeopleService {
@@ -82,6 +77,7 @@ export class PeopleService {
    * - Se endereço vem no payload: será persistido em tabela separada
    *   (será feito via AddressService em future)
    */
+  // eslint-disable-next-line complexity
   async registerUser(dto: RegisterUserDto): Promise<IPersonSafe> {
     const senhaHash = await bcrypt.hash(dto.senha, BCRYPT_ROUNDS);
 
@@ -198,6 +194,15 @@ export class PeopleService {
     if (result.affected === 0) {
       throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
     }
+  }
+
+  async getAllForExport(): Promise<Person[]> {
+    return this.peopleRepository
+      .createQueryBuilder('person')
+      .leftJoin('employee', 'emp', 'emp.cpf = person.cpf')
+      .where('emp.cpf IS NULL')
+      .orderBy('person.nome', 'ASC')
+      .getMany();
   }
 
   async validatePassword(plain: string, hashed: string): Promise<boolean> {
