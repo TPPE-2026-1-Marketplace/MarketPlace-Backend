@@ -23,6 +23,15 @@ RUN --mount=type=cache,target=/app/.pnpm-store \
 
 FROM deps AS dev
 
+# Permite que o container rode como o usuario do host (compose define
+# `user: "${UID:-1000}:${GID:-1000}"`). Ajusta o ownership de /app, que e a
+# fonte de inicializacao do named volume api_node_modules, para o usuario
+# `node` (uid 1000). Sem isso, o named volume nasce com dono root e o
+# container nao consegue escrever em node_modules.
+RUN chown -R node:node /app
+
+USER node
+
 CMD ["pnpm", "start:dev"]
 
 FROM base AS prod-deps
