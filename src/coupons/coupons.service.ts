@@ -87,8 +87,8 @@ export class CouponsService {
     const coupon = await this.findOne(numeroDoCupom);
 
     // Validação de segurança para datas modificadas
-    const dataInicio = dto.dataInicio ?? coupon.dataInicio;
-    const dataFim = dto.dataFim ?? coupon.dataFim;
+    const dataInicio = new Date(dto.dataInicio ?? coupon.dataInicio);
+    const dataFim = new Date(dto.dataFim ?? coupon.dataFim);
     if (dataFim <= dataInicio) {
       throw new BadRequestException('A data de fim deve ser posterior à data de início');
     }
