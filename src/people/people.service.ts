@@ -195,6 +195,15 @@ export class PeopleService {
     }
   }
 
+  async getAllForExport(): Promise<Person[]> {
+    return this.peopleRepository
+      .createQueryBuilder('person')
+      .leftJoin('employee', 'emp', 'emp.cpf = person.cpf')
+      .where('emp.cpf IS NULL')
+      .orderBy('person.nome', 'ASC')
+      .getMany();
+  }
+
   async validatePassword(plain: string, hashed: string): Promise<boolean> {
     return bcrypt.compare(plain, hashed);
   }
