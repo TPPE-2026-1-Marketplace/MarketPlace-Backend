@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -21,6 +22,8 @@ import {
 } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { Response } from 'express';
+import * as csv from 'fast-csv';
 
 import { Role } from '../common/enums/role.enum';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -32,9 +35,7 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 
 /**
- * Schema de paginação local. Será movido para `src/common/` em D2, quando
- * mais módulos passarem a reusá-lo. `z.coerce.number()` é importante porque
- * query params chegam sempre como string.
+ * Schema de paginação local.
  */
 const PaginationSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
@@ -46,6 +47,35 @@ class PaginationDto extends createZodDto(PaginationSchema) { }
 @Controller('people')
 export class PeopleController {
   constructor(private readonly peopleService: PeopleService) { }
+
+  @Get('export')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMINISTRADOR)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Exporta a base de clientes para CSV (Administrador)' })
+  @ApiResponse({ status: 200, description: 'Retorna arquivo CSV contendo os clientes' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
+  async exportPeople(@Res() res: Response) {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="clientes.csv"');
+
+    const people = await this.peopleService.getAllForExport();
+
+    const csvStream = csv.format({ headers: true });
+    csvStream.pipe(res);
+
+    for (const p of people) {
+      csvStream.write({
+        email: p.email,
+        nome: p.nome || '',
+        telefone: p.telefone || '',
+        cpf: p.cpf,
+      });
+    }
+
+    csvStream.end();
+  }
 
   @Post('register-person')
   @HttpCode(HttpStatus.CREATED)
