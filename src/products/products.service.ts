@@ -94,6 +94,7 @@ export class ProductsService {
     return this.findOneWithCategoriesAndVariants(id);
   }
 
+  // eslint-disable-next-line complexity
   async update(id: number, dto: UpdateProductDto): Promise<Product> {
     const product = await this.findOneWithCategoriesAndVariants(id);
 
