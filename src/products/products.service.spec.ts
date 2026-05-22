@@ -1,10 +1,13 @@
 import { NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Category } from '../categories/entities/category.entity';
+
 import { Product } from './entities/product.entity';
 import { ProductsService } from './products.service';
+import { Category } from '../categories/entities/category.entity';
+
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 const mockCategory: Category = {
   idCategoria: 1,
@@ -24,8 +27,11 @@ const mockProduct: Product = {
   tags: null,
   precoBase: 99.9,
   sku: 'CAM-001',
+  mediaAvaliacao: 0,
+  totalAvaliacoes: 0,
   categories: [],
   variants: [],
+  coupons: [],
 };
 
 const makeQueryBuilder = (overrides: Partial<Record<string, jest.Mock>> = {}) => ({
@@ -195,9 +201,7 @@ describe('ProductsService', () => {
   describe('update', () => {
     it('atualiza e retorna o produto', async () => {
       const updated = { ...mockProduct, titulo: 'Camiseta Preta' };
-      productsRepo.findOne
-        .mockResolvedValueOnce(mockProduct)
-        .mockResolvedValueOnce(updated);
+      productsRepo.findOne.mockResolvedValueOnce(mockProduct).mockResolvedValueOnce(updated);
       productsRepo.save.mockResolvedValue(updated);
 
       const result = await service.update(1, { titulo: 'Camiseta Preta' });

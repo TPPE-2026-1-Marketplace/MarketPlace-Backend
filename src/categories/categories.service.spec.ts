@@ -1,9 +1,12 @@
 import { NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+
 import { CategoriesService } from './categories.service';
 import { Category } from './entities/category.entity';
+
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 const mockCategory: Category = {
   idCategoria: 1,

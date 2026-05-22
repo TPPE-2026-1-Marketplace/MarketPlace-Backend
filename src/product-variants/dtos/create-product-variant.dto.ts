@@ -22,6 +22,4 @@ export const CreateProductVariantSchema = z.object({
   medidas: MeasurementsSchema.optional(),
 });
 
-export class CreateProductVariantDto extends createZodDto(
-  CreateProductVariantSchema,
-) {}
+export class CreateProductVariantDto extends createZodDto(CreateProductVariantSchema) {}

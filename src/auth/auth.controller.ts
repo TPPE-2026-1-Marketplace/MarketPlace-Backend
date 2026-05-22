@@ -1,5 +1,6 @@
-import { Controller, Post, Body, HttpCode } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import { AuthService } from './auth.service';
 import { LoginDto } from './dtos/login.dto';
 
@@ -9,7 +10,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
-  @HttpCode(200)
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Autentica um usuário e retorna um JWT' })
   @ApiResponse({
     status: 200,

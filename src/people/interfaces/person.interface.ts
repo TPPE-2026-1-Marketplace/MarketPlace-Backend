@@ -1,4 +1,4 @@
-import { Person } from '../entities/person.entity';
+import type { Person } from '../entities/person.entity';
 
 /**
  * Projeção de Person sem o campo `senha`.
