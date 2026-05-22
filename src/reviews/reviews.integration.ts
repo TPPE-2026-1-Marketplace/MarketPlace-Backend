@@ -222,7 +222,7 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
       })
       .expect(201);
 
-    expect(res.body).toHaveProperty('idCliente', testCpf1);
+    expect(res.body).toHaveProperty('cpfCliente', testCpf1);
     expect(res.body).toHaveProperty('idProduto', testProductId);
     expect(res.body).toHaveProperty('nota', 5);
     expect(res.body).toHaveProperty('comentario', 'Excelente produto! Muito confortável.');
@@ -313,8 +313,8 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
       } as any)
       .expect(201);
 
-    expect(res.body.idCliente).toBe(testCpf1);
-    expect(res.body.idCliente).not.toBe(outroCpf);
+    expect(res.body.cpfCliente).toBe(testCpf1);
+    expect(res.body.cpfCliente).not.toBe(outroCpf);
   });
 
   it('deve retornar 404 quando o produto não existir ao criar', async () => {
@@ -382,14 +382,14 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
   it('deve retornar a lista paginada pública de avaliações, escondendo o CPF dos clientes e incluindo a distribuição de estrelas', async () => {
     await reviewsRepository.save([
       {
-        idCliente: testCpf1,
+        cpfCliente: testCpf1,
         idProduto: testProductId,
         nota: 5,
         comentario: 'Comentário Cliente 1',
         dataAvaliacao: new Date('2026-05-20T10:00:00Z'),
       },
       {
-        idCliente: testCpf2,
+        cpfCliente: testCpf2,
         idProduto: testProductId,
         nota: 3,
         comentario: 'Comentário Cliente 2',
@@ -430,23 +430,23 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
     expect(res.body.data[0].comentario).toBe('Comentário Cliente 2');
     expect(res.body.data[0].cliente.nome).toBe('Cliente Dois');
 
-    expect(res.body.data[0]).not.toHaveProperty('idCliente');
+    expect(res.body.data[0]).not.toHaveProperty('cpfCliente');
     expect(res.body.data[0].cliente).not.toHaveProperty('cpf');
-    expect(res.body.data[1]).not.toHaveProperty('idCliente');
+    expect(res.body.data[1]).not.toHaveProperty('cpfCliente');
     expect(res.body.data[1].cliente).not.toHaveProperty('cpf');
   });
 
   it('deve aplicar paginação limitando os resultados corretamente', async () => {
     await reviewsRepository.save([
       {
-        idCliente: testCpf1,
+        cpfCliente: testCpf1,
         idProduto: testProductId,
         nota: 5,
         comentario: 'A',
         dataAvaliacao: new Date('2026-05-20T10:00:00Z'),
       },
       {
-        idCliente: testCpf2,
+        cpfCliente: testCpf2,
         idProduto: testProductId,
         nota: 4,
         comentario: 'B',
@@ -477,7 +477,7 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
   it('deve permitir que um gerente ou administrador delete uma avaliação inadequada (retorna 204) e remova da listagem', async () => {
     // 1. Criar avaliação
     await reviewsRepository.save({
-      idCliente: testCpf1,
+      cpfCliente: testCpf1,
       idProduto: testProductId,
       nota: 1,
       comentario: 'Comentário ofensivo ou spam',
@@ -506,7 +506,7 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
   it('deve retornar 403 (Forbidden) se um cliente comum tentar acessar o endpoint de exclusão', async () => {
     // 1. Criar avaliação
     await reviewsRepository.save({
-      idCliente: testCpf1,
+      cpfCliente: testCpf1,
       idProduto: testProductId,
       nota: 5,
       comentario: 'Comentário legal',
@@ -524,7 +524,7 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
 
     // 3. Confirmar que a avaliação NÃO foi deletada do banco
     const review = await reviewsRepository.findOne({
-      where: { idCliente: testCpf1, idProduto: testProductId },
+      where: { cpfCliente: testCpf1, idProduto: testProductId },
     });
     expect(review).toBeDefined();
     expect(review?.comentario).toBe('Comentário legal');

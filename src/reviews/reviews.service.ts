@@ -10,11 +10,10 @@ import { DataSource, EntityManager, QueryFailedError, Repository } from 'typeorm
 
 import { CreateReviewDto } from './dtos/create-review.dto';
 import { Review } from './entities/review.entity';
+import { PG_UNIQUE_VIOLATION } from '../common/constants';
 import { Order, OrderStatus } from '../orders/entities/order.entity';
 import { Person } from '../people/entities/person.entity';
 import { Product } from '../products/entities/product.entity';
-
-const PG_UNIQUE_VIOLATION = '23505';
 
 @Injectable()
 export class ReviewsService {
@@ -88,7 +87,7 @@ export class ReviewsService {
       // 3. Validar se o cliente já avaliou este produto (Verificação prévia)
       const existingReview = await reviewsRepo.findOne({
         where: {
-          idCliente,
+          cpfCliente: idCliente,
           idProduto: dto.idProduto,
         },
       });
@@ -107,7 +106,7 @@ export class ReviewsService {
 
       // 4. Instanciar e salvar a avaliação
       const review = reviewsRepo.create({
-        idCliente,
+        cpfCliente: idCliente,
         idProduto: dto.idProduto,
         nota: dto.nota,
         comentario: sanitizedComment,
@@ -249,7 +248,7 @@ export class ReviewsService {
       const reviewsRepo = manager.getRepository(Review);
 
       const review = await reviewsRepo.findOne({
-        where: { idCliente, idProduto },
+        where: { cpfCliente: idCliente, idProduto },
       });
       if (!review) {
         throw new NotFoundException(

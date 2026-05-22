@@ -27,7 +27,7 @@ import { Product } from '../../products/entities/product.entity';
 @Index(['idProduto', 'dataAvaliacao'])
 export class Review {
   @PrimaryColumn({ type: 'varchar', length: 11 })
-  idCliente: string;
+  cpfCliente: string;
 
   @PrimaryColumn({ type: 'int' })
   idProduto: number;
@@ -42,7 +42,7 @@ export class Review {
   dataAvaliacao: Date;
 
   @ManyToOne(() => Person, { nullable: false, onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'id_cliente' })
+  @JoinColumn({ name: 'cpf_cliente' })
   cliente: Person;
 
   @ManyToOne(() => Product, { nullable: false, onDelete: 'CASCADE' })
