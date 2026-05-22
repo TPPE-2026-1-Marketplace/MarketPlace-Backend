@@ -1,4 +1,5 @@
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+
 import { CatalogImage } from './catalog-image.entity';
 
 @Entity()

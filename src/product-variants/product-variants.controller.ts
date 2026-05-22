@@ -11,20 +11,28 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Roles } from '../common/decorators/roles.decorator';
-import { Role } from '../common/enums/role.enum';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+
 import { CreateProductVariantDto } from './dtos/create-product-variant.dto';
 import { QueryProductVariantsDto } from './dtos/query-product-variants.dto';
 import { UpdateProductVariantDto } from './dtos/update-product-variant.dto';
 import { ProductVariantsService } from './product-variants.service';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 @ApiTags('product-variants')
 @Controller('product-variants')
 export class ProductVariantsController {
-  constructor(private readonly productVariantsService: ProductVariantsService) { }
+  constructor(private readonly productVariantsService: ProductVariantsService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)

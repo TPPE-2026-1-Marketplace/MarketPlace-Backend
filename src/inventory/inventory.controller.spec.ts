@@ -1,10 +1,13 @@
 import { NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
+
+import { MovementType } from './entities/stock-log.entity';
 import { InventoryController } from './inventory.controller';
 import { InventoryService } from './inventory.service';
-import { MovementType } from './entities/stock-log.entity';
-import { Role } from '../common/enums/role.enum';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
+
+import type { TestingModule } from '@nestjs/testing';
 
 const mockService = {
   findPublic: jest.fn(),
@@ -65,7 +68,11 @@ describe('InventoryController', () => {
       mockService.adjust.mockRejectedValue(new NotFoundException());
 
       await expect(
-        controller.adjust('INEXISTENTE', { qtdOnline: 5, tipoMovimentacao: MovementType.AJUSTE } as any, mockUser as any),
+        controller.adjust(
+          'INEXISTENTE',
+          { qtdOnline: 5, tipoMovimentacao: MovementType.AJUSTE } as any,
+          mockUser as any,
+        ),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

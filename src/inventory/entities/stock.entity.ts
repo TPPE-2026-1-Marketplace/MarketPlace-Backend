@@ -1,4 +1,5 @@
 import { Check, Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from 'typeorm';
+
 import { ProductVariant } from '../../product-variants/entities/product-variant.entity';
 
 @Entity()
