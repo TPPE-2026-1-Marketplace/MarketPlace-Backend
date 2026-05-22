@@ -1,15 +1,18 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { JwtService } from '@nestjs/jwt';
 import { UnauthorizedException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { Test } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { Repository } from 'typeorm';
+
 import { AuthService } from './auth.service';
-import { Employee } from '../employees/entities/employee.entity';
-import { Person } from '../people/entities/person.entity';
-import { PeopleService } from '../people/people.service';
-import { LoginDto } from './dtos/login.dto';
 import { Role } from '../common/enums/role.enum';
+import { Employee } from '../employees/entities/employee.entity';
+import { PeopleService } from '../people/people.service';
+
+import type { LoginDto } from './dtos/login.dto';
+import type { Person } from '../people/entities/person.entity';
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 jest.mock('bcrypt');
 

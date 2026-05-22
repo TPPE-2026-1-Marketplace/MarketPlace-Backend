@@ -3,9 +3,10 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { Repository } from 'typeorm';
+
+import { Role } from '../common/enums/role.enum';
 import { Employee } from '../employees/entities/employee.entity';
 import { PeopleService } from '../people/people.service';
-import { Role } from '../common/enums/role.enum';
 import { LoginDto } from './dtos/login.dto';
 
 @Injectable()

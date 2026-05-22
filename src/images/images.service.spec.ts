@@ -1,11 +1,14 @@
 import { NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { ProductVariant } from '../product-variants/entities/product-variant.entity';
+
 import { CatalogImage } from './entities/catalog-image.entity';
 import { Image } from './entities/image.entity';
 import { ImagesService } from './images.service';
+import { ProductVariant } from '../product-variants/entities/product-variant.entity';
+
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 const mockImage: Image = {
   idImagem: 1,
@@ -161,9 +164,9 @@ describe('ImagesService', () => {
     it('lança NotFoundException quando variante não existe', async () => {
       variantsRepo.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.findCatalogByVariantSku('SKU-INEXISTENTE'),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.findCatalogByVariantSku('SKU-INEXISTENTE')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
 
       expect(catalogImagesRepo.find).not.toHaveBeenCalled();
     });

@@ -22,30 +22,35 @@ import {
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-import { Role } from '../common/enums/role.enum';
-import { Roles } from '../common/decorators/roles.decorator';
+import {
+  PAGINATION_DEFAULT_LIMIT,
+  PAGINATION_DEFAULT_PAGE,
+  PAGINATION_MAX_LIMIT,
+} from '../common/constants';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { PeopleService } from './people.service';
+import { Roles } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 
-/**
- * Schema de paginação local. Será movido para `src/common/` em D2, quando
- * mais módulos passarem a reusá-lo. `z.coerce.number()` é importante porque
- * query params chegam sempre como string.
- */
 const PaginationSchema = z.object({
-  page: z.coerce.number().int().positive().default(1),
-  limit: z.coerce.number().int().positive().max(100).default(20),
+  page: z.coerce.number().int().positive().default(PAGINATION_DEFAULT_PAGE),
+  limit: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(PAGINATION_MAX_LIMIT)
+    .default(PAGINATION_DEFAULT_LIMIT),
 });
-class PaginationDto extends createZodDto(PaginationSchema) { }
+class PaginationDto extends createZodDto(PaginationSchema) {}
 
 @ApiTags('people')
 @Controller('people')
 export class PeopleController {
-  constructor(private readonly peopleService: PeopleService) { }
+  constructor(private readonly peopleService: PeopleService) {}
 
   @Post('register-person')
   @HttpCode(HttpStatus.CREATED)

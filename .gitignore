@@ -13,3 +13,5 @@ dist
 *.tsbuildinfo
 package-lock.json
 .demo-backend.log
+coverage
+openapi.json

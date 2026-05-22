@@ -11,7 +11,7 @@ FROM node:${NODE_VERSION} AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
-RUN corepack enable
+RUN corepack enable && apk add --no-cache git && git config --system --add safe.directory /app
 
 WORKDIR /app
 
