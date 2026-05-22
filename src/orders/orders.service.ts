@@ -7,23 +7,29 @@ import {
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, FindOptionsWhere, In, Repository } from 'typeorm';
-import { Order, OrderStatus, TipoRetirada } from './entities/order.entity';
+
 import { OrderItem } from './entities/order-item.entity';
-import { ProductVariant } from '../product-variants/entities/product-variant.entity';
+import { Order, OrderStatus, TipoRetirada } from './entities/order.entity';
 import { CouponsService } from '../coupons/coupons.service';
 import { PeopleService } from '../people/people.service';
-import { CreateOrderDto } from './dtos/create-order.dto';
-import { CreateInStoreOrderDto } from './dtos/create-in-store-order.dto';
-import { UpdateTrackingDto } from './dtos/update-tracking.dto';
 import { ConfirmPickupDto } from './dtos/confirm-pickup.dto';
+import { CreateInStoreOrderDto } from './dtos/create-in-store-order.dto';
+import { CreateOrderDto } from './dtos/create-order.dto';
 import { ListOrdersQueryDto } from './dtos/list-orders-query.dto';
+import { UpdateTrackingDto } from './dtos/update-tracking.dto';
+import {
+  PERCENTAGE_MAX,
+  VERIFICATION_CODE_MIN,
+  VERIFICATION_CODE_RANGE,
+} from '../common/constants';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Role } from '../common/enums/role.enum';
-import { Stock } from '../inventory/entities/stock.entity';
-import { StockLog, MovementType } from '../inventory/entities/stock-log.entity';
-import { Person } from '../people/entities/person.entity';
 import { Coupon } from '../coupons/entities/coupon.entity';
 import { Employee } from '../employees/entities/employee.entity';
+import { StockLog, MovementType } from '../inventory/entities/stock-log.entity';
+import { Stock } from '../inventory/entities/stock.entity';
+import { Person } from '../people/entities/person.entity';
+import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 
 @Injectable()
 export class OrdersService {
@@ -45,8 +51,9 @@ export class OrdersService {
    * Executa todo o fluxo de verificação de estoque, alteração de saldos,
    * cálculo de totais, cupons e gravação de logs de estoque de forma atômica.
    */
+  // eslint-disable-next-line max-lines-per-function
   async create(idUsuario: string, dto: CreateOrderDto): Promise<Order> {
-    // Envolver todo o processo em uma transação atômica gerenciada
+    // eslint-disable-next-line complexity, max-lines-per-function -- lógica transacional: validação e persistência na mesma transação
     return await this.dataSource.transaction(async (manager) => {
       const ordersRepo = manager.getRepository(Order);
       const orderItemsRepo = manager.getRepository(OrderItem);
@@ -168,12 +175,17 @@ export class OrdersService {
       // 8. Aplicar cupom se válido de forma 100% segura com bloqueio pessimista
       let valorDesconto = 0;
       if (dto.couponNumero) {
-        valorDesconto = await this.applyCouponTransactional(manager, dto.couponNumero, variants, subtotal);
+        valorDesconto = await this.applyCouponTransactional(
+          manager,
+          dto.couponNumero,
+          variants,
+          subtotal,
+        );
       }
 
       // Arredondar os valores para evitar dízimas periódicas no banco de dados
       subtotal = parseFloat(subtotal.toFixed(2));
-      
+
       // Regra de Frete
       let valorFrete = 0;
       let codigoVerificacaoRetirada: string | null = null;
@@ -181,13 +193,15 @@ export class OrdersService {
       if (dto.tipoRetirada === TipoRetirada.LOJA) {
         valorFrete = 0;
         // Gerar código de verificação de 6 dígitos
-        codigoVerificacaoRetirada = Math.floor(100000 + Math.random() * 900000).toString();
+        codigoVerificacaoRetirada = Math.floor(
+          VERIFICATION_CODE_MIN + Math.random() * VERIFICATION_CODE_RANGE,
+        ).toString();
       } else {
         valorFrete = parseFloat(dto.valorFrete.toFixed(2));
       }
 
       valorDesconto = parseFloat(valorDesconto.toFixed(2));
-      
+
       // Total final do pedido
       const valorTotalRaw = subtotal + valorFrete - valorDesconto;
       const valorTotal = parseFloat(Math.max(0, valorTotalRaw).toFixed(2));
@@ -237,7 +251,9 @@ export class OrdersService {
    * Executa todo o fluxo de validação de vendedor, cliente opcional,
    * cálculo de totais, cupons e redução do estoque físico de forma atômica.
    */
+  // eslint-disable-next-line max-lines-per-function
   async createInStore(dto: CreateInStoreOrderDto): Promise<Order> {
+    // eslint-disable-next-line complexity, max-lines-per-function -- lógica transacional: validação e persistência na mesma transação
     return await this.dataSource.transaction(async (manager) => {
       const ordersRepo = manager.getRepository(Order);
       const orderItemsRepo = manager.getRepository(OrderItem);
@@ -257,9 +273,7 @@ export class OrdersService {
       }
 
       if (!seller.ativo) {
-        throw new BadRequestException(
-          `O funcionário com CPF "${dto.idFuncionario}" está inativo.`,
-        );
+        throw new BadRequestException(`O funcionário com CPF "${dto.idFuncionario}" está inativo.`);
       }
 
       if (seller.role_perfil !== Role.VENDEDOR) {
@@ -371,12 +385,17 @@ export class OrdersService {
       // 8. Aplicar cupom se válido de forma 100% segura com bloqueio pessimista
       let valorDesconto = 0;
       if (dto.couponNumero) {
-        valorDesconto = await this.applyCouponTransactional(manager, dto.couponNumero, variants, subtotal);
+        valorDesconto = await this.applyCouponTransactional(
+          manager,
+          dto.couponNumero,
+          variants,
+          subtotal,
+        );
       }
 
       subtotal = parseFloat(subtotal.toFixed(2));
       valorDesconto = parseFloat(valorDesconto.toFixed(2));
-      
+
       // Total final (Frete é SEMPRE zero na venda física)
       const valorTotalRaw = subtotal - valorDesconto;
       const valorTotal = parseFloat(Math.max(0, valorTotalRaw).toFixed(2));
@@ -470,9 +489,7 @@ export class OrdersService {
     // Se for cliente, deve ser o dono do pedido
     if (user.role === Role.CLIENTE) {
       if (order.idUsuario !== user.sub) {
-        throw new ForbiddenException(
-          'Você não possui autorização para consultar este pedido.',
-        );
+        throw new ForbiddenException('Você não possui autorização para consultar este pedido.');
       }
     }
 
@@ -556,9 +573,10 @@ export class OrdersService {
   /**
    * Lista pedidos paginados com filtros opcionais (Gerente/Admin).
    */
-  async findAll(
-    query: ListOrdersQueryDto,
-  ): Promise<{ data: Order[]; meta: { page: number; limit: number; total: number; totalPages: number } }> {
+  async findAll(query: ListOrdersQueryDto): Promise<{
+    data: Order[];
+    meta: { page: number; limit: number; total: number; totalPages: number };
+  }> {
     const { page, limit, status, tipoRetirada } = query;
     const where: FindOptionsWhere<Order> = {};
     if (status) where.status = status;
@@ -584,7 +602,10 @@ export class OrdersService {
   async findAllByUser(
     idUsuario: string,
     query: ListOrdersQueryDto,
-  ): Promise<{ data: Order[]; meta: { page: number; limit: number; total: number; totalPages: number } }> {
+  ): Promise<{
+    data: Order[];
+    meta: { page: number; limit: number; total: number; totalPages: number };
+  }> {
     const { page, limit, status } = query;
     const where: FindOptionsWhere<Order> = { idUsuario };
     if (status) where.status = status;
@@ -608,6 +629,7 @@ export class OrdersService {
    * Valida ativo, vigência, limite de uso e elegibilidade de produtos.
    * Incrementa usosAtuais e retorna o valorDesconto calculado.
    */
+  // eslint-disable-next-line complexity
   private async applyCouponTransactional(
     manager: EntityManager,
     couponNumero: string,
@@ -655,7 +677,7 @@ export class OrdersService {
     if (coupon.tipoCupom === 'fixo') {
       valorDesconto = Number(coupon.valorDesconto);
     } else if (coupon.tipoCupom === 'porcentagem') {
-      valorDesconto = subtotal * (Number(coupon.valorDesconto) / 100);
+      valorDesconto = subtotal * (Number(coupon.valorDesconto) / PERCENTAGE_MAX);
     }
 
     // Incrementar usos de forma atômica dentro da transação

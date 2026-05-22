@@ -12,14 +12,22 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+
 import { CouponsService } from './coupons.service';
 import { CreateCouponDto, ValidateCouponQueryDto } from './dtos/create-coupon.dto';
 import { UpdateCouponDto } from './dtos/update-coupon.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 @ApiTags('coupons')
 @Controller('coupons')
@@ -57,9 +65,14 @@ export class CouponsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lista todos os cupons de um influenciador/parceiro específico (Administrador)' })
+  @ApiOperation({
+    summary: 'Lista todos os cupons de um influenciador/parceiro específico (Administrador)',
+  })
   @ApiParam({ name: 'nome', description: 'Nome do influenciador/parceiro' })
-  @ApiResponse({ status: 200, description: 'Lista de cupons do influenciador retornada com sucesso' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista de cupons do influenciador retornada com sucesso',
+  })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 403, description: 'Acesso negado para esta role' })
   findByInfluencer(@Param('nome') nome: string) {
@@ -75,10 +88,7 @@ export class CouponsController {
     description: 'IDs dos produtos presentes no carrinho, separados por vírgula (ex: 1,2,3)',
   })
   @ApiResponse({ status: 200, description: 'Resultado da validação do cupom' })
-  validate(
-    @Param('numero') numero: string,
-    @Query() query: ValidateCouponQueryDto,
-  ) {
+  validate(@Param('numero') numero: string, @Query() query: ValidateCouponQueryDto) {
     return this.couponsService.validate(numero, query.productIds);
   }
 

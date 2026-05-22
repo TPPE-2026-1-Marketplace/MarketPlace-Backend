@@ -1,17 +1,20 @@
-import { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+
+import { JwtService } from '@nestjs/jwt';
+import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ZodValidationPipe } from 'nestjs-zod';
 import request from 'supertest';
-import { Repository } from 'typeorm';
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { JwtService } from '@nestjs/jwt';
 
-import { Person } from './entities/person.entity';
-import { Employee } from '../employees/entities/employee.entity';
-import { Role } from '../common/enums/role.enum';
 import { AppModule } from '../app.module';
+import { Person } from './entities/person.entity';
+import { Role } from '../common/enums/role.enum';
+import { Employee } from '../employees/entities/employee.entity';
+
+import type { INestApplication } from '@nestjs/common';
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 function loadDevelopmentEnv() {
   const envPath = join(process.cwd(), '.env.development');
@@ -125,9 +128,7 @@ describe('PeopleModule CSV Export integration', () => {
   });
 
   it('deve rejeitar acesso ao endpoint de exportação se não autenticado (retorna 401) (Critério de Aceite)', async () => {
-    await request(app.getHttpServer())
-      .get('/api/people/export')
-      .expect(401);
+    await request(app.getHttpServer()).get('/api/people/export').expect(401);
   });
 
   it('deve rejeitar acesso ao endpoint de exportação se não for administrador (retorna 403)', async () => {
@@ -150,10 +151,10 @@ describe('PeopleModule CSV Export integration', () => {
 
     // 2. Verificar conteúdo do arquivo CSV
     const csvContent = res.text;
-    
+
     // Deve conter o cabeçalho correto
     expect(csvContent).toContain('email,nome,telefone,cpf');
-    
+
     // Deve conter os dados do cliente cadastrado
     expect(csvContent).toContain('export_teste@example.com');
     expect(csvContent).toContain('Cliente Export Teste');

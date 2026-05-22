@@ -16,9 +16,7 @@ export const UpdateCouponSchema = z
       .number()
       .positive('O valor do desconto deve ser um número positivo')
       .optional(),
-    ativo: z
-      .boolean()
-      .optional(),
+    ativo: z.boolean().optional(),
     dataInicio: z.coerce.date().optional(),
     dataFim: z.coerce.date().optional(),
     usoMaximo: z

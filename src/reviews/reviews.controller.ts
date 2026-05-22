@@ -19,13 +19,14 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { CreateReviewDto, QueryPaginationDto } from './dtos/create-review.dto';
 import { ReviewsService } from './reviews.service';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
+import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
-import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 @ApiTags('reviews')
 @Controller('reviews')
@@ -42,10 +43,7 @@ export class ReviewsController {
   @ApiResponse({ status: 401, description: 'Não autorizado' })
   @ApiResponse({ status: 404, description: 'Cliente ou Produto não encontrado' })
   @ApiResponse({ status: 409, description: 'O cliente já avaliou este produto' })
-  create(
-    @CurrentUser() user: CurrentUserPayload,
-    @Body() dto: CreateReviewDto,
-  ) {
+  create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateReviewDto) {
     // id_cliente capturado do token (user.sub), não do payload
     return this.reviewsService.create(user.sub, dto);
   }
@@ -55,17 +53,16 @@ export class ReviewsController {
   @ApiParam({ name: 'productId', description: 'ID do produto' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
-  @ApiResponse({ status: 200, description: 'Lista paginada de avaliações, contendo média e total geral.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lista paginada de avaliações, contendo média e total geral.',
+  })
   @ApiResponse({ status: 404, description: 'Produto não encontrado' })
   findByProduct(
     @Param('productId', ParseIntPipe) productId: number,
     @Query() query: QueryPaginationDto,
   ) {
-    return this.reviewsService.findByProductPaginated(
-      productId,
-      query.page,
-      query.limit,
-    );
+    return this.reviewsService.findByProductPaginated(productId, query.page, query.limit);
   }
 
   @Delete(':clienteId/:produtoId')

@@ -7,9 +7,10 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryColumn,
-} from "typeorm";
-import { Person } from "../../people/entities/person.entity";
-import { Product } from "../../products/entities/product.entity";
+} from 'typeorm';
+
+import { Person } from '../../people/entities/person.entity';
+import { Product } from '../../products/entities/product.entity';
 
 /**
  * Entidade Review (Avaliação de Produto).
@@ -22,29 +23,29 @@ import { Product } from "../../products/entities/product.entity";
  * Constraint: nota >= 1 AND nota <= 5
  */
 @Entity()
-@Check("nota >= 1 AND nota <= 5")
-@Index(["idProduto", "dataAvaliacao"])
+@Check('nota >= 1 AND nota <= 5')
+@Index(['idProduto', 'dataAvaliacao'])
 export class Review {
-  @PrimaryColumn({ type: "varchar", length: 11 })
+  @PrimaryColumn({ type: 'varchar', length: 11 })
   idCliente: string;
 
-  @PrimaryColumn({ type: "int" })
+  @PrimaryColumn({ type: 'int' })
   idProduto: number;
 
-  @Column({ type: "int" })
+  @Column({ type: 'int' })
   nota: number;
 
-  @Column({ type: "varchar", length: 2000, nullable: true })
+  @Column({ type: 'varchar', length: 2000, nullable: true })
   comentario: string | null;
 
-  @CreateDateColumn({ type: "timestamp" })
+  @CreateDateColumn({ type: 'timestamp' })
   dataAvaliacao: Date;
 
-  @ManyToOne(() => Person, { nullable: false, onDelete: "CASCADE" })
-  @JoinColumn({ name: "id_cliente" })
+  @ManyToOne(() => Person, { nullable: false, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'id_cliente' })
   cliente: Person;
 
-  @ManyToOne(() => Product, { nullable: false, onDelete: "CASCADE" })
-  @JoinColumn({ name: "id_produto" })
+  @ManyToOne(() => Product, { nullable: false, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'id_produto' })
   produto: Product;
 }

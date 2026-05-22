@@ -1,24 +1,27 @@
-import { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+
+import { JwtService } from '@nestjs/jwt';
+import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ZodValidationPipe } from 'nestjs-zod';
 import request from 'supertest';
-import { Repository } from 'typeorm';
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { JwtService } from '@nestjs/jwt';
 
-import { Order, OrderStatus } from './entities/order.entity';
-import { OrderItem } from './entities/order-item.entity';
-import { Person } from '../people/entities/person.entity';
-import { Product } from '../products/entities/product.entity';
-import { ProductVariant } from '../product-variants/entities/product-variant.entity';
-import { Coupon } from '../coupons/entities/coupon.entity';
-import { Stock } from '../inventory/entities/stock.entity';
-import { StockLog } from '../inventory/entities/stock-log.entity';
-import { Employee } from '../employees/entities/employee.entity';
-import { Role } from '../common/enums/role.enum';
 import { AppModule } from '../app.module';
+import { OrderItem } from './entities/order-item.entity';
+import { Order, OrderStatus } from './entities/order.entity';
+import { Role } from '../common/enums/role.enum';
+import { Coupon } from '../coupons/entities/coupon.entity';
+import { Employee } from '../employees/entities/employee.entity';
+import { StockLog } from '../inventory/entities/stock-log.entity';
+import { Stock } from '../inventory/entities/stock.entity';
+import { Person } from '../people/entities/person.entity';
+import { ProductVariant } from '../product-variants/entities/product-variant.entity';
+import { Product } from '../products/entities/product.entity';
+
+import type { INestApplication } from '@nestjs/common';
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 function loadDevelopmentEnv() {
   const envPath = join(process.cwd(), '.env.development');
@@ -67,7 +70,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
   let employeeToken: string;
   let sellerToken: string;
   let testProduct: Product;
-  let testVariant: ProductVariant;
+  let _testVariant: ProductVariant;
 
   beforeAll(async () => {
     loadDevelopmentEnv();
@@ -193,14 +196,14 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       titulo: 'Produto Pedido Teste',
       descricao: 'Descricao',
       destaque: false,
-      precoBase: 100.00,
+      precoBase: 100.0,
       sku: 'PROD-PEDIDO',
     });
 
     // Seed: SKU Variante
-    testVariant = await productVariantRepository.save({
+    _testVariant = await productVariantRepository.save({
       codigoSku: testSku,
-      precoVariante: 120.00,
+      precoVariante: 120.0,
       ativo: true,
       cor: 'Azul',
       tamanho: 'M',
@@ -259,15 +262,15 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .set('Authorization', `Bearer ${clientToken}`)
       .send({
         items: [{ variantSku: testSku, quantidade: 2 }],
-        valorFrete: 15.00,
+        valorFrete: 15.0,
         tipoRetirada: 'entrega',
       })
       .expect(201);
 
     expect(res.body).toHaveProperty('idPedido');
-    expect(Number(res.body.subtotal)).toBe(240.00); // 120 * 2
-    expect(Number(res.body.valorFrete)).toBe(15.00);
-    expect(Number(res.body.valorTotal)).toBe(255.00); // 240 + 15
+    expect(Number(res.body.subtotal)).toBe(240.0); // 120 * 2
+    expect(Number(res.body.valorFrete)).toBe(15.0);
+    expect(Number(res.body.valorTotal)).toBe(255.0); // 240 + 15
     expect(res.body.status).toBe('pending');
     expect(res.body.items).toHaveLength(1);
     expect(res.body.items[0].idVariante).toBe(testSku);
@@ -292,7 +295,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
     await couponRepository.save({
       numeroDoCupom: 'TESTEPERCENT',
       tipoCupom: 'porcentagem',
-      valorDesconto: 10.00,
+      valorDesconto: 10.0,
       ativo: true,
       dataInicio,
       dataFim,
@@ -306,15 +309,17 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .send({
         items: [{ variantSku: testSku, quantidade: 2 }],
         couponNumero: 'TESTEPERCENT',
-        valorFrete: 10.00,
+        valorFrete: 10.0,
       })
       .expect(201);
 
-    expect(Number(res.body.subtotal)).toBe(240.00);
-    expect(Number(res.body.valorTotal)).toBe(226.00);
+    expect(Number(res.body.subtotal)).toBe(240.0);
+    expect(Number(res.body.valorTotal)).toBe(226.0);
     expect(res.body.idCupom).toBe('TESTEPERCENT');
 
-    const updatedCoupon = await couponRepository.findOne({ where: { numeroDoCupom: 'TESTEPERCENT' } });
+    const updatedCoupon = await couponRepository.findOne({
+      where: { numeroDoCupom: 'TESTEPERCENT' },
+    });
     expect(updatedCoupon?.usosAtuais).toBe(1);
   });
 
@@ -326,7 +331,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
     await couponRepository.save({
       numeroDoCupom: 'TESTEFIXO',
       tipoCupom: 'fixo',
-      valorDesconto: 30.00,
+      valorDesconto: 30.0,
       ativo: true,
       dataInicio,
       dataFim,
@@ -340,12 +345,12 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .send({
         items: [{ variantSku: testSku, quantidade: 2 }],
         couponNumero: 'TESTEFIXO',
-        valorFrete: 10.00,
+        valorFrete: 10.0,
       })
       .expect(201);
 
-    expect(Number(res.body.subtotal)).toBe(240.00);
-    expect(Number(res.body.valorTotal)).toBe(220.00);
+    expect(Number(res.body.subtotal)).toBe(240.0);
+    expect(Number(res.body.valorTotal)).toBe(220.0);
   });
 
   it('deve zerar o valorFrete e gerar código de 6 dígitos quando tipoRetirada = loja (US15 - Critério de Aceite)', async () => {
@@ -355,21 +360,19 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .send({
         items: [{ variantSku: testSku, quantidade: 1 }],
         tipoRetirada: 'loja',
-        valorFrete: 45.00,
+        valorFrete: 45.0,
       })
       .expect(201);
 
     expect(res.body.tipoRetirada).toBe('loja');
     expect(Number(res.body.valorFrete)).toBe(0);
-    expect(Number(res.body.subtotal)).toBe(120.00);
-    expect(Number(res.body.valorTotal)).toBe(120.00);
+    expect(Number(res.body.subtotal)).toBe(120.0);
+    expect(Number(res.body.valorTotal)).toBe(120.0);
     expect(res.body.codigoVerificacaoRetirada).toMatch(/^\d{6}$/);
   });
 
   it('deve proteger o endpoint de código de verificação por autenticação (retorna 401)', async () => {
-    await request(app.getHttpServer())
-      .get('/api/orders/999/verification-code')
-      .expect(401);
+    await request(app.getHttpServer()).get('/api/orders/999/verification-code').expect(401);
   });
 
   it('deve permitir que o dono do pedido (cliente) visualize o código de verificação (US15 - Critério de Aceite)', async () => {
@@ -603,8 +606,8 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
     expect(res.body.status).toBe('paid');
     expect(res.body.tipoRetirada).toBe('loja');
     expect(Number(res.body.valorFrete)).toBe(0);
-    expect(Number(res.body.subtotal)).toBe(240.00);
-    expect(Number(res.body.valorTotal)).toBe(240.00);
+    expect(Number(res.body.subtotal)).toBe(240.0);
+    expect(Number(res.body.valorTotal)).toBe(240.0);
 
     const stock = await stockRepository.findOne({ where: { codigoSku: testSku } });
     expect(stock?.qtdLojaFisica).toBe(3);
@@ -694,7 +697,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .send({
         items: [{ variantSku: testSku, quantidade: 1 }],
         tipoRetirada: 'entrega',
-        valorFrete: 10.00,
+        valorFrete: 10.0,
       })
       .expect(201);
 
@@ -944,9 +947,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
   });
 
   it('deve negar listagem geral de pedidos sem autenticação (retorna 401) (Refinamento)', async () => {
-    await request(app.getHttpServer())
-      .get('/api/orders')
-      .expect(401);
+    await request(app.getHttpServer()).get('/api/orders').expect(401);
   });
 
   it('deve listar pedidos paginados para gerente/admin com filtro de status (Refinamento)', async () => {
@@ -1036,9 +1037,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
   });
 
   it('deve retornar 401 em GET /orders/my se não autenticado (Refinamento)', async () => {
-    await request(app.getHttpServer())
-      .get('/api/orders/my')
-      .expect(401);
+    await request(app.getHttpServer()).get('/api/orders/my').expect(401);
   });
 
   it('deve confirmar retirada de forma idempotente — segundo clique com PIN correto retorna 200 sem erro (Refinamento)', async () => {

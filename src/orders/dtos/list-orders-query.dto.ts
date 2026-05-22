@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+
 import { OrderStatus, TipoRetirada } from '../entities/order.entity';
 
 /**
@@ -8,17 +9,8 @@ import { OrderStatus, TipoRetirada } from '../entities/order.entity';
  * Segue o padrão de paginação do projeto: page=1&limit=20, max limit=100.
  */
 export const ListOrdersQuerySchema = z.object({
-  page: z.coerce
-    .number()
-    .int()
-    .positive()
-    .default(1),
-  limit: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(100)
-    .default(20),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
   status: z
     .nativeEnum(OrderStatus, {
       message: `Status deve ser um de: ${Object.values(OrderStatus).join(', ')}`,

@@ -77,6 +77,7 @@ export class PeopleService {
    * - Se endereço vem no payload: será persistido em tabela separada
    *   (será feito via AddressService em future)
    */
+  // eslint-disable-next-line complexity
   async registerUser(dto: RegisterUserDto): Promise<IPersonSafe> {
     const senhaHash = await bcrypt.hash(dto.senha, BCRYPT_ROUNDS);
 
