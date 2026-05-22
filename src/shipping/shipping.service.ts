@@ -1,11 +1,8 @@
-import {
-  Injectable,
-  Logger,
-  ServiceUnavailableException,
-} from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { AxiosError } from 'axios';
+import { firstValueFrom } from 'rxjs';
+
 import { CalculateShippingDto } from './dtos/calculate-shipping.dto';
 import { IShippingQuote } from './interfaces/shipping.interface';
 
@@ -22,8 +19,7 @@ const CACHE_TTL_MS = 30 * 60 * 1_000;
 const CACHE_MAX_ENTRIES = 500;
 
 /** Endpoint público do calculador de preços e prazos dos Correios. */
-const CORREIOS_CALC_URL =
-  'http://ws.correios.com.br/calculador/CalcPrecoPrazo.aspx';
+const CORREIOS_CALC_URL = 'http://ws.correios.com.br/calculador/CalcPrecoPrazo.aspx';
 
 /** Código do serviço PAC (sem contrato). */
 const SERVICO_PAC = '04510';
@@ -85,13 +81,7 @@ export class ShippingService {
     const largura = dto.dimensoes?.largura ?? DEFAULTS.largura;
     const altura = dto.dimensoes?.altura ?? DEFAULTS.altura;
 
-    const cacheKey = this.buildCacheKey(
-      dto.cep_destino,
-      peso,
-      comprimento,
-      largura,
-      altura,
-    );
+    const cacheKey = this.buildCacheKey(dto.cep_destino, peso, comprimento, largura, altura);
 
     const cached = this.getFromCache(cacheKey);
     if (cached) {
@@ -99,17 +89,9 @@ export class ShippingService {
       return cached;
     }
 
-    this.logger.log(
-      `Consultando Correios: ${this.cepOrigem} → ${dto.cep_destino}`,
-    );
+    this.logger.log(`Consultando Correios: ${this.cepOrigem} → ${dto.cep_destino}`);
 
-    const quote = await this.fetchFromCorreios(
-      dto.cep_destino,
-      peso,
-      comprimento,
-      largura,
-      altura,
-    );
+    const quote = await this.fetchFromCorreios(dto.cep_destino, peso, comprimento, largura, altura);
 
     this.setInCache(cacheKey, quote);
     return quote;
@@ -198,9 +180,7 @@ export class ShippingService {
 
     if (!valorStr || !prazoStr) {
       this.logger.error('Resposta dos Correios com campos ausentes');
-      throw new ServiceUnavailableException(
-        'Resposta inesperada do serviço dos Correios',
-      );
+      throw new ServiceUnavailableException('Resposta inesperada do serviço dos Correios');
     }
 
     // Correios usa vírgula como separador decimal ("25,80" → 25.80)
@@ -208,12 +188,8 @@ export class ShippingService {
     const prazo_dias = parseInt(prazoStr, 10);
 
     if (isNaN(valor) || isNaN(prazo_dias)) {
-      this.logger.error(
-        `Valores inválidos na resposta: valor="${valorStr}", prazo="${prazoStr}"`,
-      );
-      throw new ServiceUnavailableException(
-        'Resposta inesperada do serviço dos Correios',
-      );
+      this.logger.error(`Valores inválidos na resposta: valor="${valorStr}", prazo="${prazoStr}"`);
+      throw new ServiceUnavailableException('Resposta inesperada do serviço dos Correios');
     }
 
     return { valor, prazo_dias };
@@ -232,25 +208,13 @@ export class ShippingService {
   private handleCorreiosError(error: unknown): never {
     const axiosError = error as AxiosError;
 
-    if (
-      axiosError.code === 'ECONNABORTED' ||
-      axiosError.code === 'ETIMEDOUT'
-    ) {
-      this.logger.error(
-        `Timeout ao consultar Correios (limite: ${CORREIOS_TIMEOUT_MS}ms)`,
-      );
-      throw new ServiceUnavailableException(
-        'Serviço dos Correios indisponível (timeout)',
-      );
+    if (axiosError.code === 'ECONNABORTED' || axiosError.code === 'ETIMEDOUT') {
+      this.logger.error(`Timeout ao consultar Correios (limite: ${CORREIOS_TIMEOUT_MS}ms)`);
+      throw new ServiceUnavailableException('Serviço dos Correios indisponível (timeout)');
     }
 
-    this.logger.error(
-      `Erro ao consultar Correios: ${axiosError.message}`,
-      axiosError.stack,
-    );
-    throw new ServiceUnavailableException(
-      'Serviço dos Correios indisponível',
-    );
+    this.logger.error(`Erro ao consultar Correios: ${axiosError.message}`, axiosError.stack);
+    throw new ServiceUnavailableException('Serviço dos Correios indisponível');
   }
 
   // ─── Cache em memória ────────────────────────────────────────────────

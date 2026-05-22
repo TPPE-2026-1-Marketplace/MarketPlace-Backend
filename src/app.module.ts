@@ -17,9 +17,6 @@ import { PeopleModule } from './people/people.module';
 import { ProductVariantsModule } from './product-variants/product-variants.module';
 import { ProductsModule } from './products/products.module';
 import { ReviewsModule } from './reviews/reviews.module';
-import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
-import { AuthModule } from './auth/auth.module';
-import { ImagesModule } from './images/images.module';
 import { ShippingModule } from './shipping/shipping.module';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
