@@ -1,7 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+
 import { Category } from '../categories/entities/category.entity';
+import { PAGINATION_DEFAULT_LIMIT, PAGINATION_DEFAULT_PAGE } from '../common/constants';
 import { CreateProductDto } from './dtos/create-product.dto';
 import { QueryProductsDto } from './dtos/query-products.dto';
 import { UpdateProductDto } from './dtos/update-product.dto';
@@ -37,8 +39,8 @@ export class ProductsService {
     data: Product[];
     meta: { page: number; limit: number; total: number; totalPages: number };
   }> {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const page = query.page ?? PAGINATION_DEFAULT_PAGE;
+    const limit = query.limit ?? PAGINATION_DEFAULT_LIMIT;
 
     const qb = this.productsRepository
       .createQueryBuilder('product')
@@ -97,14 +99,11 @@ export class ProductsService {
 
     Object.assign(product, {
       titulo: dto.titulo ?? product.titulo,
-      descricao:
-        dto.descricao === undefined ? product.descricao : dto.descricao,
+      descricao: dto.descricao === undefined ? product.descricao : dto.descricao,
       destaque: dto.destaque ?? product.destaque,
-      qualMedida:
-        dto.qual_medida === undefined ? product.qualMedida : dto.qual_medida,
+      qualMedida: dto.qual_medida === undefined ? product.qualMedida : dto.qual_medida,
       material: dto.material === undefined ? product.material : dto.material,
-      composicao:
-        dto.composicao === undefined ? product.composicao : dto.composicao,
+      composicao: dto.composicao === undefined ? product.composicao : dto.composicao,
       silhueta: dto.silhueta === undefined ? product.silhueta : dto.silhueta,
       tags: dto.tags === undefined ? product.tags : dto.tags,
       precoBase: dto.preco_base ?? product.precoBase,
@@ -130,9 +129,7 @@ export class ProductsService {
     });
 
     if (!category) {
-      throw new NotFoundException(
-        `Categoria com id ${categoryId} não encontrada`,
-      );
+      throw new NotFoundException(`Categoria com id ${categoryId} não encontrada`);
     }
 
     const categories = product.categories ?? [];
@@ -155,9 +152,7 @@ export class ProductsService {
     });
 
     if (!category) {
-      throw new NotFoundException(
-        `Categoria com id ${categoryId} não encontrada`,
-      );
+      throw new NotFoundException(`Categoria com id ${categoryId} não encontrada`);
     }
 
     product.categories = (product.categories ?? []).filter(

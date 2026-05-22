@@ -1,12 +1,15 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Role } from '../common/enums/role.enum';
-import { ROLES_KEY } from '../common/decorators/roles.decorator';
+import { Test } from '@nestjs/testing';
+
 import { ProductsController } from './products.controller';
 import { ProductsService } from './products.service';
+import { ROLES_KEY } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+
+import type { TestingModule } from '@nestjs/testing';
 
 const mockProductsService = {
   create: jest.fn(),
@@ -26,10 +29,7 @@ describe('ProductsController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ProductsController],
-      providers: [
-        { provide: ProductsService, useValue: mockProductsService },
-        Reflector,
-      ],
+      providers: [{ provide: ProductsService, useValue: mockProductsService }, Reflector],
     }).compile();
 
     controller = module.get(ProductsController);

@@ -20,19 +20,20 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { CategoriesService } from './categories.service';
+import { CreateCategoryDto } from './dtos/create-category.dto';
+import { QueryCategoriesDto } from './dtos/query-categories.dto';
+import { UpdateCategoryDto } from './dtos/update-category.dto';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { CreateCategoryDto } from './dtos/create-category.dto';
-import { QueryCategoriesDto } from './dtos/query-categories.dto';
-import { UpdateCategoryDto } from './dtos/update-category.dto';
-import { CategoriesService } from './categories.service';
 
 @ApiTags('categories')
 @Controller('categories')
 export class CategoriesController {
-  constructor(private readonly categoriesService: CategoriesService) { }
+  constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -73,10 +74,7 @@ export class CategoriesController {
   @ApiResponse({ status: 200, description: 'Categoria atualizada' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 404, description: 'Categoria não encontrada' })
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateCategoryDto,
-  ) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateCategoryDto) {
     return this.categoriesService.update(id, dto);
   }
 
