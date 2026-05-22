@@ -1,17 +1,20 @@
-import { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { existsSync, readFileSync } from 'fs';
+import { join } from 'path';
+
+import { JwtService } from '@nestjs/jwt';
+import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ZodValidationPipe } from 'nestjs-zod';
 import request from 'supertest';
-import { Repository } from 'typeorm';
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { JwtService } from '@nestjs/jwt';
 
-import { Coupon } from './entities/coupon.entity';
-import { Product } from '../products/entities/product.entity';
 import { CouponsService } from './coupons.service';
 import { AppModule } from '../app.module';
+import { Coupon } from './entities/coupon.entity';
+import { Product } from '../products/entities/product.entity';
+
+import type { INestApplication } from '@nestjs/common';
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 function loadDevelopmentEnv() {
   const envPath = join(process.cwd(), '.env.development');
@@ -225,7 +228,9 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
       where: { numeroDoCupom: testCouponCode },
       relations: { products: true },
     });
-    expect(couponWithProducts?.products.some((p) => p.idProduto === testProduct1.idProduto)).toBe(true);
+    expect(couponWithProducts?.products.some((p) => p.idProduto === testProduct1.idProduto)).toBe(
+      true,
+    );
 
     // Desassociar produto (DELETE)
     await request(app.getHttpServer())
@@ -323,7 +328,9 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
 
     // Caso D: Carrinho contém múltiplos produtos incluindo pelo menos um elegível (testProduct2, testProduct1) -> Deve aprovar!
     const resValidoMultiplo = await request(app.getHttpServer())
-      .get(`/api/coupons/validate/${testCouponCode}?productIds=${testProduct2.idProduto},${testProduct1.idProduto}`)
+      .get(
+        `/api/coupons/validate/${testCouponCode}?productIds=${testProduct2.idProduto},${testProduct1.idProduto}`,
+      )
       .expect(200);
 
     expect(resValidoMultiplo.body.valid).toBe(true);
@@ -437,7 +444,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
 
     // 4. Chamar de novo
     await couponsService.incrementUsage(testCouponCode);
-    
+
     const coupon2 = await couponsRepository.findOne({
       where: { numeroDoCupom: testCouponCode },
     });

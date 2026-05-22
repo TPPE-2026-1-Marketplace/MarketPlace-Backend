@@ -34,6 +34,7 @@ export class EmployeesService {
   }
 
   async create(dto: CreateEmployeeDto): Promise<Employee> {
+    // eslint-disable-next-line complexity
     return this.dataSource.transaction(async (manager) => {
       const peopleRepository = manager.getRepository(Person);
       const employeesRepository = manager.getRepository(Employee);
@@ -145,6 +146,7 @@ export class EmployeesService {
   }
 
   async update(cpf: string, dto: UpdateEmployeeDto): Promise<Employee> {
+    // eslint-disable-next-line complexity
     return this.dataSource.transaction(async (manager) => {
       const peopleRepository = manager.getRepository(Person);
       const employeesRepository = manager.getRepository(Employee);

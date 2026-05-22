@@ -11,19 +11,13 @@ import { z } from 'zod';
  * comentario: Comentário opcional de até 2000 caracteres (equivalente a @MaxLength(2000)).
  */
 export const CreateReviewSchema = z.object({
-  idProduto: z
-    .number()
-    .int()
-    .positive('O ID do produto deve ser um número inteiro positivo'),
+  idProduto: z.number().int().positive('O ID do produto deve ser um número inteiro positivo'),
   nota: z
     .number()
     .int()
     .min(1, 'A nota deve ser no mínimo 1')
     .max(5, 'A nota deve ser no máximo 5'),
-  comentario: z
-    .string()
-    .max(2000, 'O comentário pode ter no máximo 2000 caracteres')
-    .optional(),
+  comentario: z.string().max(2000, 'O comentário pode ter no máximo 2000 caracteres').optional(),
 });
 
 export class CreateReviewDto extends createZodDto(CreateReviewSchema) {}

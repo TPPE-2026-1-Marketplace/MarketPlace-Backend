@@ -9,10 +9,11 @@ import {
   PrimaryGeneratedColumn,
   Check,
 } from 'typeorm';
-import { Person } from '../../people/entities/person.entity';
+
+import { OrderItem } from './order-item.entity';
 import { Coupon } from '../../coupons/entities/coupon.entity';
 import { Employee } from '../../employees/entities/employee.entity';
-import { OrderItem } from './order-item.entity';
+import { Person } from '../../people/entities/person.entity';
 
 export enum OrderStatus {
   PENDING = 'pending',

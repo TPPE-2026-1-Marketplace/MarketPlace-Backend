@@ -18,12 +18,8 @@ export const CreateCouponSchema = z
     tipoCupom: z.enum(['fixo', 'porcentagem'], {
       message: "O tipo do cupom deve ser 'fixo' ou 'porcentagem'",
     }),
-    valorDesconto: z
-      .number()
-      .positive('O valor do desconto deve ser um número positivo'),
-    ativo: z
-      .boolean()
-      .default(true),
+    valorDesconto: z.number().positive('O valor do desconto deve ser um número positivo'),
+    ativo: z.boolean().default(true),
     dataInicio: z.coerce.date(),
     dataFim: z.coerce.date(),
     usoMaximo: z
@@ -65,4 +61,3 @@ export const ValidateCouponQuerySchema = z.object({
 });
 
 export class ValidateCouponQueryDto extends createZodDto(ValidateCouponQuerySchema) {}
-

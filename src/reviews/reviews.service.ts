@@ -4,16 +4,17 @@ import {
   Injectable,
   Logger,
   NotFoundException,
-} from "@nestjs/common";
-import { InjectDataSource, InjectRepository } from "@nestjs/typeorm";
-import { DataSource, EntityManager, QueryFailedError, Repository } from "typeorm";
-import { CreateReviewDto } from "./dtos/create-review.dto";
-import { Review } from "./entities/review.entity";
-import { Person } from "../people/entities/person.entity";
-import { Product } from "../products/entities/product.entity";
-import { Order, OrderStatus } from "../orders/entities/order.entity";
+} from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, QueryFailedError, Repository } from 'typeorm';
 
-const PG_UNIQUE_VIOLATION = "23505";
+import { CreateReviewDto } from './dtos/create-review.dto';
+import { Review } from './entities/review.entity';
+import { Order, OrderStatus } from '../orders/entities/order.entity';
+import { Person } from '../people/entities/person.entity';
+import { Product } from '../products/entities/product.entity';
+
+const PG_UNIQUE_VIOLATION = '23505';
 
 @Injectable()
 export class ReviewsService {
@@ -42,6 +43,7 @@ export class ReviewsService {
    * - Lança ConflictException (409) se já existir uma avaliação.
    */
   async create(idCliente: string, dto: CreateReviewDto): Promise<Review> {
+    // eslint-disable-next-line complexity
     return await this.dataSource.transaction(async (manager) => {
       const peopleRepo = manager.getRepository(Person);
       const productsRepo = manager.getRepository(Product);
@@ -53,9 +55,7 @@ export class ReviewsService {
         where: { cpf: idCliente },
       });
       if (!clientExists) {
-        throw new NotFoundException(
-          `Cliente com CPF ${idCliente} não encontrado`,
-        );
+        throw new NotFoundException(`Cliente com CPF ${idCliente} não encontrado`);
       }
 
       // 2. Validar se o produto existe
@@ -63,31 +63,25 @@ export class ReviewsService {
         where: { idProduto: dto.idProduto },
       });
       if (!productExists) {
-        throw new NotFoundException(
-          `Produto com ID ${dto.idProduto} não encontrado`,
-        );
+        throw new NotFoundException(`Produto com ID ${dto.idProduto} não encontrado`);
       }
 
       // 2.5 Validar se o cliente de fato comprou o produto (Compra Verificada)
       const hasPurchased = await ordersRepo
-        .createQueryBuilder("order")
-        .innerJoin("order.items", "item")
-        .innerJoin("item.variant", "variant")
-        .innerJoin("variant.product", "product")
-        .where("order.idUsuario = :idCliente", { idCliente })
-        .andWhere("product.idProduto = :idProduto", { idProduto: dto.idProduto })
-        .andWhere("order.status IN (:...statuses)", {
-          statuses: [
-            OrderStatus.PAID,
-            OrderStatus.SHIPPED,
-            OrderStatus.DELIVERED,
-          ],
+        .createQueryBuilder('order')
+        .innerJoin('order.items', 'item')
+        .innerJoin('item.variant', 'variant')
+        .innerJoin('variant.product', 'product')
+        .where('order.idUsuario = :idCliente', { idCliente })
+        .andWhere('product.idProduto = :idProduto', { idProduto: dto.idProduto })
+        .andWhere('order.status IN (:...statuses)', {
+          statuses: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED],
         })
         .getCount();
 
       if (hasPurchased === 0) {
         throw new ForbiddenException(
-          "Apenas clientes que compraram e pagaram pelo produto podem avaliá-lo.",
+          'Apenas clientes que compraram e pagaram pelo produto podem avaliá-lo.',
         );
       }
 
@@ -99,13 +93,13 @@ export class ReviewsService {
         },
       });
       if (existingReview) {
-        throw new ConflictException("O cliente já avaliou este produto");
+        throw new ConflictException('O cliente já avaliou este produto');
       }
 
       // Sanitização do comentário para evitar XSS
       let sanitizedComment: string | null = null;
       if (dto.comentario) {
-        sanitizedComment = dto.comentario.replace(/<[^>]*>/g, "").trim();
+        sanitizedComment = dto.comentario.replace(/<[^>]*>/g, '').trim();
         if (sanitizedComment.length === 0) {
           sanitizedComment = null;
         }
@@ -128,7 +122,7 @@ export class ReviewsService {
           err instanceof QueryFailedError &&
           (err.driverError as { code?: string })?.code === PG_UNIQUE_VIOLATION
         ) {
-          throw new ConflictException("O cliente já avaliou este produto");
+          throw new ConflictException('O cliente já avaliou este produto');
         }
         throw err;
       }
@@ -149,7 +143,7 @@ export class ReviewsService {
     return this.reviewsRepository.find({
       where: { idProduto },
       relations: { cliente: true },
-      order: { dataAvaliacao: "DESC" },
+      order: { dataAvaliacao: 'DESC' },
     });
   }
 
@@ -180,11 +174,11 @@ export class ReviewsService {
     media: number;
     totalAvaliacoes: number;
     distribuicao: {
-      "1": number;
-      "2": number;
-      "3": number;
-      "4": number;
-      "5": number;
+      '1': number;
+      '2': number;
+      '3': number;
+      '4': number;
+      '5': number;
     };
   }> {
     // 1. Validar se o produto existe e carregar dados denormalizados
@@ -199,31 +193,27 @@ export class ReviewsService {
     const [reviews, total] = await this.reviewsRepository.findAndCount({
       where: { idProduto },
       relations: { cliente: true },
-      order: { dataAvaliacao: "DESC" },
+      order: { dataAvaliacao: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
 
     // 3. Obter distribuição de estrelas (de 1 a 5)
     const distributionRaw = await this.reviewsRepository
-      .createQueryBuilder("review")
-      .select("review.nota", "nota")
-      .addSelect("COUNT(*)", "count")
-      .where("review.idProduto = :idProduto", { idProduto })
-      .groupBy("review.nota")
+      .createQueryBuilder('review')
+      .select('review.nota', 'nota')
+      .addSelect('COUNT(*)', 'count')
+      .where('review.idProduto = :idProduto', { idProduto })
+      .groupBy('review.nota')
       .getRawMany();
 
-    const distribuicao = { "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
+    const distribuicao = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
     distributionRaw.forEach((row) => {
       distribuicao[row.nota.toString()] = Number(row.count);
     });
 
-    const media = product.mediaAvaliacao
-      ? Number(Number(product.mediaAvaliacao).toFixed(1))
-      : 0;
-    const totalAvaliacoes = product.totalAvaliacoes
-      ? Number(product.totalAvaliacoes)
-      : 0;
+    const media = product.mediaAvaliacao ? Number(Number(product.mediaAvaliacao).toFixed(1)) : 0;
+    const totalAvaliacoes = product.totalAvaliacoes ? Number(product.totalAvaliacoes) : 0;
 
     // 4. Mapear resposta para esconder CPF do cliente e incluir apenas o nome
     const safeData = reviews.map((r) => ({
@@ -232,7 +222,7 @@ export class ReviewsService {
       comentario: r.comentario,
       dataAvaliacao: r.dataAvaliacao,
       cliente: {
-        nome: r.cliente?.nome || "Cliente Anônimo",
+        nome: r.cliente?.nome || 'Cliente Anônimo',
       },
     }));
 
@@ -286,7 +276,7 @@ export class ReviewsService {
     // 1. Obter bloqueio pessimista de escrita (SELECT FOR UPDATE) na linha correspondente do produto
     const product = await manager.findOne(Product, {
       where: { idProduto },
-      lock: { mode: "pessimistic_write" },
+      lock: { mode: 'pessimistic_write' },
     });
 
     if (!product) {
@@ -296,10 +286,10 @@ export class ReviewsService {
     // 2. Calcular a média e o total atualizado
     const { avg, count } = await manager
       .getRepository(Review)
-      .createQueryBuilder("review")
-      .select("AVG(review.nota)", "avg")
-      .addSelect("COUNT(*)", "count")
-      .where("review.idProduto = :idProduto", { idProduto })
+      .createQueryBuilder('review')
+      .select('AVG(review.nota)', 'avg')
+      .addSelect('COUNT(*)', 'count')
+      .where('review.idProduto = :idProduto', { idProduto })
       .getRawOne();
 
     const media = avg ? Number(Number(avg).toFixed(2)) : 0.0;

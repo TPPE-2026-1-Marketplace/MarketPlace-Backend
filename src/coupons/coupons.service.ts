@@ -6,12 +6,12 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, QueryFailedError, Repository } from 'typeorm';
+
 import { CreateCouponDto } from './dtos/create-coupon.dto';
 import { UpdateCouponDto } from './dtos/update-coupon.dto';
 import { Coupon } from './entities/coupon.entity';
+import { PERCENTAGE_MAX, PG_UNIQUE_VIOLATION } from '../common/constants';
 import { Product } from '../products/entities/product.entity';
-
-const PG_UNIQUE_VIOLATION = '23505';
 
 @Injectable()
 export class CouponsService {
@@ -82,6 +82,7 @@ export class CouponsService {
   /**
    * Atualiza parcialmente um cupom (Admin).
    */
+  // eslint-disable-next-line complexity
   async update(numeroDoCupom: string, dto: UpdateCouponDto): Promise<Coupon> {
     const coupon = await this.findOne(numeroDoCupom);
 
@@ -95,7 +96,7 @@ export class CouponsService {
     // Validação de segurança para tipoCupom e valorDesconto de porcentagem
     const tipoCupom = dto.tipoCupom ?? coupon.tipoCupom;
     const valorDesconto = dto.valorDesconto ?? Number(coupon.valorDesconto);
-    if (tipoCupom === 'porcentagem' && valorDesconto > 100) {
+    if (tipoCupom === 'porcentagem' && valorDesconto > PERCENTAGE_MAX) {
       throw new BadRequestException('Para cupons do tipo porcentagem, o desconto máximo é de 100%');
     }
 
@@ -162,6 +163,7 @@ export class CouponsService {
   /**
    * Valida publicamente um cupom.
    */
+  // eslint-disable-next-line complexity
   async validate(
     numeroDoCupom: string,
     productIds: number[] = [],

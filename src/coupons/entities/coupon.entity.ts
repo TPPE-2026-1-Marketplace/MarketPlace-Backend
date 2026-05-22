@@ -1,4 +1,5 @@
 import { Check, Column, Entity, JoinTable, ManyToMany, PrimaryColumn } from 'typeorm';
+
 import { Product } from '../../products/entities/product.entity';
 
 /**
