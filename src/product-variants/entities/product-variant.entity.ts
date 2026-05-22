@@ -1,11 +1,5 @@
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  OneToMany,
-  PrimaryColumn,
-} from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryColumn } from 'typeorm';
+
 import { CatalogImage } from '../../images/entities/catalog-image.entity';
 import { Product } from '../../products/entities/product.entity';
 import { Measurements } from '../interfaces/measurements.interface';

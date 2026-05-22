@@ -1,11 +1,15 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { AddressesService } from '../addresses/addresses.service';
+import { QueryFailedError } from 'typeorm';
+
 import { PeopleService } from './people.service';
+import { AddressesService } from '../addresses/addresses.service';
 import { Person } from './entities/person.entity';
+
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 jest.mock('bcrypt');
 
@@ -196,7 +200,10 @@ describe('PeopleService', () => {
     });
 
     it('calcula totalPages corretamente', async () => {
-      const pessoas = Array.from({ length: 3 }, (_, i) => ({ ...mockPerson, cpf: `0000000000${i}` }));
+      const pessoas = Array.from({ length: 3 }, (_, i) => ({
+        ...mockPerson,
+        cpf: `0000000000${i}`,
+      }));
       repo.findAndCount.mockResolvedValue([pessoas, 25]);
 
       const result = await service.findAll(1, 10);
@@ -264,7 +271,9 @@ describe('PeopleService', () => {
     it('lança NotFoundException quando CPF não existe', async () => {
       repo.findOne.mockResolvedValue(null);
 
-      await expect(service.update('00000000000', { nome: 'X' })).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.update('00000000000', { nome: 'X' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
 
     it('lança ConflictException quando email já pertence a outra pessoa', async () => {

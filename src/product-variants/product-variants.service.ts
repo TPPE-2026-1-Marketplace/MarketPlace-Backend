@@ -1,11 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Product } from '../products/entities/product.entity';
+
+import { PAGINATION_DEFAULT_LIMIT, PAGINATION_DEFAULT_PAGE } from '../common/constants';
 import { CreateProductVariantDto } from './dtos/create-product-variant.dto';
 import { QueryProductVariantsDto } from './dtos/query-product-variants.dto';
 import { UpdateProductVariantDto } from './dtos/update-product-variant.dto';
 import { ProductVariant } from './entities/product-variant.entity';
+import { Product } from '../products/entities/product.entity';
 
 @Injectable()
 export class ProductVariantsService {
@@ -22,9 +24,7 @@ export class ProductVariantsService {
     });
 
     if (!product) {
-      throw new NotFoundException(
-        `Produto com id ${dto.idProduto} não encontrado`,
-      );
+      throw new NotFoundException(`Produto com id ${dto.idProduto} não encontrado`);
     }
 
     const variant = this.variantsRepository.create({
@@ -43,8 +43,8 @@ export class ProductVariantsService {
     data: ProductVariant[];
     meta: { page: number; limit: number; total: number; totalPages: number };
   }> {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 20;
+    const page = query.page ?? PAGINATION_DEFAULT_PAGE;
+    const limit = query.limit ?? PAGINATION_DEFAULT_LIMIT;
 
     const [data, total] = await this.variantsRepository.findAndCount({
       where: { ativo: query.ativo ?? true },
@@ -78,10 +78,7 @@ export class ProductVariantsService {
     return variant;
   }
 
-  async update(
-    sku: string,
-    dto: UpdateProductVariantDto,
-  ): Promise<ProductVariant> {
+  async update(sku: string, dto: UpdateProductVariantDto): Promise<ProductVariant> {
     const variant = await this.findOne(sku);
 
     Object.assign(variant, {
