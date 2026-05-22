@@ -1,6 +1,7 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryColumn } from 'typeorm';
-import { ProductVariant } from '../../product-variants/entities/product-variant.entity';
+
 import { Image } from './image.entity';
+import { ProductVariant } from '../../product-variants/entities/product-variant.entity';
 
 @Entity()
 export class CatalogImage {

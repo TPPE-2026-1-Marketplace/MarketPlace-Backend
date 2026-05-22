@@ -17,15 +17,16 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
+import { QueryStockLogsDto } from './dtos/query-stock-logs.dto';
+import { UpdateStockDto } from './dtos/update-stock.dto';
+import { MovementType } from './entities/stock-log.entity';
+import { InventoryService } from './inventory.service';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { QueryStockLogsDto } from './dtos/query-stock-logs.dto';
-import { UpdateStockDto } from './dtos/update-stock.dto';
-import { MovementType } from './entities/stock-log.entity';
-import { InventoryService } from './inventory.service';
 
 @ApiTags('inventory')
 @Controller('inventory')

@@ -1,4 +1,6 @@
-import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import { createParamDecorator } from '@nestjs/common';
+
+import type { ExecutionContext } from '@nestjs/common';
 
 export interface CurrentUserPayload {
   sub: string;

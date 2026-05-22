@@ -1,20 +1,15 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { QueryFailedError, Repository } from 'typeorm';
+
 import { AddressesService } from '../addresses/addresses.service';
+import { BCRYPT_ROUNDS, PG_UNIQUE_VIOLATION } from '../common/constants';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { Person } from './entities/person.entity';
 import { IPersonSafe } from './interfaces/person.interface';
-
-const PG_UNIQUE_VIOLATION = '23505';
-const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class PeopleService {

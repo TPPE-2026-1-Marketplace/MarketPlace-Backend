@@ -1,11 +1,15 @@
 import { NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
-import { Between, LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
-import { ProductVariant } from '../product-variants/entities/product-variant.entity';
+import { Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+
 import { MovementType, StockLog } from './entities/stock-log.entity';
 import { Stock } from './entities/stock.entity';
 import { InventoryService } from './inventory.service';
+import { ProductVariant } from '../product-variants/entities/product-variant.entity';
+
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 const mockVariant: ProductVariant = {
   codigoSku: 'CAMISETA-P',
@@ -63,9 +67,7 @@ describe('InventoryService', () => {
     };
 
     const mockDataSource = {
-      transaction: jest.fn((cb: (m: typeof mockManager) => Promise<unknown>) =>
-        cb(mockManager),
-      ),
+      transaction: jest.fn((cb: (m: typeof mockManager) => Promise<unknown>) => cb(mockManager)),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -166,9 +168,7 @@ describe('InventoryService', () => {
         '12345678901',
       );
 
-      expect(txStockRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ qtdOnline: 20 }),
-      );
+      expect(txStockRepo.save).toHaveBeenCalledWith(expect.objectContaining({ qtdOnline: 20 }));
     });
 
     it('preserva qtdLojaFisica quando apenas qtdOnline é fornecido', async () => {
@@ -180,9 +180,7 @@ describe('InventoryService', () => {
 
       await service.adjust('CAMISETA-P', { qtdOnline: 20, tipoMovimentacao: MovementType.AJUSTE });
 
-      expect(txStockRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ qtdLojaFisica: 5 }),
-      );
+      expect(txStockRepo.save).toHaveBeenCalledWith(expect.objectContaining({ qtdLojaFisica: 5 }));
     });
 
     it('cria registro de estoque quando variante existe mas ainda não tem estoque', async () => {
@@ -194,10 +192,7 @@ describe('InventoryService', () => {
       txLogRepo.create.mockReturnValue(mockLog);
       txLogRepo.save.mockResolvedValue(mockLog);
 
-      await service.adjust(
-        'CAMISETA-P',
-        { qtdOnline: 15, tipoMovimentacao: MovementType.ENTRADA },
-      );
+      await service.adjust('CAMISETA-P', { qtdOnline: 15, tipoMovimentacao: MovementType.ENTRADA });
 
       expect(txStockRepo.create).toHaveBeenCalledWith({
         codigoSku: 'CAMISETA-P',
@@ -267,9 +262,7 @@ describe('InventoryService', () => {
 
       await service.adjust('CAMISETA-P', { qtdOnline: 10, tipoMovimentacao: MovementType.AJUSTE });
 
-      expect(txLogRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({ origem: null }),
-      );
+      expect(txLogRepo.create).toHaveBeenCalledWith(expect.objectContaining({ origem: null }));
     });
 
     it('não persiste Stock se o insert do StockLog falhar', async () => {

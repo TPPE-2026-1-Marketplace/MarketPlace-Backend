@@ -1,4 +1,5 @@
 import { Column, Entity, ManyToMany, PrimaryGeneratedColumn } from 'typeorm';
+
 import { Product } from '../../products/entities/product.entity';
 
 @Entity()

@@ -1,17 +1,18 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+
+import { CreateCatalogImageDto } from './dtos/create-catalog-image.dto';
+import { CreateImageDto } from './dtos/create-image.dto';
+import { ImagesService } from './images.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { CreateCatalogImageDto } from './dtos/create-catalog-image.dto';
-import { CreateImageDto } from './dtos/create-image.dto';
-import { ImagesService } from './images.service';
 
 @ApiTags('images')
 @Controller('images')
 export class ImagesController {
-  constructor(private readonly imagesService: ImagesService) { }
+  constructor(private readonly imagesService: ImagesService) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
