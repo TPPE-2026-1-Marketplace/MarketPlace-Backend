@@ -21,8 +21,11 @@ const mockProduct: Product = {
   tags: null,
   precoBase: 99.9,
   sku: 'CAM-001',
+  mediaAvaliacao: 0,
+  totalAvaliacoes: 0,
   categories: [],
   variants: [],
+  coupons: [],
 };
 
 const mockVariant: ProductVariant = {

@@ -13,6 +13,7 @@ import { AuthModule } from '../auth/auth.module';
 import { CategoriesModule } from '../categories/categories.module';
 import { BCRYPT_ROUNDS, DEFAULT_POSTGRES_PORT } from '../common/constants';
 import { Role } from '../common/enums/role.enum';
+import { CouponsModule } from '../coupons/coupons.module';
 import { EmployeesModule } from '../employees/employees.module';
 import { Employee } from '../employees/entities/employee.entity';
 import { Person } from '../people/entities/person.entity';
@@ -103,6 +104,7 @@ describe('ImagesModule integration', () => {
         EmployeesModule,
         AuthModule,
         ProductVariantsModule,
+        CouponsModule,
         ImagesModule,
       ],
     }).compile();
