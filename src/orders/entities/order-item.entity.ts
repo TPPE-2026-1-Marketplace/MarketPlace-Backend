@@ -9,7 +9,7 @@ import { ProductVariant } from '../../product-variants/entities/product-variant.
  * Mapeia a tabela `order_items` no banco de dados.
  * Referencia os produtos específicos e suas quantidades em um determinado pedido.
  */
-@Entity('order_items')
+@Entity('order_item')
 @Check(`"quantidade" > 0`)
 @Check(`"preco_unitario" >= 0`)
 export class OrderItem {
