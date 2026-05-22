@@ -25,10 +25,28 @@ export class ShippingController {
   @ApiResponse({
     status: 200,
     description: 'Cálculo de frete realizado com sucesso',
+    schema: {
+      example: {
+        valor: 15.0,
+        prazo_dias: 3,
+      },
+    },
   })
   @ApiResponse({
     status: 400,
     description: 'Payload inválido (CEP fora do formato ou campos inválidos)',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Validation failed',
+        errors: [
+          {
+            field: 'cep_destino',
+            message: 'CEP deve conter 8 dígitos, podendo incluir traço (XXXXX-XXX ou XXXXXXXX)',
+          },
+        ],
+      },
+    },
   })
   calculate(@Body() dto: CalculateShippingDto) {
     return this.shippingService.calculate(dto);

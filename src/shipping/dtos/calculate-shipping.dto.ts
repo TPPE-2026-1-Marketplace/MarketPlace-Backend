@@ -18,9 +18,10 @@ export const CalculateShippingSchema = z.object({
   cep_destino: z
     .string()
     .regex(
-      /^\d{8}$/,
-      'CEP deve conter exatamente 8 dígitos numéricos (sem máscara)',
-    ),
+      /^\d{5}-?\d{3}$/,
+      'CEP deve conter 8 dígitos, podendo incluir traço (XXXXX-XXX ou XXXXXXXX)',
+    )
+    .transform((cep) => cep.replace('-', '')),
   peso: z.number().positive().max(30).optional().describe('Peso em kg'),
   dimensoes: DimensoesSchema.optional(),
 });
