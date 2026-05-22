@@ -4,11 +4,13 @@ services:
     build:
       context: .
       target: dev
+    user: "${UID:-1000}:${GID:-1000}"
     env_file:
       - .env.development
     environment:
       NODE_ENV: development
       POSTGRES_HOST: postgres
+      HOME: /home/node
     ports:
       - "${PORT:-3001}:3001"
     volumes:
