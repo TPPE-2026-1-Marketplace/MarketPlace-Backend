@@ -440,6 +440,68 @@ make dev-test path=<modulo>  # roda testes de um módulo dentro do container
 **Testes:** sempre usar `make dev-test path=<modulo>` (ex: `make dev-test path=inventory`).
 Os testes rodam dentro do container Docker — chamar `pnpm test` direto na máquina host não reflete o ambiente correto.
 
+**Instalar dependências (pnpm):** sempre dentro do container.
+```bash
+docker compose -p marketplace-backend --env-file .env.development -f compose.dev.yml exec api pnpm add -D <pkg>
+# ou via shell interativo:
+make dev-shell  # depois: pnpm add ...
+```
+`node_modules` é volume Docker — rodar `pnpm install` no host gera divergência.
+
+---
+
+## Lint, format e clean code
+
+```bash
+# Dentro do container (make dev-shell ou docker compose exec api ...):
+pnpm lint           # ESLint check (sem fix) — usado pelo CI
+pnpm lint:fix       # ESLint + auto-fix
+pnpm format         # Prettier write
+pnpm format:check   # Prettier check (sem write) — usado pelo CI
+pnpm typecheck      # tsc --noEmit
+```
+
+**Configuração:**
+- ESLint flat config em `eslint.config.mjs` (regras: complexity, max-lines-per-function, no-magic-numbers, import/order, no-floating-promises).
+- Prettier em `.prettierrc.json`.
+- Pre-commit hook (`.husky/pre-commit`) roda `lint-staged` (eslint --fix + prettier --write nos arquivos staged) **dentro do container**. Requer container UP. Pra pular em emergência: `git commit --no-verify`.
+
+### Constantes (sem magic numbers)
+
+Constantes compartilhadas vivem em `src/common/constants/`:
+- `pagination.constants.ts` — `PAGINATION_DEFAULT_PAGE`, `PAGINATION_DEFAULT_LIMIT` (20), `PAGINATION_MAX_LIMIT` (100)
+- `security.constants.ts` — `BCRYPT_ROUNDS` (10)
+- `database.constants.ts` — `PG_UNIQUE_VIOLATION` ('23505')
+
+Para criar nova constante de domínio compartilhado, adicione no arquivo correspondente (ou crie novo `<topico>.constants.ts` e reexporte no `index.ts`). Importe via `from '../common/constants'`.
+
+ESLint só impõe `no-magic-numbers` em services/controllers — `entities/`, `dtos/`, `*.spec.ts` e `*.integration.ts` têm override (números literais são domain-natural ou fixtures de teste).
+
+---
+
+## CI/CD
+
+`.github/workflows/ci.yml` roda em PR/push para `dev` e `main`. Jobs em paralelo:
+
+| Job | O que faz |
+|---|---|
+| `lint` | `pnpm lint` + `pnpm typecheck` + `pnpm format:check` |
+| `build` | `pnpm build` (verifica compilação TS) |
+| `test-unit` | `pnpm test` (specs com mocks, sem banco) |
+| `test-integration` | `pnpm test:integration` com Postgres 16 como service do GH Actions |
+
+Tempo esperado total: ~3min.
+
+### OpenAPI para o frontend
+
+Swagger UI em `/docs` quando a app está rodando. Para gerar arquivo `openapi.json` versionável (não commitado — está no `.gitignore`):
+
+```bash
+pnpm openapi:export
+```
+
+Requer container/banco rodando (script instancia `AppModule` real).
+
 ---
 
 ## Pontos abertos (afetam código)
