@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+
+# pnpm e lint-staged moram dentro do container Docker (node_modules é volume).
+# O hook roda no host (onde git executa), então delegamos pro container via exec.
+
+if ! docker compose -p marketplace-backend --env-file .env.development -f compose.dev.yml ps --services --filter "status=running" 2>/dev/null | grep -q '^api$'; then
+  echo "[pre-commit] Container 'api' não está rodando. Suba o ambiente:"
+  echo "  make dev-up"
+  echo ""
+  echo "Ou pule este hook com 'git commit --no-verify' se for realmente necessário."
+  exit 1
+fi
+
+docker compose -p marketplace-backend --env-file .env.development -f compose.dev.yml exec -T api pnpm lint-staged

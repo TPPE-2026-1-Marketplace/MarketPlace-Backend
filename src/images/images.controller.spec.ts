@@ -1,12 +1,15 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Role } from '../common/enums/role.enum';
-import { ROLES_KEY } from '../common/decorators/roles.decorator';
+import { Test } from '@nestjs/testing';
+
 import { ImagesController } from './images.controller';
 import { ImagesService } from './images.service';
+import { ROLES_KEY } from '../common/decorators/roles.decorator';
+import { Role } from '../common/enums/role.enum';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
+
+import type { TestingModule } from '@nestjs/testing';
 
 const mockImagesService = {
   createImage: jest.fn(),
@@ -22,10 +25,7 @@ describe('ImagesController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ImagesController],
-      providers: [
-        { provide: ImagesService, useValue: mockImagesService },
-        Reflector,
-      ],
+      providers: [{ provide: ImagesService, useValue: mockImagesService }, Reflector],
     }).compile();
 
     controller = module.get(ImagesController);

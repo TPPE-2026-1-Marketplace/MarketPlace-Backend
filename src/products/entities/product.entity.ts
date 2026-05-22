@@ -1,14 +1,9 @@
-import {
-  Column,
-  Entity,
-  JoinTable,
-  ManyToMany,
-  OneToMany,
-  PrimaryGeneratedColumn,
-} from "typeorm";
-import { Category } from "../../categories/entities/category.entity";
-import { ProductVariant } from "../../product-variants/entities/product-variant.entity";
+import { Column, Entity, JoinTable, ManyToMany, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+
+import { Category } from '../../categories/entities/category.entity';
+import { ProductVariant } from '../../product-variants/entities/product-variant.entity';
 import { Coupon } from "../../coupons/entities/coupon.entity";
+
 
 @Entity()
 export class Product {
