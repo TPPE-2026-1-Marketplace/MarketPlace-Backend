@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
+
 import { IPaymentGateway, TransactionResult } from './payment-gateway.interface';
-import { CaptureMethod, PaymentStatus } from '../entities/payment.entity';
 import { Order } from '../../orders/entities/order.entity';
+import { CaptureMethod, PaymentStatus } from '../entities/payment.entity';
 
 /**
  * MockPaymentProvider
@@ -12,10 +13,10 @@ import { Order } from '../../orders/entities/order.entity';
 @Injectable()
 export class MockPaymentProvider implements IPaymentGateway {
   async charge(
-    amount: number,
-    method: CaptureMethod,
-    installments: number,
-    order?: Order,
+    _amount: number,
+    _method: CaptureMethod,
+    _installments: number,
+    _order?: Order,
   ): Promise<TransactionResult> {
     const timestamp = Date.now();
     return {

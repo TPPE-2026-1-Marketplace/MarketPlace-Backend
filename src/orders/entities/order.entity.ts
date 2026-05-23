@@ -38,6 +38,7 @@ export enum TipoRetirada {
 @Check(`"subtotal" >= 0`)
 @Check(`"valor_frete" >= 0`)
 @Check(`"valor_total" >= 0`)
+@Index(['idFuncionario', 'tipoRetirada', 'status', 'dataPedido'])
 export class Order {
   @PrimaryGeneratedColumn({ name: 'id_pedido' })
   idPedido: number;

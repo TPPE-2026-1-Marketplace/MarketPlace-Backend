@@ -4,8 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Payment } from './entities/payment.entity';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
-import { MockPaymentProvider } from './providers/mock.provider';
 import { InfinitePayProvider } from './providers/infinitepay.provider';
+import { MockPaymentProvider } from './providers/mock.provider';
 import { PAYMENT_GATEWAY_TOKEN } from './providers/payment-gateway.interface';
 
 @Module({

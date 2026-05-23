@@ -1,5 +1,5 @@
-import { PaymentStatus, CaptureMethod } from '../entities/payment.entity';
-import { Order } from '../../orders/entities/order.entity';
+import type { Order } from '../../orders/entities/order.entity';
+import type { PaymentStatus, CaptureMethod } from '../entities/payment.entity';
 
 export const PAYMENT_GATEWAY_TOKEN = 'PAYMENT_GATEWAY_TOKEN';
 

@@ -11,11 +11,11 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
 
-import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dtos/create-payment.dto';
 import { InfinitePayWebhookDto } from './dtos/infinitepay-webhook.dto';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { PaymentsService } from './payments.service';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 @ApiTags('payments')
 @Controller('payments')
