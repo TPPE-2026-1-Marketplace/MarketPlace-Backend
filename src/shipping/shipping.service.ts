@@ -3,37 +3,17 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 
+import {
+  CORREIOS_CALC_URL,
+  CORREIOS_SERVICO_PAC,
+  CORREIOS_TIMEOUT_MS,
+  SHIPPING_CACHE_MAX_ENTRIES,
+  SHIPPING_CACHE_TTL_MS,
+  SHIPPING_PACKAGE_DEFAULTS,
+} from '../common/constants';
+import { CEP_RANGES } from './data/cep-ranges';
 import { CalculateShippingDto } from './dtos/calculate-shipping.dto';
 import { IShippingQuote } from './interfaces/shipping.interface';
-
-/** Timeout máximo para chamadas à API dos Correios (5 s). */
-const CORREIOS_TIMEOUT_MS = 5_000;
-
-/** TTL do cache em memória (30 min). */
-const CACHE_TTL_MS = 30 * 60 * 1_000;
-
-/**
- * Limite de entradas no cache antes de disparar eviction.
- * Evita crescimento ilimitado de memória em cenários de alto tráfego.
- */
-const CACHE_MAX_ENTRIES = 500;
-
-/** Endpoint público do calculador de preços e prazos dos Correios. */
-const CORREIOS_CALC_URL = 'http://ws.correios.com.br/calculador/CalcPrecoPrazo.aspx';
-
-/** Código do serviço PAC (sem contrato). */
-const SERVICO_PAC = '04510';
-
-/**
- * Valores padrão usados quando peso/dimensões não são informados.
- * Correspondem aos mínimos aceitos pela API dos Correios para formato caixa.
- */
-const DEFAULTS = {
-  peso: 0.3, // kg
-  comprimento: 16, // cm
-  largura: 11, // cm
-  altura: 2, // cm
-};
 
 interface CacheEntry {
   data: IShippingQuote;
@@ -69,17 +49,15 @@ export class ShippingService {
    * 1. Resolve valores padrão para peso/dimensões opcionais.
    * 2. Verifica cache em memória (TTL de 30 min).
    * 3. Se cache miss → consulta API dos Correios (PAC, timeout 5 s).
-   * 4. Parseia o XML de resposta e armazena no cache.
-   *
-   * @throws {ServiceUnavailableException} se a API dos Correios falhar,
-   *   estourar timeout, ou retornar resposta inválida. O controller (ou um
-   *   futuro fallback, Issue #77) deve capturar essa exceção.
+   * 4. Em caso de falha do Correios, usa fallback por faixa de CEP
+   *    (Issue #77 / plano B documentado em CLAUDE.md).
+   * 5. Parseia o XML de resposta e armazena no cache.
    */
   async calculate(dto: CalculateShippingDto): Promise<IShippingQuote> {
-    const peso = dto.peso ?? DEFAULTS.peso;
-    const comprimento = dto.dimensoes?.comprimento ?? DEFAULTS.comprimento;
-    const largura = dto.dimensoes?.largura ?? DEFAULTS.largura;
-    const altura = dto.dimensoes?.altura ?? DEFAULTS.altura;
+    const peso = dto.peso ?? SHIPPING_PACKAGE_DEFAULTS.peso;
+    const comprimento = dto.dimensoes?.comprimento ?? SHIPPING_PACKAGE_DEFAULTS.comprimento;
+    const largura = dto.dimensoes?.largura ?? SHIPPING_PACKAGE_DEFAULTS.largura;
+    const altura = dto.dimensoes?.altura ?? SHIPPING_PACKAGE_DEFAULTS.altura;
 
     const cacheKey = this.buildCacheKey(dto.cep_destino, peso, comprimento, largura, altura);
 
@@ -91,10 +69,60 @@ export class ShippingService {
 
     this.logger.log(`Consultando Correios: ${this.cepOrigem} → ${dto.cep_destino}`);
 
-    const quote = await this.fetchFromCorreios(dto.cep_destino, peso, comprimento, largura, altura);
+    const quote = await this.fetchOrFallback(dto.cep_destino, peso, comprimento, largura, altura);
 
     this.setInCache(cacheKey, quote);
     return quote;
+  }
+
+  /**
+   * Tenta consultar a API dos Correios; se ela falhar com
+   * `ServiceUnavailableException`, cai no fallback por faixa de CEP.
+   * Demais erros sobem para o caller.
+   */
+  private async fetchOrFallback(
+    cepDestino: string,
+    peso: number,
+    comprimento: number,
+    largura: number,
+    altura: number,
+  ): Promise<IShippingQuote> {
+    try {
+      return await this.fetchFromCorreios(cepDestino, peso, comprimento, largura, altura);
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) {
+        this.logger.warn(
+          `Correios indisponível para CEP ${cepDestino} — frete calculado via fallback`,
+        );
+        return this.calculateByRange(cepDestino);
+      }
+      throw error;
+    }
+  }
+
+  // ─── Fallback (Plano B / Issue #77) ──────────────────────────────────
+
+  /**
+   * Calcula frete a partir da faixa de CEP de destino.
+   *
+   * Usado como plano B quando a API dos Correios está indisponível ou
+   * retorna timeout. As faixas estão em `data/cep-ranges.ts`.
+   *
+   * @throws {ServiceUnavailableException} se o CEP não cair em nenhuma faixa
+   *   conhecida (improvável — as faixas cobrem 01000000–99999999).
+   */
+  calculateByRange(cepDestino: string): IShippingQuote {
+    const cepInt = parseInt(cepDestino, 10);
+    const range = CEP_RANGES.find((r) => cepInt >= r.start && cepInt <= r.end);
+
+    if (!range) {
+      this.logger.error(`Fallback sem faixa para CEP ${cepDestino}`);
+      throw new ServiceUnavailableException(
+        'Serviço dos Correios indisponível e CEP fora das faixas de fallback',
+      );
+    }
+
+    return { valor: range.valor, prazo_dias: range.prazo_dias };
   }
 
   // ─── Correios API ────────────────────────────────────────────────────
@@ -117,7 +145,7 @@ export class ShippingService {
           params: {
             nCdEmpresa: '',
             sDsSenha: '',
-            nCdServico: SERVICO_PAC,
+            nCdServico: CORREIOS_SERVICO_PAC,
             sCepOrigem: this.cepOrigem,
             sCepDestino: cepDestino,
             nVlPeso: String(peso),
@@ -245,13 +273,13 @@ export class ShippingService {
 
   /** Armazena no cache com TTL. Dispara eviction se o limite foi atingido. */
   private setInCache(key: string, data: IShippingQuote): void {
-    if (this.cache.size >= CACHE_MAX_ENTRIES) {
+    if (this.cache.size >= SHIPPING_CACHE_MAX_ENTRIES) {
       this.evictExpired();
     }
 
     this.cache.set(key, {
       data,
-      expiresAt: Date.now() + CACHE_TTL_MS,
+      expiresAt: Date.now() + SHIPPING_CACHE_TTL_MS,
     });
   }
 
