@@ -24,10 +24,8 @@ interface CacheEntry {
 export class ShippingService {
   private readonly logger = new Logger(ShippingService.name);
 
-  /** Cache em memória indexado por chave composta (cep + parâmetros). */
   private readonly cache = new Map<string, CacheEntry>();
 
-  /** CEP de origem da loja, carregado de `LOJA_CEP_ORIGEM`. */
   private readonly cepOrigem: string;
 
   constructor(private readonly httpService: HttpService) {
@@ -42,17 +40,6 @@ export class ShippingService {
     this.logger.log(`CEP de origem configurado: ${this.cepOrigem}`);
   }
 
-  /**
-   * Calcula o frete para o CEP de destino informado.
-   *
-   * Fluxo:
-   * 1. Resolve valores padrão para peso/dimensões opcionais.
-   * 2. Verifica cache em memória (TTL de 30 min).
-   * 3. Se cache miss → consulta API dos Correios (PAC, timeout 5 s).
-   * 4. Em caso de falha do Correios, usa fallback por faixa de CEP
-   *    (Issue #77 / plano B documentado em CLAUDE.md).
-   * 5. Parseia o XML de resposta e armazena no cache.
-   */
   async calculate(dto: CalculateShippingDto): Promise<IShippingQuote> {
     const peso = dto.peso ?? SHIPPING_PACKAGE_DEFAULTS.peso;
     const comprimento = dto.dimensoes?.comprimento ?? SHIPPING_PACKAGE_DEFAULTS.comprimento;
@@ -75,11 +62,6 @@ export class ShippingService {
     return quote;
   }
 
-  /**
-   * Tenta consultar a API dos Correios; se ela falhar com
-   * `ServiceUnavailableException`, cai no fallback por faixa de CEP.
-   * Demais erros sobem para o caller.
-   */
   private async fetchOrFallback(
     cepDestino: string,
     peso: number,
@@ -100,17 +82,6 @@ export class ShippingService {
     }
   }
 
-  // ─── Fallback (Plano B / Issue #77) ──────────────────────────────────
-
-  /**
-   * Calcula frete a partir da faixa de CEP de destino.
-   *
-   * Usado como plano B quando a API dos Correios está indisponível ou
-   * retorna timeout. As faixas estão em `data/cep-ranges.ts`.
-   *
-   * @throws {ServiceUnavailableException} se o CEP não cair em nenhuma faixa
-   *   conhecida (improvável — as faixas cobrem 01000000–99999999).
-   */
   calculateByRange(cepDestino: string): IShippingQuote {
     const cepInt = parseInt(cepDestino, 10);
     const range = CEP_RANGES.find((r) => cepInt >= r.start && cepInt <= r.end);
@@ -125,13 +96,6 @@ export class ShippingService {
     return { valor: range.valor, prazo_dias: range.prazo_dias };
   }
 
-  // ─── Correios API ────────────────────────────────────────────────────
-
-  /**
-   * Chama o endpoint CalcPrecoPrazo dos Correios via GET.
-   * Usa formato caixa (nCdFormato = 1), sem mão-própria, sem aviso de
-   * recebimento e sem valor declarado.
-   */
   private async fetchFromCorreios(
     cepDestino: string,
     peso: number,
@@ -174,24 +138,6 @@ export class ShippingService {
     }
   }
 
-  /**
-   * Parseia a resposta XML do CalcPrecoPrazo.
-   *
-   * Estrutura esperada (campos relevantes):
-   * ```xml
-   * <Servicos>
-   *   <cServico>
-   *     <Valor>25,80</Valor>
-   *     <PrazoEntrega>5</PrazoEntrega>
-   *     <Erro>0</Erro>
-   *     <MsgErro></MsgErro>
-   *   </cServico>
-   * </Servicos>
-   * ```
-   *
-   * Usa regex simples — a estrutura da resposta é estável e previsível,
-   * dispensando um parser XML completo (sem dependência adicional).
-   */
   private parseCorreiosXml(xml: string): IShippingQuote {
     const erro = this.extractXmlTag(xml, 'Erro');
     const msgErro = this.extractXmlTag(xml, 'MsgErro');
@@ -211,7 +157,6 @@ export class ShippingService {
       throw new ServiceUnavailableException('Resposta inesperada do serviço dos Correios');
     }
 
-    // Correios usa vírgula como separador decimal ("25,80" → 25.80)
     const valor = parseFloat(valorStr.replace(',', '.'));
     const prazo_dias = parseInt(prazoStr, 10);
 
@@ -223,16 +168,11 @@ export class ShippingService {
     return { valor, prazo_dias };
   }
 
-  /** Extrai o conteúdo de uma tag XML simples (sem atributos nem aninhamento). */
   private extractXmlTag(xml: string, tag: string): string | null {
     const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`));
     return match?.[1]?.trim() || null;
   }
 
-  /**
-   * Converte erros de rede/timeout do Axios em ServiceUnavailableException
-   * com log adequado para cada cenário.
-   */
   private handleCorreiosError(error: unknown): never {
     const axiosError = error as AxiosError;
 
@@ -245,9 +185,6 @@ export class ShippingService {
     throw new ServiceUnavailableException('Serviço dos Correios indisponível');
   }
 
-  // ─── Cache em memória ────────────────────────────────────────────────
-
-  /** Monta chave composta: `cep:peso:comp:larg:alt`. */
   private buildCacheKey(
     cep: string,
     peso: number,
@@ -258,7 +195,6 @@ export class ShippingService {
     return `${cep}:${peso}:${comprimento}:${largura}:${altura}`;
   }
 
-  /** Retorna entrada do cache se válida (dentro do TTL), ou `null`. */
   private getFromCache(key: string): IShippingQuote | null {
     const entry = this.cache.get(key);
     if (!entry) return null;
@@ -271,7 +207,6 @@ export class ShippingService {
     return entry.data;
   }
 
-  /** Armazena no cache com TTL. Dispara eviction se o limite foi atingido. */
   private setInCache(key: string, data: IShippingQuote): void {
     if (this.cache.size >= SHIPPING_CACHE_MAX_ENTRIES) {
       this.evictExpired();
@@ -283,7 +218,6 @@ export class ShippingService {
     });
   }
 
-  /** Remove todas as entradas expiradas do cache. */
   private evictExpired(): void {
     const now = Date.now();
     for (const [key, entry] of this.cache) {

@@ -1,10 +1,3 @@
-/**
- * Faixa de CEP usada pelo fallback de cálculo de frete (Plano B da Issue #77).
- *
- * `start` e `end` são CEPs como inteiros de 8 dígitos (sem máscara).
- * Os ranges cobrem todo o território nacional, organizados por região, com
- * valores e prazos estimados para PAC partindo da loja em Brasília (DF).
- */
 export interface CepRange {
   start: number;
   end: number;
