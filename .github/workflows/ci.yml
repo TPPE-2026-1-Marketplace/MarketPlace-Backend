@@ -108,6 +108,12 @@ jobs:
       POSTGRES_PASSWORD: ci_password
       POSTGRES_DB: ci_db
       JWT_SECRET: ci-test-secret-not-for-production
+      # Shipping (Melhor Envio) — valores dummy: testes mockam HttpService,
+      # nenhum request real sai do job. Em produção, ver docs/melhor-envio-token.md.
+      LOJA_CEP_ORIGEM: '70002900'
+      MELHOR_ENVIO_BASE_URL: https://sandbox.melhorenvio.com.br
+      MELHOR_ENVIO_USER_AGENT: 'DK Fashion CI (ci@local)'
+      MELHOR_ENVIO_ACCESS_TOKEN: ci-dummy-token-mocked-in-tests
 
     steps:
       - uses: actions/checkout@v4
@@ -136,6 +142,10 @@ jobs:
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
           POSTGRES_DB=${POSTGRES_DB}
           JWT_SECRET=${JWT_SECRET}
+          LOJA_CEP_ORIGEM=${LOJA_CEP_ORIGEM}
+          MELHOR_ENVIO_BASE_URL=${MELHOR_ENVIO_BASE_URL}
+          MELHOR_ENVIO_USER_AGENT=${MELHOR_ENVIO_USER_AGENT}
+          MELHOR_ENVIO_ACCESS_TOKEN=${MELHOR_ENVIO_ACCESS_TOKEN}
           EOF
 
       - name: Run integration tests
