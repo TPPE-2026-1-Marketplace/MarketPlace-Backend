@@ -9,12 +9,6 @@ import { ShippingService } from './shipping.service';
 export class ShippingController {
   constructor(private readonly shippingService: ShippingService) {}
 
-  /**
-   * Endpoint público para cálculo de frete.
-   *
-   * TODO(shipping): Etapa 3 (Issue #76) — adicionar validações extras e
-   * documentação detalhada de request/response no Swagger.
-   */
   @Post('calculate')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
