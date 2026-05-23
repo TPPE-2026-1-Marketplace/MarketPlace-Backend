@@ -4,8 +4,10 @@ import { Repository } from 'typeorm';
 
 import { CreateCatalogImageDto } from './dtos/create-catalog-image.dto';
 import { CreateImageDto } from './dtos/create-image.dto';
+import { UploadImageDto } from './dtos/upload-image.dto';
 import { CatalogImage } from './entities/catalog-image.entity';
 import { Image } from './entities/image.entity';
+import { ImgbbService } from './imgbb.service';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 
 @Injectable()
@@ -17,11 +19,28 @@ export class ImagesService {
     private readonly catalogImagesRepository: Repository<CatalogImage>,
     @InjectRepository(ProductVariant)
     private readonly productVariantsRepository: Repository<ProductVariant>,
+    private readonly imgbbService: ImgbbService,
   ) {}
 
   async createImage(dto: CreateImageDto): Promise<Image> {
     const image = this.imagesRepository.create({
       url: dto.url,
+      ordem: dto.ordem ?? 0,
+      descricao: dto.descricao ?? null,
+      localRenderizacao: dto.local_renderizacao ?? null,
+    });
+
+    return this.imagesRepository.save(image);
+  }
+
+  async uploadAndCreateImage(
+    file: Express.Multer.File,
+    dto: UploadImageDto,
+  ): Promise<Image> {
+    const imgbbData = await this.imgbbService.uploadImage(file);
+
+    const image = this.imagesRepository.create({
+      url: imgbbData.url,
       ordem: dto.ordem ?? 0,
       descricao: dto.descricao ?? null,
       localRenderizacao: dto.local_renderizacao ?? null,
