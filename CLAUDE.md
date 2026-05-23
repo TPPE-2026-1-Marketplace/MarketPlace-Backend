@@ -513,13 +513,18 @@ Decisões pendentes que mudam a forma da implementação. Confirmar antes:
 - **Bônus de comissão (D9/US20-21):** ao bater meta, taxa muda de 2,5%
   para X% em **todas** as vendas ou só nas **acima** da meta? Confirmar
   antes de implementar `EmployeesService.calculateCommission`.
-- **Frete (D8/US17):** API dos Correios (`ws.correios.com.br/calculador/CalcPrecoPrazo.aspx`)
-  indisponível em 22/05 (timeout > 15 s no teste manual a partir do container).
-  Plano B ativo: `src/shipping/data/cep-ranges.ts` (6 faixas regionais com origem em
-  Brasília). `ShippingService.calculate` mantém Correios como try-first e cai
-  automaticamente no fallback em qualquer falha (timeout, 5xx, parse error), com
-  `logger.warn("frete calculado via fallback")`. Quando/se a API voltar, o fluxo
-  volta a usar Correios sem mudança de código.
+- **Frete (D8/US17):** integração via **Melhor Envio sandbox** (provedor
+  aglutinador — retorna cotações de Correios PAC/SEDEX, Jadlog e outras).
+  Substitui a integração direta com Correios SIGEP (endpoint legado,
+  descontinuado). Token via OAuth2 com refresh preemptivo (renova ~5 min
+  antes de expirar) gerenciado por `MelhorEnvioTokenManager`; modo estático
+  por env existe como fallback de debug. Por padrão usa a cotação mais
+  barata entre as válidas (filtra entradas com `error`); `MELHOR_ENVIO_SERVICE_ID`
+  fixa um serviço específico (1=PAC, 2=SEDEX, ...). Cache key inclui o
+  service ID. Erros do provedor (timeout, 401, 5xx, todas cotações com
+  erro) caem no fallback `src/shipping/data/cep-ranges.ts` (6 faixas
+  regionais com origem em Brasília); 422 (payload inválido) sobe como
+  `BadRequestException`. Como obter/renovar token: `docs/melhor-envio-token.md`.
 
 ---
 
