@@ -28,11 +28,13 @@ export class InfinitePayProvider implements IPaymentGateway {
     // Map order items to InfinitePay format in cents
     const items = order?.items?.map((item) => ({
       name: `Item SKU ${item.idVariante}`,
+      description: `Produto SKU ${item.idVariante}`,
       price: Math.round(Number(item.precoUnitario) * 100), // convert to cents
       quantity: item.quantidade,
     })) || [
       {
         name: `Cobrança de Pedido #${order?.idPedido ?? 'Generico'}`,
+        description: `Pedido #${order?.idPedido ?? 'Generico'}`,
         price: Math.round(amount * 100),
         quantity: 1,
       },
