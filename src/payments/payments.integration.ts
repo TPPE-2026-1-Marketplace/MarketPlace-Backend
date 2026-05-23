@@ -1,22 +1,25 @@
-import { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import { JwtService } from '@nestjs/jwt';
-import request from 'supertest';
-import { ZodValidationPipe } from 'nestjs-zod';
 
-import { Payment, PaymentStatus, CaptureMethod } from './entities/payment.entity';
-import { Order, OrderStatus, TipoRetirada } from '../orders/entities/order.entity';
-import { OrderItem } from '../orders/entities/order-item.entity';
-import { Person } from '../people/entities/person.entity';
-import { Product } from '../products/entities/product.entity';
-import { ProductVariant } from '../product-variants/entities/product-variant.entity';
-import { Stock } from '../inventory/entities/stock.entity';
-import { StockLog, MovementType } from '../inventory/entities/stock-log.entity';
+import { JwtService } from '@nestjs/jwt';
+import { Test } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { ZodValidationPipe } from 'nestjs-zod';
+import request from 'supertest';
+
 import { AppModule } from '../app.module';
+import { Payment, PaymentStatus, CaptureMethod } from './entities/payment.entity';
+import { StockLog, MovementType } from '../inventory/entities/stock-log.entity';
+import { Stock } from '../inventory/entities/stock.entity';
+import { OrderItem } from '../orders/entities/order-item.entity';
+import { Order, OrderStatus, TipoRetirada } from '../orders/entities/order.entity';
+import { Person } from '../people/entities/person.entity';
+import { ProductVariant } from '../product-variants/entities/product-variant.entity';
+import { Product } from '../products/entities/product.entity';
+
+import type { INestApplication } from '@nestjs/common';
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 function loadDevelopmentEnv() {
   const envPath = join(process.cwd(), '.env.development');
@@ -57,7 +60,6 @@ describe('PaymentsModule Integration - API and Entity Tests', () => {
   let clientToken1: string;
   let clientToken2: string;
   let testOrder1: Order;
-  let testOrder2: Order;
 
   beforeAll(async () => {
     loadDevelopmentEnv();
@@ -133,7 +135,7 @@ describe('PaymentsModule Integration - API and Entity Tests', () => {
       status: OrderStatus.PENDING,
     });
 
-    testOrder2 = await ordersRepository.save({
+    await ordersRepository.save({
       idUsuario: testCpf2,
       subtotal: 200.0,
       valorFrete: 20.0,

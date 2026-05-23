@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
+
 import { IPaymentGateway, TransactionResult } from './payment-gateway.interface';
-import { CaptureMethod, PaymentStatus } from '../entities/payment.entity';
 import { Order } from '../../orders/entities/order.entity';
+import { CaptureMethod, PaymentStatus } from '../entities/payment.entity';
 
 /**
  * InfinitePayProvider

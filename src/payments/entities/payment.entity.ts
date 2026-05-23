@@ -8,6 +8,7 @@ import {
   UpdateDateColumn,
   Check,
 } from 'typeorm';
+
 import { Order } from '../../orders/entities/order.entity';
 
 export enum PaymentStatus {
