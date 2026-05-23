@@ -39,9 +39,7 @@ describe('CreateProductVariantSchema — campo medidas', () => {
   });
 
   it('aceita variante com objeto medidas vazio', () => {
-    expect(() =>
-      CreateProductVariantSchema.parse({ ...base, medidas: {} }),
-    ).not.toThrow();
+    expect(() => CreateProductVariantSchema.parse({ ...base, medidas: {} })).not.toThrow();
   });
 
   it('aceita medidas com campos extras', () => {

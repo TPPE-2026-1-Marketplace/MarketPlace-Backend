@@ -1,6 +1,6 @@
 import { CreateCategorySchema } from './create-category.dto';
-import { UpdateCategorySchema } from './update-category.dto';
 import { QueryCategoriesSchema } from './query-categories.dto';
+import { UpdateCategorySchema } from './update-category.dto';
 
 describe('CreateCategorySchema', () => {
   it('aceita nome válido', () => {

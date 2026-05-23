@@ -1,18 +1,32 @@
-import { INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
-import { TypeOrmModule, getRepositoryToken } from '@nestjs/typeorm';
-import { ZodValidationPipe } from 'nestjs-zod';
-import request from 'supertest';
-import { Repository } from 'typeorm';
-import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+
+import { Test } from '@nestjs/testing';
+import { TypeOrmModule, getRepositoryToken } from '@nestjs/typeorm';
+import * as bcrypt from 'bcrypt';
+import { ZodValidationPipe } from 'nestjs-zod';
+import request from 'supertest';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+
+import { ImagesModule } from './images.module';
+import { AuthModule } from '../auth/auth.module';
+import { CategoriesModule } from '../categories/categories.module';
+import { BCRYPT_ROUNDS, DEFAULT_POSTGRES_PORT } from '../common/constants';
+import { Role } from '../common/enums/role.enum';
+import { CouponsModule } from '../coupons/coupons.module';
+import { EmployeesModule } from '../employees/employees.module';
+import { Employee } from '../employees/entities/employee.entity';
+import { Person } from '../people/entities/person.entity';
+import { PeopleModule } from '../people/people.module';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 import { ProductVariantsModule } from '../product-variants/product-variants.module';
-import { Product } from '../products/entities/product.entity';
 import { CatalogImage } from './entities/catalog-image.entity';
 import { Image } from './entities/image.entity';
-import { ImagesModule } from './images.module';
+import { Product } from '../products/entities/product.entity';
+
+import type { INestApplication } from '@nestjs/common';
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 function loadDevelopmentEnv() {
   const envPath = join(process.cwd(), '.env.development');
@@ -44,8 +58,13 @@ function getPostgresHost() {
   return host;
 }
 
+const INTEGRATION_TEST_TIMEOUT_MS = 30_000;
+const TEST_VARIANT_PRICE_A = 100;
+const TEST_VARIANT_PRICE_B = 120;
+const TEST_PRODUCT_BASE_PRICE = 100;
+
 describe('ImagesModule integration', () => {
-  jest.setTimeout(30000);
+  jest.setTimeout(INTEGRATION_TEST_TIMEOUT_MS);
 
   let app: INestApplication;
   let moduleRef: TestingModule;
@@ -53,10 +72,16 @@ describe('ImagesModule integration', () => {
   let catalogImagesRepository: Repository<CatalogImage>;
   let productVariantsRepository: Repository<ProductVariant>;
   let productsRepository: Repository<Product>;
+  let peopleRepository: Repository<Person>;
+  let employeesRepository: Repository<Employee>;
+  let authHeader: string;
 
   const skuA = 'IT-IMG-A';
   const skuB = 'IT-IMG-B';
   const productSku = 'IT-IMG-PRODUCT';
+  const adminCpf = '99999999991';
+  const adminEmail = 'admin-it-images@example.test';
+  const adminPassword = 'Test@1234';
 
   beforeAll(async () => {
     loadDevelopmentEnv();
@@ -66,7 +91,7 @@ describe('ImagesModule integration', () => {
         TypeOrmModule.forRoot({
           type: 'postgres',
           host: getPostgresHost(),
-          port: Number(process.env.POSTGRES_PORT ?? 5432),
+          port: Number(process.env.POSTGRES_PORT ?? DEFAULT_POSTGRES_PORT),
           username: process.env.POSTGRES_USER,
           password: process.env.POSTGRES_PASSWORD,
           database: process.env.POSTGRES_DB,
@@ -74,7 +99,12 @@ describe('ImagesModule integration', () => {
           autoLoadEntities: true,
           namingStrategy: new SnakeNamingStrategy(),
         }),
+        CategoriesModule,
+        PeopleModule,
+        EmployeesModule,
+        AuthModule,
         ProductVariantsModule,
+        CouponsModule,
         ImagesModule,
       ],
     }).compile();
@@ -88,6 +118,34 @@ describe('ImagesModule integration', () => {
     catalogImagesRepository = moduleRef.get(getRepositoryToken(CatalogImage));
     productVariantsRepository = moduleRef.get(getRepositoryToken(ProductVariant));
     productsRepository = moduleRef.get(getRepositoryToken(Product));
+    peopleRepository = moduleRef.get(getRepositoryToken(Person));
+    employeesRepository = moduleRef.get(getRepositoryToken(Employee));
+
+    // Setup do admin para autenticação (endpoints POST exigem role ADMINISTRADOR).
+    await employeesRepository.delete({ cpf: adminCpf });
+    await peopleRepository.delete({ cpf: adminCpf });
+
+    const senhaHash = await bcrypt.hash(adminPassword, BCRYPT_ROUNDS);
+    await peopleRepository.save({
+      cpf: adminCpf,
+      nome: 'Admin Integration Test',
+      email: adminEmail,
+      telefone: null,
+      senha: senhaHash,
+    });
+    await employeesRepository.save({
+      cpf: adminCpf,
+      ativo: true,
+      role_perfil: Role.ADMINISTRADOR,
+      meta_vendas: null,
+      codigo_funcionario: null,
+    });
+
+    const loginRes = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: adminEmail, senha: adminPassword })
+      .expect(200);
+    authHeader = `Bearer ${loginRes.body.access_token as string}`;
   });
 
   beforeEach(async () => {
@@ -113,14 +171,14 @@ describe('ImagesModule integration', () => {
       composicao: null,
       silhueta: null,
       tags: null,
-      precoBase: 100,
+      precoBase: TEST_PRODUCT_BASE_PRICE,
       sku: productSku,
     });
 
     await productVariantsRepository.save([
       {
         codigoSku: skuA,
-        precoVariante: 100,
+        precoVariante: TEST_VARIANT_PRICE_A,
         ativo: true,
         cor: null,
         tamanho: null,
@@ -128,7 +186,7 @@ describe('ImagesModule integration', () => {
       },
       {
         codigoSku: skuB,
-        precoVariante: 120,
+        precoVariante: TEST_VARIANT_PRICE_B,
         ativo: true,
         cor: null,
         tamanho: null,
@@ -158,6 +216,12 @@ describe('ImagesModule integration', () => {
     if (productsRepository) {
       await productsRepository.delete({ sku: productSku });
     }
+    if (employeesRepository) {
+      await employeesRepository.delete({ cpf: adminCpf });
+    }
+    if (peopleRepository) {
+      await peopleRepository.delete({ cpf: adminCpf });
+    }
     if (app) {
       await app.close();
     }
@@ -166,6 +230,7 @@ describe('ImagesModule integration', () => {
   it('registra imagens, vincula a múltiplas variantes e lista ordenado por ordem_no_catalogo', async () => {
     const imageA = await request(app.getHttpServer())
       .post('/api/images')
+      .set('Authorization', authHeader)
       .send({
         url: 'https://example.test/a.jpg',
         ordem: 2,
@@ -176,6 +241,7 @@ describe('ImagesModule integration', () => {
 
     const imageB = await request(app.getHttpServer())
       .post('/api/images')
+      .set('Authorization', authHeader)
       .send({
         url: 'https://example.test/b.jpg',
         ordem: 1,
@@ -184,6 +250,7 @@ describe('ImagesModule integration', () => {
 
     await request(app.getHttpServer())
       .post('/api/images/catalog')
+      .set('Authorization', authHeader)
       .send({
         imageId: imageA.body.idImagem,
         variantSku: skuA,
@@ -193,6 +260,7 @@ describe('ImagesModule integration', () => {
 
     await request(app.getHttpServer())
       .post('/api/images/catalog')
+      .set('Authorization', authHeader)
       .send({
         imageId: imageB.body.idImagem,
         variantSku: skuA,
@@ -202,6 +270,7 @@ describe('ImagesModule integration', () => {
 
     await request(app.getHttpServer())
       .post('/api/images/catalog')
+      .set('Authorization', authHeader)
       .send({
         imageId: imageA.body.idImagem,
         variantSku: skuB,
@@ -214,10 +283,7 @@ describe('ImagesModule integration', () => {
       .expect(200);
 
     expect(catalog.body).toHaveLength(2);
-    expect(catalog.body.map((item: CatalogImage) => item.ordemNoCatalogo)).toEqual([
-      10,
-      20,
-    ]);
+    expect(catalog.body.map((item: CatalogImage) => item.ordemNoCatalogo)).toEqual([10, 20]);
     expect(catalog.body.map((item: CatalogImage) => item.image.idImagem)).toEqual([
       imageB.body.idImagem,
       imageA.body.idImagem,
@@ -231,10 +297,15 @@ describe('ImagesModule integration', () => {
   });
 
   it('rejeita campos obrigatórios inválidos', async () => {
-    await request(app.getHttpServer()).post('/api/images').send({}).expect(400);
+    await request(app.getHttpServer())
+      .post('/api/images')
+      .set('Authorization', authHeader)
+      .send({})
+      .expect(400);
 
     await request(app.getHttpServer())
       .post('/api/images/catalog')
+      .set('Authorization', authHeader)
       .send({ imageId: 1 })
       .expect(400);
   });
@@ -242,21 +313,22 @@ describe('ImagesModule integration', () => {
   it('retorna 404 quando imagem ou variante não existe', async () => {
     await request(app.getHttpServer())
       .post('/api/images/catalog')
+      .set('Authorization', authHeader)
       .send({ imageId: 999999, variantSku: skuA })
       .expect(404);
 
     const image = await request(app.getHttpServer())
       .post('/api/images')
+      .set('Authorization', authHeader)
       .send({ url: 'https://example.test/not-found.jpg' })
       .expect(201);
 
     await request(app.getHttpServer())
       .post('/api/images/catalog')
+      .set('Authorization', authHeader)
       .send({ imageId: image.body.idImagem, variantSku: 'IT-IMG-NOT-FOUND' })
       .expect(404);
 
-    await request(app.getHttpServer())
-      .get('/api/images/catalog/IT-IMG-NOT-FOUND')
-      .expect(404);
+    await request(app.getHttpServer()).get('/api/images/catalog/IT-IMG-NOT-FOUND').expect(404);
   });
 });
