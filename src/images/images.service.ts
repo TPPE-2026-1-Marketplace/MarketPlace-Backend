@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProductVariant } from '../product-variants/entities/product-variant.entity';
+
 import { CreateCatalogImageDto } from './dtos/create-catalog-image.dto';
 import { CreateImageDto } from './dtos/create-image.dto';
 import { CatalogImage } from './entities/catalog-image.entity';
 import { Image } from './entities/image.entity';
+import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 
 @Injectable()
 export class ImagesService {
@@ -41,9 +42,7 @@ export class ImagesService {
       where: { codigoSku: dto.variantSku },
     });
     if (!variant) {
-      throw new NotFoundException(
-        `Variante com SKU ${dto.variantSku} não encontrada`,
-      );
+      throw new NotFoundException(`Variante com SKU ${dto.variantSku} não encontrada`);
     }
 
     const catalogImage = this.catalogImagesRepository.create({

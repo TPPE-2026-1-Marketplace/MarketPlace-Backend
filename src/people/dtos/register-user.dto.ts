@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+
 import { CreateAddressSchema } from '../../addresses/dtos/create-address.dto';
 
 export const RegisterUserSchema = z.object({

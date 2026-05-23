@@ -1,10 +1,13 @@
 import { NotFoundException } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Product } from '../products/entities/product.entity';
+
 import { ProductVariant } from './entities/product-variant.entity';
 import { ProductVariantsService } from './product-variants.service';
+import { Product } from '../products/entities/product.entity';
+
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
 
 const mockProduct: Product = {
   idProduto: 1,
@@ -18,8 +21,11 @@ const mockProduct: Product = {
   tags: null,
   precoBase: 99.9,
   sku: 'CAM-001',
+  mediaAvaliacao: 0,
+  totalAvaliacoes: 0,
   categories: [],
   variants: [],
+  coupons: [],
 };
 
 const mockVariant: ProductVariant = {
@@ -187,9 +193,7 @@ describe('ProductVariantsService', () => {
   describe('update', () => {
     it('atualiza e retorna a variante', async () => {
       const updated = { ...mockVariant, tamanho: 'M' };
-      variantsRepo.findOne
-        .mockResolvedValueOnce(mockVariant)
-        .mockResolvedValueOnce(updated);
+      variantsRepo.findOne.mockResolvedValueOnce(mockVariant).mockResolvedValueOnce(updated);
       variantsRepo.save.mockResolvedValue(updated);
 
       const result = await service.update('CAM-001-P', { tamanho: 'M' });
@@ -200,9 +204,7 @@ describe('ProductVariantsService', () => {
     it('atualiza o campo medidas', async () => {
       const medidas = { busto: 90, cintura: 70 };
       const updated = { ...mockVariant, medidas };
-      variantsRepo.findOne
-        .mockResolvedValueOnce(mockVariant)
-        .mockResolvedValueOnce(updated);
+      variantsRepo.findOne.mockResolvedValueOnce(mockVariant).mockResolvedValueOnce(updated);
       variantsRepo.save.mockResolvedValue(updated);
 
       const result = await service.update('CAM-001-P', { medidas });
@@ -227,9 +229,9 @@ describe('ProductVariantsService', () => {
     it('lança NotFoundException quando SKU não existe', async () => {
       variantsRepo.findOne.mockResolvedValue(null);
 
-      await expect(
-        service.update('INEXISTENTE', { tamanho: 'M' }),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.update('INEXISTENTE', { tamanho: 'M' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 

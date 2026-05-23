@@ -1,4 +1,5 @@
 import { Column, Entity, ManyToOne, PrimaryGeneratedColumn, JoinColumn } from 'typeorm';
+
 import { Person } from '../../people/entities/person.entity';
 
 /**
@@ -13,34 +14,34 @@ import { Person } from '../../people/entities/person.entity';
  */
 @Entity()
 export class Address {
-    @PrimaryGeneratedColumn()
-    id: number;
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column({ type: 'varchar', length: 11 })
-    cpf_pessoa: string;
+  @Column({ type: 'varchar', length: 11 })
+  cpf_pessoa: string;
 
-    @ManyToOne(() => Person, { onDelete: 'CASCADE' })
-    @JoinColumn({ name: 'cpf_pessoa', referencedColumnName: 'cpf' })
-    pessoa: Person;
+  @ManyToOne(() => Person, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'cpf_pessoa', referencedColumnName: 'cpf' })
+  pessoa: Person;
 
-    @Column({ type: 'varchar', length: 9 })
-    cep: string;
+  @Column({ type: 'varchar', length: 9 })
+  cep: string;
 
-    @Column({ type: 'varchar' })
-    logradouro: string;
+  @Column({ type: 'varchar' })
+  logradouro: string;
 
-    @Column({ type: 'varchar' })
-    numero: string;
+  @Column({ type: 'varchar' })
+  numero: string;
 
-    @Column({ type: 'varchar', nullable: true })
-    complemento: string | null;
+  @Column({ type: 'varchar', nullable: true })
+  complemento: string | null;
 
-    @Column({ type: 'varchar' })
-    bairro: string;
+  @Column({ type: 'varchar' })
+  bairro: string;
 
-    @Column({ type: 'varchar' })
-    cidade: string;
+  @Column({ type: 'varchar' })
+  cidade: string;
 
-    @Column({ type: 'varchar', length: 2 })
-    uf: string;
+  @Column({ type: 'varchar', length: 2 })
+  uf: string;
 }

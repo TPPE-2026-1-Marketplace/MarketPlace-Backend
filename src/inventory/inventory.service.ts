@@ -8,10 +8,11 @@ import {
   MoreThanOrEqual,
   Repository,
 } from 'typeorm';
-import { ProductVariant } from '../product-variants/entities/product-variant.entity';
+
 import { UpdateStockDto } from './dtos/update-stock.dto';
-import { Stock } from './entities/stock.entity';
 import { MovementType, StockLog } from './entities/stock-log.entity';
+import { Stock } from './entities/stock.entity';
+import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 
 interface LogFilters {
   tipoMovimentacao?: MovementType;
@@ -32,14 +33,10 @@ export class InventoryService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async findPublic(
-    codigoSku: string,
-  ): Promise<{ qtdOnline: number; qtdLojaFisica: number }> {
+  async findPublic(codigoSku: string): Promise<{ qtdOnline: number; qtdLojaFisica: number }> {
     const variantExists = await this.variantRepository.existsBy({ codigoSku });
     if (!variantExists) {
-      throw new NotFoundException(
-        `Variante com SKU ${codigoSku} não encontrada`,
-      );
+      throw new NotFoundException(`Variante com SKU ${codigoSku} não encontrada`);
     }
 
     const stock = await this.stockRepository.findOne({ where: { codigoSku } });
@@ -52,23 +49,15 @@ export class InventoryService {
   async findBySku(codigoSku: string): Promise<Stock> {
     const stock = await this.stockRepository.findOne({ where: { codigoSku } });
     if (!stock) {
-      throw new NotFoundException(
-        `Estoque para SKU ${codigoSku} não encontrado`,
-      );
+      throw new NotFoundException(`Estoque para SKU ${codigoSku} não encontrado`);
     }
     return stock;
   }
 
-  async adjust(
-    codigoSku: string,
-    dto: UpdateStockDto,
-    origem?: string,
-  ): Promise<Stock> {
+  async adjust(codigoSku: string, dto: UpdateStockDto, origem?: string): Promise<Stock> {
     const variantExists = await this.variantRepository.existsBy({ codigoSku });
     if (!variantExists) {
-      throw new NotFoundException(
-        `Variante com SKU ${codigoSku} não encontrada`,
-      );
+      throw new NotFoundException(`Variante com SKU ${codigoSku} não encontrada`);
     }
 
     return this.dataSource.transaction(async (manager) => {
@@ -89,8 +78,7 @@ export class InventoryService {
       await stockRepo.save(stock);
 
       const quantidadeMovimentada =
-        Math.abs(stock.qtdOnline - anteriorOnline) +
-        Math.abs(stock.qtdLojaFisica - anteriorLoja);
+        Math.abs(stock.qtdOnline - anteriorOnline) + Math.abs(stock.qtdLojaFisica - anteriorLoja);
 
       const log = logRepo.create({
         codigoSku,

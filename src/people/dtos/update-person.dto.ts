@@ -1,5 +1,6 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+
 import { RegisterPersonSchema } from './register-person.dto';
 
 /**
@@ -8,11 +9,10 @@ import { RegisterPersonSchema } from './register-person.dto';
  *
  * `senha` é permitida apenas no update para suportar alteração de credencial.
  */
-export const UpdatePersonSchema = RegisterPersonSchema
-    .omit({ cpf: true })
-    .extend({
-        senha: z.string().min(8).max(72).optional(),
-    })
-    .partial();
+export const UpdatePersonSchema = RegisterPersonSchema.omit({ cpf: true })
+  .extend({
+    senha: z.string().min(8).max(72).optional(),
+  })
+  .partial();
 
-export class UpdatePersonDto extends createZodDto(UpdatePersonSchema) { }
+export class UpdatePersonDto extends createZodDto(UpdatePersonSchema) {}

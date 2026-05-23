@@ -1,20 +1,23 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { PeopleModule } from './people/people.module';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+
 import { AddressesModule } from './addresses/addresses.module';
-import { EmployeesModule } from './employees/employees.module';
+import { AuthModule } from './auth/auth.module';
 import { CategoriesModule } from './categories/categories.module';
-import { ProductsModule } from './products/products.module';
-import { ProductVariantsModule } from './product-variants/product-variants.module';
-import { InventoryModule } from './inventory/inventory.module';
+import { DEFAULT_POSTGRES_PORT } from './common/constants';
 import { CouponsModule } from './coupons/coupons.module';
-import { ReviewsModule } from './reviews/reviews.module';
+import { EmployeesModule } from './employees/employees.module';
+import { ImagesModule } from './images/images.module';
+import { InventoryModule } from './inventory/inventory.module';
 import { OrdersModule } from './orders/orders.module';
 import { PaymentsModule } from './payments/payments.module';
-import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
-import { AuthModule } from './auth/auth.module';
-import { ImagesModule } from './images/images.module';
+import { PeopleModule } from './people/people.module';
+import { ProductVariantsModule } from './product-variants/product-variants.module';
+import { ProductsModule } from './products/products.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { ShippingModule } from './shipping/shipping.module';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const isProduction = nodeEnv === 'production';
@@ -28,12 +31,12 @@ const isProduction = nodeEnv === 'production';
       synchronize: !isProduction,
       type: 'postgres',
       host: process.env.POSTGRES_HOST,
-      port: Number(process.env.POSTGRES_PORT ?? 5432),
+      port: Number(process.env.POSTGRES_PORT ?? DEFAULT_POSTGRES_PORT),
       username: process.env.POSTGRES_USER,
       password: process.env.POSTGRES_PASSWORD,
       database: process.env.POSTGRES_DB,
       autoLoadEntities: true,
-      namingStrategy: new SnakeNamingStrategy()
+      namingStrategy: new SnakeNamingStrategy(),
     }),
     PeopleModule,
     AddressesModule,
@@ -48,6 +51,7 @@ const isProduction = nodeEnv === 'production';
     PaymentsModule,
     AuthModule,
     ImagesModule,
+    ShippingModule,
   ],
 })
-export class AppModule { }
+export class AppModule {}

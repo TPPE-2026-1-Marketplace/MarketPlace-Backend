@@ -119,9 +119,17 @@ Hierarquia de funcionários (cada nível inclui o anterior):
 
 ---
 
-## Resposta de erro padronizada
+## Pipes e filtros globais
 
-`AllExceptionsFilter` em `src/common/filters/`, registrado globalmente:
+`ZodValidationPipe` registrado globalmente em `main.ts` (`app.useGlobalPipes`).
+Toda classe DTO que extends `createZodDto(schema)` é validada automaticamente
+antes de chegar ao controller — sem precisar de `@UsePipes()` no endpoint.
+
+### Resposta de erro padronizada (pendente)
+
+`AllExceptionsFilter` **ainda não implementado** — mencionado no design mas
+ausente em `src/common/filters/`. Erros de validação do Zod retornam o formato
+padrão do `nestjs-zod`. Formato alvo quando implementado:
 
 ```json
 {
@@ -133,9 +141,6 @@ Hierarquia de funcionários (cada nível inclui o anterior):
   "errors": [{ "field": "email", "message": "Invalid email format" }]
 }
 ```
-
-Para erros do Zod, mapear `error.errors` → `errors[]`. Para `HttpException`,
-preservar `statusCode` e `message`.
 
 ---
 
@@ -228,94 +233,104 @@ Especialização 1:1 de `person`. PK = FK.
 - Criada junto com `registerUser` (fluxo 2) quando `endereco` vem no payload.
 - `AddressesService.create(cpf, dto)` é o método público — usado pelo `PeopleService`.
 
-### Tabelas planejadas (ainda não implementadas)
+#### `category` ✅ (issue #D1)
 
-Forma final esperada com base no diagrama ER. **Sempre que criar uma entity
-nova, conferir aqui se a FK aponta pra coluna certa** (várias apontam pra
-`person.cpf`, não `person.id`).
+| Coluna        | Tipo        | Constraint |
+| ------------- | ----------- | ---------- |
+| `id_categoria`| serial      | PK         |
+| `nome`        | varchar(80) | NOT NULL   |
 
-#### `category` (D1)
+**Nota:** a constraint UNIQUE em `nome` prevista no diagrama **não foi aplicada** na entity — sem `unique: true` no `@Column`. Confirmar se é intencional.
 
-| Coluna        | Tipo  | Constraint |
-| ------------- | ----- | ---------- |
-| `id_categoria`| serial| PK         |
-| `nome`        | varchar(80) | UNIQUE, NOT NULL |
-
-#### `product` (D1)
+#### `product` ✅ (issue #D1)
 
 | Coluna        | Tipo           | Constraint        |
 | ------------- | -------------- | ----------------- |
 | `id_produto`  | serial         | PK                |
 | `titulo`      | varchar(180)   | NOT NULL          |
-| `descricao`   | text           |                   |
+| `descricao`   | text           | NULL              |
 | `destaque`    | boolean        | DEFAULT false     |
-| `qual_medida` | varchar        |                   |
-| `material`    | varchar        |                   |
-| `composicao`  | varchar        |                   |
-| `silhueta`    | varchar        |                   |
-| `tags`        | text[] ou varchar |                |
+| `qual_medida` | varchar(80)    | NULL              |
+| `material`    | varchar(120)   | NULL              |
+| `composicao`  | varchar(180)   | NULL              |
+| `silhueta`    | varchar(120)   | NULL              |
+| `tags`        | simple-array   | NULL (varchar CSV interno ao TypeORM) |
 | `preco_base`  | numeric(10,2)  | NOT NULL          |
-| `sku`         | varchar        | UNIQUE            |
+| `sku`         | varchar(80)    | UNIQUE, NOT NULL  |
 
-Relação N:N com `category` via `@ManyToMany` + `@JoinTable({ name: 'product_category' })`.
-TypeORM cria a tabela de junção sozinho.
+Relação N:N com `category` via `@JoinTable({ name: 'product_category' })`.
+Colunas da junção: `product_id` → `product.id_produto`, `category_id` → `category.id_categoria`.
 
-#### `product_variant` (D1)
+#### `product_variant` ✅ (issue #D1)
 
 | Coluna           | Tipo           | Constraint                  |
 | ---------------- | -------------- | --------------------------- |
-| `codigo_sku`     | varchar(40)    | PK                          |
+| `codigo_sku`     | varchar(**80**)| PK ⚠️ (diagrama dizia 40)   |
 | `id_produto`     | int            | FK → `product.id_produto`   |
-| `preco_variante` | numeric(10,2)  | NOT NULL                    |
+| `preco_variante` | numeric(12,2)  | NOT NULL                    |
 | `ativo`          | boolean        | DEFAULT true                |
-| `cor`            | varchar        |                             |
-| `tamanho`        | varchar        |                             |
-| `medidas`        | jsonb          | Estrutura aberta (busto, cintura, quadril, comprimento, manga, pulso — em cm) |
+| `cor`            | varchar(80)    | NULL                        |
+| `tamanho`        | varchar(40)    | NULL                        |
+| `medidas`        | jsonb          | NULL (interface `Measurements` em `product-variants/interfaces/`) |
 
-#### `image` (D1)
+#### `image` ✅ (issue #D1)
 
-| Coluna                  | Tipo           | Constraint |
-| ----------------------- | -------------- | ---------- |
-| `id_imagem`             | serial         | PK         |
-| `url`                   | text           | NOT NULL   |
-| `ordem`                 | int            |            |
-| `descricao`             | varchar        |            |
-| `local_renderizacao`    | varchar        |            |
+| Coluna               | Tipo         | Constraint |
+| -------------------- | ------------ | ---------- |
+| `id_imagem`          | serial       | PK         |
+| `url`                | text         | NOT NULL   |
+| `ordem`              | int          | DEFAULT 0  |
+| `descricao`          | varchar(255) | NULL       |
+| `local_renderizacao` | varchar(120) | NULL       |
 
-#### `catalog_image` (D1)
+#### `catalog_image` ✅ (issue #D1)
 
-| Coluna                | Tipo        | Constraint                        |
-| --------------------- | ----------- | --------------------------------- |
-| `id_imagem`           | int         | FK → `image.id_imagem`            |
-| `codigo_sku`          | varchar(40) | FK → `product_variant.codigo_sku` |
-| `ordem_no_catalogo`   | int         |                                   |
+PK composta (`id_imagem`, `codigo_sku`).
 
-PK composta (id_imagem, codigo_sku).
+| Coluna            | Tipo        | Constraint                        |
+| ----------------- | ----------- | --------------------------------- |
+| `id_imagem`       | int         | PK, FK → `image.id_imagem`        |
+| `codigo_sku`      | varchar(40) | PK, FK → `product_variant.codigo_sku` |
+| `ordem_no_catalogo` | int       | DEFAULT 0                         |
 
-#### `stock` (D3)
+#### `stock` ✅ (issues #50–52)
 
-| Coluna             | Tipo        | Constraint                                       |
-| ------------------ | ----------- | ------------------------------------------------ |
-| `codigo_sku`       | varchar(40) | PK, FK → `product_variant.codigo_sku` (1:1)      |
-| `qtd_online`       | int         | DEFAULT 0, CHECK >= 0                            |
-| `qtd_loja_fisica`  | int         | DEFAULT 0, CHECK >= 0                            |
+| Coluna            | Tipo        | Constraint                                  |
+| ----------------- | ----------- | ------------------------------------------- |
+| `codigo_sku`      | varchar(40) | PK, FK → `product_variant.codigo_sku` (1:1) |
+| `qtd_online`      | int         | DEFAULT 0, CHECK >= 0                       |
+| `qtd_loja_fisica` | int         | DEFAULT 0, CHECK >= 0                       |
 
-#### `stock_log` (D3)
+**Notas:**
+- Registro criado automaticamente no primeiro `adjust` caso a variante ainda não tenha estoque.
+- `adjust` usa `dataSource.transaction` para garantir atomicidade com o `StockLog`.
 
-| Coluna                    | Tipo                                          | Constraint |
-| ------------------------- | --------------------------------------------- | ---------- |
-| `id_log`                  | serial                                        | PK         |
-| `codigo_sku`              | varchar(40)                                   | FK → `product_variant.codigo_sku` |
-| `id_pedido`               | int                                           | FK → `orders.id_pedido`, NULL |
-| `tipo_movimentacao`       | enum (entrada, saida, ajuste, venda)          | NOT NULL   |
-| `quantidade_movimentada`  | int                                           | NOT NULL   |
-| `data_criacao`            | timestamp                                     | DEFAULT now() |
-| `valor_anterior_online`   | int                                           |            |
-| `valor_novo_online`       | int                                           |            |
-| `valor_anterior_loja`     | int                                           |            |
-| `valor_novo_loja`         | int                                           |            |
-| `origem`                  | varchar (cpf do usuário ou identificador)     |            |
-| `motivo`                  | varchar(200)                                  | NULL       |
+#### `stock_log` ✅ (issues #50, #53–54)
+
+| Coluna                   | Tipo                                     | Constraint                        |
+| ------------------------ | ---------------------------------------- | --------------------------------- |
+| `id_log`                 | serial                                   | PK                                |
+| `codigo_sku`             | varchar(40)                              | FK → `product_variant.codigo_sku` |
+| `id_pedido`              | int                                      | NULL (sem FK TypeORM até orders existir) |
+| `tipo_movimentacao`      | enum (entrada, saida, ajuste, venda)     | NOT NULL                          |
+| `quantidade_movimentada` | int                                      | NOT NULL                          |
+| `data_criacao`           | timestamp                                | DEFAULT now()                     |
+| `valor_anterior_online`  | int                                      |                                   |
+| `valor_novo_online`      | int                                      |                                   |
+| `valor_anterior_loja`    | int                                      |                                   |
+| `valor_novo_loja`        | int                                      |                                   |
+| `origem`                 | varchar(80)                              | NULL (cpf do usuário)             |
+| `motivo`                 | varchar(200)                             | NULL                              |
+
+**Notas:**
+- Gerado automaticamente em toda alteração de `Stock`, na mesma transação.
+- Quando o módulo `orders` for implementado, adicionar `@ManyToOne(() => Order)` em `id_pedido`.
+
+### Tabelas planejadas (ainda não implementadas)
+
+Forma final esperada com base no diagrama ER. **Sempre que criar uma entity
+nova, conferir aqui se a FK aponta pra coluna certa** (várias apontam pra
+`person.cpf`, não `person.id`).
 
 #### `coupon` (D5)
 
@@ -425,6 +440,68 @@ make dev-test path=<modulo>  # roda testes de um módulo dentro do container
 **Testes:** sempre usar `make dev-test path=<modulo>` (ex: `make dev-test path=inventory`).
 Os testes rodam dentro do container Docker — chamar `pnpm test` direto na máquina host não reflete o ambiente correto.
 
+**Instalar dependências (pnpm):** sempre dentro do container.
+```bash
+docker compose -p marketplace-backend --env-file .env.development -f compose.dev.yml exec api pnpm add -D <pkg>
+# ou via shell interativo:
+make dev-shell  # depois: pnpm add ...
+```
+`node_modules` é volume Docker — rodar `pnpm install` no host gera divergência.
+
+---
+
+## Lint, format e clean code
+
+```bash
+# Dentro do container (make dev-shell ou docker compose exec api ...):
+pnpm lint           # ESLint check (sem fix) — usado pelo CI
+pnpm lint:fix       # ESLint + auto-fix
+pnpm format         # Prettier write
+pnpm format:check   # Prettier check (sem write) — usado pelo CI
+pnpm typecheck      # tsc --noEmit
+```
+
+**Configuração:**
+- ESLint flat config em `eslint.config.mjs` (regras: complexity, max-lines-per-function, no-magic-numbers, import/order, no-floating-promises).
+- Prettier em `.prettierrc.json`.
+- Pre-commit hook (`.husky/pre-commit`) roda `lint-staged` (eslint --fix + prettier --write nos arquivos staged) **dentro do container**. Requer container UP. Pra pular em emergência: `git commit --no-verify`.
+
+### Constantes (sem magic numbers)
+
+Constantes compartilhadas vivem em `src/common/constants/`:
+- `pagination.constants.ts` — `PAGINATION_DEFAULT_PAGE`, `PAGINATION_DEFAULT_LIMIT` (20), `PAGINATION_MAX_LIMIT` (100)
+- `security.constants.ts` — `BCRYPT_ROUNDS` (10)
+- `database.constants.ts` — `PG_UNIQUE_VIOLATION` ('23505')
+
+Para criar nova constante de domínio compartilhado, adicione no arquivo correspondente (ou crie novo `<topico>.constants.ts` e reexporte no `index.ts`). Importe via `from '../common/constants'`.
+
+ESLint só impõe `no-magic-numbers` em services/controllers — `entities/`, `dtos/`, `*.spec.ts` e `*.integration.ts` têm override (números literais são domain-natural ou fixtures de teste).
+
+---
+
+## CI/CD
+
+`.github/workflows/ci.yml` roda em PR/push para `dev` e `main`. Jobs em paralelo:
+
+| Job | O que faz |
+|---|---|
+| `lint` | `pnpm lint` + `pnpm typecheck` + `pnpm format:check` |
+| `build` | `pnpm build` (verifica compilação TS) |
+| `test-unit` | `pnpm test` (specs com mocks, sem banco) |
+| `test-integration` | `pnpm test:integration` com Postgres 16 como service do GH Actions |
+
+Tempo esperado total: ~3min.
+
+### OpenAPI para o frontend
+
+Swagger UI em `/docs` quando a app está rodando. Para gerar arquivo `openapi.json` versionável (não commitado — está no `.gitignore`):
+
+```bash
+pnpm openapi:export
+```
+
+Requer container/banco rodando (script instancia `AppModule` real).
+
 ---
 
 ## Pontos abertos (afetam código)
@@ -436,9 +513,18 @@ Decisões pendentes que mudam a forma da implementação. Confirmar antes:
 - **Bônus de comissão (D9/US20-21):** ao bater meta, taxa muda de 2,5%
   para X% em **todas** as vendas ou só nas **acima** da meta? Confirmar
   antes de implementar `EmployeesService.calculateCommission`.
-- **Frete (D8/US17):** API dos Correios é instável. Plano B em
-  `src/shipping/data/cep-ranges.ts` se a integração não estiver de pé até
-  20/05 14h.
+- **Frete (D8/US17):** integração via **Melhor Envio sandbox** (provedor
+  aglutinador — retorna cotações de Correios PAC/SEDEX, Jadlog e outras).
+  Substitui a integração direta com Correios SIGEP (endpoint legado,
+  descontinuado). Token via OAuth2 com refresh preemptivo (renova ~5 min
+  antes de expirar) gerenciado por `MelhorEnvioTokenManager`; modo estático
+  por env existe como fallback de debug. Por padrão usa a cotação mais
+  barata entre as válidas (filtra entradas com `error`); `MELHOR_ENVIO_SERVICE_ID`
+  fixa um serviço específico (1=PAC, 2=SEDEX, ...). Cache key inclui o
+  service ID. Erros do provedor (timeout, 401, 5xx, todas cotações com
+  erro) caem no fallback `src/shipping/data/cep-ranges.ts` (6 faixas
+  regionais com origem em Brasília); 422 (payload inválido) sobe como
+  `BadRequestException`. Como obter/renovar token: `docs/melhor-envio-token.md`.
 
 ---
 
