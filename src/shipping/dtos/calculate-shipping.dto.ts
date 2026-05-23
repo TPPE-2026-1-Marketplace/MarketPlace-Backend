@@ -26,6 +26,4 @@ export const CalculateShippingSchema = z.object({
   dimensoes: DimensoesSchema.optional(),
 });
 
-export class CalculateShippingDto extends createZodDto(
-  CalculateShippingSchema,
-) {}
+export class CalculateShippingDto extends createZodDto(CalculateShippingSchema) {}
