@@ -26,19 +26,22 @@ export class InfinitePayProvider implements IPaymentGateway {
     const endpoint = 'https://api.checkout.infinitepay.io/links';
 
     // Map order items to InfinitePay format in cents
-    const items = order?.items?.map((item) => ({
-      name: `Item SKU ${item.idVariante}`,
-      description: `Produto SKU ${item.idVariante}`,
-      price: Math.round(Number(item.precoUnitario) * 100), // convert to cents
-      quantity: item.quantidade,
-    })) || [
-      {
-        name: `Cobrança de Pedido #${order?.idPedido ?? 'Generico'}`,
-        description: `Pedido #${order?.idPedido ?? 'Generico'}`,
-        price: Math.round(amount * 100),
-        quantity: 1,
-      },
-    ];
+    const items =
+      order?.items && order.items.length > 0
+        ? order.items.map((item) => ({
+            name: `Item SKU ${item.idVariante}`,
+            description: `Produto SKU ${item.idVariante}`,
+            price: Math.round(Number(item.precoUnitario) * 100), // convert to cents
+            quantity: item.quantidade,
+          }))
+        : [
+            {
+              name: `Cobrança de Pedido #${order?.idPedido ?? 'Generico'}`,
+              description: `Pedido #${order?.idPedido ?? 'Generico'}`,
+              price: Math.round(amount * 100),
+              quantity: 1,
+            },
+          ];
 
     const payload = {
       handle,

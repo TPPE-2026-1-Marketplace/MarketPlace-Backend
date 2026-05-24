@@ -10,10 +10,7 @@ import { ImgbbService } from './imgbb.service';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 
 @Module({
-  imports: [
-    ConfigModule,
-    TypeOrmModule.forFeature([Image, CatalogImage, ProductVariant]),
-  ],
+  imports: [ConfigModule, TypeOrmModule.forFeature([Image, CatalogImage, ProductVariant])],
   controllers: [ImagesController],
   providers: [ImagesService, ImgbbService],
 })

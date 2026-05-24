@@ -56,7 +56,10 @@ export class ImagesController {
       limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
       fileFilter: (_req, file, cb) => {
         if (!file.mimetype.match(/^image\/(jpeg|png|gif|webp)$/)) {
-          cb(new BadRequestException('Apenas imagens JPEG, PNG, GIF e WEBP são permitidas.'), false);
+          cb(
+            new BadRequestException('Apenas imagens JPEG, PNG, GIF e WEBP são permitidas.'),
+            false,
+          );
         } else {
           cb(null, true);
         }
@@ -70,20 +73,24 @@ export class ImagesController {
       type: 'object',
       required: ['file'],
       properties: {
-        file: { type: 'string', format: 'binary', description: 'Arquivo de imagem (JPEG, PNG, GIF, WEBP — máx 5MB)' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Arquivo de imagem (JPEG, PNG, GIF, WEBP — máx 5MB)',
+        },
         ordem: { type: 'integer', description: 'Ordem de exibição padrão' },
         descricao: { type: 'string', description: 'Descrição alternativa da imagem' },
-        local_renderizacao: { type: 'string', description: 'Local onde a imagem será exibida (ex: banner, miniatura)' },
+        local_renderizacao: {
+          type: 'string',
+          description: 'Local onde a imagem será exibida (ex: banner, miniatura)',
+        },
       },
     },
   })
   @ApiResponse({ status: 201, description: 'Imagem enviada ao ImgBB e registrada com sucesso' })
   @ApiResponse({ status: 400, description: 'Arquivo inválido ou erro no ImgBB' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
-  uploadImage(
-    @UploadedFile() file: Express.Multer.File,
-    @Body() dto: UploadImageDto,
-  ) {
+  uploadImage(@UploadedFile() file: Express.Multer.File, @Body() dto: UploadImageDto) {
     if (!file) {
       throw new BadRequestException('Nenhum arquivo de imagem foi enviado.');
     }

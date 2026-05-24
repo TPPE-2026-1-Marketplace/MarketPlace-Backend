@@ -33,10 +33,7 @@ export class ImagesService {
     return this.imagesRepository.save(image);
   }
 
-  async uploadAndCreateImage(
-    file: Express.Multer.File,
-    dto: UploadImageDto,
-  ): Promise<Image> {
+  async uploadAndCreateImage(file: Express.Multer.File, dto: UploadImageDto): Promise<Image> {
     const imgbbData = await this.imgbbService.uploadImage(file);
 
     const image = this.imagesRepository.create({
