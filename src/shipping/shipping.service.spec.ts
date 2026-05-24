@@ -118,9 +118,12 @@ describe('ShippingService', () => {
   });
 
   describe('inicialização', () => {
-    it('lança erro se LOJA_CEP_ORIGEM não definido', async () => {
+    it('inicia sem lançar erro se LOJA_CEP_ORIGEM não definido (usa fallback de CEP)', async () => {
       delete process.env.LOJA_CEP_ORIGEM;
-      await expect(build()).rejects.toThrow(/LOJA_CEP_ORIGEM/);
+      const svc = await build(); // não lança — cepOrigem fica vazio
+      // calculate() cai no fallback por faixa de CEP normalmente
+      const result = await svc.calculate({ cep_destino: '01310100' } as CalculateShippingDto);
+      expect(result).toEqual({ valor: 22.0, prazo_dias: 5 }); // fallback Sudeste
     });
   });
 
