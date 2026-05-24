@@ -69,18 +69,27 @@ describe('MelhorEnvioTokenManager', () => {
   }
 
   describe('configuração', () => {
-    it('lança erro se BASE_URL não definido', async () => {
+    it('inicia em modo unconfigured (sem lançar erro) se BASE_URL não definida', async () => {
       delete process.env.MELHOR_ENVIO_BASE_URL;
-      await expect(build()).rejects.toThrow(/MELHOR_ENVIO_BASE_URL/);
+      const manager = await build(); // não lança
+      // getValidAccessToken() é que lança ServiceUnavailableException
+      await expect(manager.getValidAccessToken()).rejects.toThrow(
+        /MELHOR_ENVIO_BASE_URL|não configurado/i,
+      );
     });
 
-    it('lança erro se USER_AGENT não definido', async () => {
+    it('inicia em modo unconfigured (sem lançar erro) se USER_AGENT não definido', async () => {
       delete process.env.MELHOR_ENVIO_USER_AGENT;
-      await expect(build()).rejects.toThrow(/MELHOR_ENVIO_USER_AGENT/);
+      const manager = await build(); // não lança
+      await expect(manager.getValidAccessToken()).rejects.toThrow(
+        /MELHOR_ENVIO_USER_AGENT|não configurado/i,
+      );
     });
 
-    it('lança erro se faltar OAuth2 e ACCESS_TOKEN estático', async () => {
-      await expect(build()).rejects.toThrow(/Configuração da Melhor Envio incompleta/);
+    it('inicia em modo unconfigured (sem lançar erro) se faltar OAuth2 e ACCESS_TOKEN estático', async () => {
+      // BASE_URL e USER_AGENT presentes, mas sem credenciais de auth
+      const manager = await build(); // não lança
+      await expect(manager.getValidAccessToken()).rejects.toThrow(/não configurado/i);
     });
   });
 

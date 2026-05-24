@@ -14,7 +14,7 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "test:integration": "jest --testRegex '.*\\.integration\\.ts$' --runInBand",
+    "test:integration": "jest --testRegex '.*\\.integration\\.ts$' --runInBand --setupFiles ./jest-setup-envs.js",
     "test:watch": "jest --watch",
     "openapi:export": "ts-node scripts/export-openapi.ts",
     "demo:flow": "bash scripts/demo-flow.sh",
@@ -37,6 +37,7 @@
     "class-validator": "^0.15.1",
     "date-fns": "^4.1.0",
     "fast-csv": "^5.0.7",
+    "form-data": "^4.0.5",
     "helmet": "^8.1.0",
     "nestjs-pino": "^4.6.1",
     "nestjs-zod": "^5.4.0",
@@ -58,7 +59,9 @@
     "@nestjs/testing": "^10.4.8",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
+    "@types/form-data": "^2.5.2",
     "@types/jest": "^29.5.14",
+    "@types/multer": "^2.1.0",
     "@types/node": "^22.13.10",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.3",
@@ -93,13 +96,28 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
-      "^.+\\.(t|j)s$": "ts-jest"
+      "^.+\\.(t|j)s$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "module": "CommonJS",
+            "moduleResolution": "node",
+            "isolatedModules": true
+          }
+        }
+      ]
     },
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "testEnvironmentOptions": {
+      "customExportConditions": ["node", "require", "default"]
+    },
+    "moduleNameMapper": {
+      "^pg$": "pg/lib/index.js"
+    }
   },
   "lint-staged": {
     "src/**/*.ts": [
