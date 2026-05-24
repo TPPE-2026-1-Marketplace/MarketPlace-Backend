@@ -73,13 +73,17 @@ describe('MelhorEnvioTokenManager', () => {
       delete process.env.MELHOR_ENVIO_BASE_URL;
       const manager = await build(); // não lança
       // getValidAccessToken() é que lança ServiceUnavailableException
-      await expect(manager.getValidAccessToken()).rejects.toThrow(/MELHOR_ENVIO_BASE_URL|não configurado/i);
+      await expect(manager.getValidAccessToken()).rejects.toThrow(
+        /MELHOR_ENVIO_BASE_URL|não configurado/i,
+      );
     });
 
     it('inicia em modo unconfigured (sem lançar erro) se USER_AGENT não definido', async () => {
       delete process.env.MELHOR_ENVIO_USER_AGENT;
       const manager = await build(); // não lança
-      await expect(manager.getValidAccessToken()).rejects.toThrow(/MELHOR_ENVIO_USER_AGENT|não configurado/i);
+      await expect(manager.getValidAccessToken()).rejects.toThrow(
+        /MELHOR_ENVIO_USER_AGENT|não configurado/i,
+      );
     });
 
     it('inicia em modo unconfigured (sem lançar erro) se faltar OAuth2 e ACCESS_TOKEN estático', async () => {
