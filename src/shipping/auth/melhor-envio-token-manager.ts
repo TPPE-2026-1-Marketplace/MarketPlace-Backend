@@ -1,5 +1,6 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
+import { ServiceUnavailableException } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
 
 import {
@@ -14,7 +15,7 @@ interface CachedToken {
   expiresAt: number; // ms epoch
 }
 
-type AuthMode = 'oauth2' | 'static';
+type AuthMode = 'oauth2' | 'static' | 'unconfigured';
 
 /**
  * Gerencia o access_token usado nas chamadas à API Melhor Envio.
@@ -47,12 +48,23 @@ export class MelhorEnvioTokenManager {
   constructor(private readonly httpService: HttpService) {
     const baseUrl = process.env.MELHOR_ENVIO_BASE_URL;
     const userAgent = process.env.MELHOR_ENVIO_USER_AGENT;
-    if (!baseUrl) {
-      throw new Error('Variável de ambiente MELHOR_ENVIO_BASE_URL não está definida.');
+
+    // Se as envs obrigatórias de URL/User-Agent faltarem, o módulo sobe em
+    // modo 'unconfigured'. Qualquer chamada a getValidAccessToken() vai lançar
+    // ServiceUnavailableException, que o ShippingService captura e redireciona
+    // para o fallback por faixa de CEP — sem derrubar a aplicação.
+    if (!baseUrl || !userAgent) {
+      this.mode = 'unconfigured';
+      this.baseUrl = '';
+      this.userAgent = '';
+      this.logger.warn(
+        'Melhor Envio não configurado (MELHOR_ENVIO_BASE_URL ou ' +
+          'MELHOR_ENVIO_USER_AGENT ausente). Frete via API indisponível; ' +
+          'fallback por faixa de CEP será usado.',
+      );
+      return;
     }
-    if (!userAgent) {
-      throw new Error('Variável de ambiente MELHOR_ENVIO_USER_AGENT não está definida.');
-    }
+
     this.baseUrl = baseUrl;
     this.userAgent = userAgent;
 
@@ -80,9 +92,12 @@ export class MelhorEnvioTokenManager {
           'Defina CLIENT_ID/SECRET/REFRESH_TOKEN para habilitar OAuth2.',
       );
     } else {
-      throw new Error(
-        'Configuração da Melhor Envio incompleta. Defina ou o trio ' +
-          'OAuth2 (MELHOR_ENVIO_CLIENT_ID/CLIENT_SECRET/REFRESH_TOKEN) ou o ' +
+      // URL e User-Agent presentes mas sem credenciais de auth — modo
+      // unconfigured: API não pode ser chamada, fallback de CEP assume.
+      this.mode = 'unconfigured';
+      this.logger.warn(
+        'Melhor Envio não configurado: defina o trio OAuth2 ' +
+          '(MELHOR_ENVIO_CLIENT_ID/CLIENT_SECRET/REFRESH_TOKEN) ou o ' +
           'fallback estático (MELHOR_ENVIO_ACCESS_TOKEN).',
       );
     }
@@ -94,6 +109,12 @@ export class MelhorEnvioTokenManager {
    * o mesmo token (sem checagem de expiração).
    */
   async getValidAccessToken(): Promise<string> {
+    if (this.mode === 'unconfigured') {
+      throw new ServiceUnavailableException(
+        'Melhor Envio não configurado. Defina as variáveis de ambiente necessárias.',
+      );
+    }
+
     if (this.mode === 'static') {
       return this.staticToken as string;
     }
