@@ -19,7 +19,7 @@ describe('RolesGuard', () => {
         {
           provide: Reflector,
           useValue: {
-            get: jest.fn(),
+            getAllAndOverride: jest.fn(),
           },
         },
       ],
@@ -42,7 +42,7 @@ describe('RolesGuard', () => {
 
   describe('Sem @Roles() decorator', () => {
     it('deve permitir qualquer usuário autenticado quando sem @Roles()', () => {
-      reflector.get.mockReturnValue(undefined);
+      reflector.getAllAndOverride.mockReturnValue(undefined);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -51,6 +51,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -59,7 +60,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve permitir qualquer role quando @Roles() não está definido', () => {
-      reflector.get.mockReturnValue(undefined);
+      reflector.getAllAndOverride.mockReturnValue(undefined);
 
       const testCases = [Role.CLIENTE, Role.CAIXA, Role.VENDEDOR, Role.GERENTE, Role.ADMINISTRADOR];
 
@@ -71,6 +72,7 @@ describe('RolesGuard', () => {
             }),
           }),
           getHandler: () => ({}),
+          getClass: () => ({}),
         } as unknown as ExecutionContext;
 
         const result = guard.canActivate(mockExecutionContext);
@@ -91,7 +93,7 @@ describe('RolesGuard', () => {
        *
        * Esperado: 403 Forbidden
        */
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -100,6 +102,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -109,7 +112,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve retornar false para role: cliente quando requer administrador', () => {
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -118,6 +121,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -125,7 +129,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve retornar false para role: vendedor quando requer gerente', () => {
-      reflector.get.mockReturnValue([Role.GERENTE]);
+      reflector.getAllAndOverride.mockReturnValue([Role.GERENTE]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -134,6 +138,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -141,7 +146,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve retornar false para role: caixa quando requer administrador', () => {
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -150,6 +155,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -167,7 +173,7 @@ describe('RolesGuard', () => {
        *
        * Esperado: 200 OK (true)
        */
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR, Role.GERENTE]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR, Role.GERENTE]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -176,6 +182,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -184,7 +191,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve aceitar admin quando @Roles(admin, gerente)', () => {
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR, Role.GERENTE]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR, Role.GERENTE]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -193,6 +200,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -202,7 +210,7 @@ describe('RolesGuard', () => {
     it('deve aceitar qualquer role em @Roles(admin, gerente, vendedor, caixa, cliente)', () => {
       const allRoles = [Role.ADMINISTRADOR, Role.GERENTE, Role.VENDEDOR, Role.CAIXA, Role.CLIENTE];
 
-      reflector.get.mockReturnValue(allRoles);
+      reflector.getAllAndOverride.mockReturnValue(allRoles);
 
       allRoles.forEach((role) => {
         const mockExecutionContext = {
@@ -212,6 +220,7 @@ describe('RolesGuard', () => {
             }),
           }),
           getHandler: () => ({}),
+          getClass: () => ({}),
         } as unknown as ExecutionContext;
 
         const result = guard.canActivate(mockExecutionContext);
@@ -220,7 +229,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve rejeitar role fora da lista de múltiplos perfis', () => {
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR, Role.GERENTE]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR, Role.GERENTE]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -229,6 +238,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -236,7 +246,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve aceitar vendedor quando @Roles(vendedor, caixa)', () => {
-      reflector.get.mockReturnValue([Role.VENDEDOR, Role.CAIXA]);
+      reflector.getAllAndOverride.mockReturnValue([Role.VENDEDOR, Role.CAIXA]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -245,6 +255,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -254,7 +265,7 @@ describe('RolesGuard', () => {
 
   describe('Casos extremos', () => {
     it('deve retornar false quando user é undefined', () => {
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -263,6 +274,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -270,7 +282,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve retornar false quando user.role é undefined', () => {
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -279,6 +291,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -286,7 +299,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve retornar false quando user é null', () => {
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -295,6 +308,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -302,7 +316,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve retornar false quando requiredRoles é array vazio (nunca deve acontecer)', () => {
-      reflector.get.mockReturnValue([]);
+      reflector.getAllAndOverride.mockReturnValue([]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -311,6 +325,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -320,7 +335,7 @@ describe('RolesGuard', () => {
 
   describe('Case sensitivity', () => {
     it('deve fazer match exato de role (case-sensitive)', () => {
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -329,6 +344,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -337,7 +353,7 @@ describe('RolesGuard', () => {
     });
 
     it('deve aceitar role com case correto', () => {
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -346,6 +362,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -354,10 +371,11 @@ describe('RolesGuard', () => {
   });
 
   describe('Integração com @Roles() decorator', () => {
-    it('deve usar Reflector.get() para obter metadata de @Roles()', () => {
-      reflector.get.mockReturnValue([Role.GERENTE]);
+    it('deve usar Reflector.getAllAndOverride() para obter metadata de @Roles()', () => {
+      reflector.getAllAndOverride.mockReturnValue([Role.GERENTE]);
 
       const mockHandler = jest.fn();
+      const mockClass = jest.fn();
       const mockExecutionContext = {
         switchToHttp: () => ({
           getRequest: () => ({
@@ -365,16 +383,18 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => mockHandler,
+        getClass: () => mockClass,
       } as unknown as ExecutionContext;
 
       guard.canActivate(mockExecutionContext);
 
-      expect(reflector.get).toHaveBeenCalledWith(ROLES_KEY, mockHandler);
+      expect(reflector.getAllAndOverride).toHaveBeenCalledWith(ROLES_KEY, [mockHandler, mockClass]);
     });
 
-    it('deve passar handler correto para Reflector.get()', () => {
+    it('deve passar handler e class corretos para Reflector.getAllAndOverride()', () => {
       const mockHandler = jest.fn();
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      const mockClass = jest.fn();
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -383,11 +403,12 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => mockHandler,
+        getClass: () => mockClass,
       } as unknown as ExecutionContext;
 
       guard.canActivate(mockExecutionContext);
 
-      expect(reflector.get).toHaveBeenCalledWith(ROLES_KEY, mockHandler);
+      expect(reflector.getAllAndOverride).toHaveBeenCalledWith(ROLES_KEY, [mockHandler, mockClass]);
     });
   });
 
@@ -401,7 +422,7 @@ describe('RolesGuard', () => {
        *
        * Usuário com token admin tentando deletar → 200 OK
        */
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -410,6 +431,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -425,7 +447,7 @@ describe('RolesGuard', () => {
        *
        * Usuário com token cliente tentando deletar → 403 Forbidden
        */
-      reflector.get.mockReturnValue([Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.ADMINISTRADOR]);
 
       const mockExecutionContext = {
         switchToHttp: () => ({
@@ -434,6 +456,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       const result = guard.canActivate(mockExecutionContext);
@@ -451,7 +474,7 @@ describe('RolesGuard', () => {
        * Admin → 200 OK
        * Vendedor → 403 Forbidden
        */
-      reflector.get.mockReturnValue([Role.GERENTE, Role.ADMINISTRADOR]);
+      reflector.getAllAndOverride.mockReturnValue([Role.GERENTE, Role.ADMINISTRADOR]);
 
       // Gerente OK
       let mockExecutionContext = {
@@ -461,6 +484,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       expect(guard.canActivate(mockExecutionContext)).toBe(true);
@@ -473,6 +497,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       expect(guard.canActivate(mockExecutionContext)).toBe(true);
@@ -485,6 +510,7 @@ describe('RolesGuard', () => {
           }),
         }),
         getHandler: () => ({}),
+        getClass: () => ({}),
       } as unknown as ExecutionContext;
 
       expect(guard.canActivate(mockExecutionContext)).toBe(false);
