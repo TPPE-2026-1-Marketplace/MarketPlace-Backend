@@ -5,6 +5,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { CatalogImage } from './entities/catalog-image.entity';
 import { Image } from './entities/image.entity';
 import { ImagesService } from './images.service';
+import { ImgbbService } from './imgbb.service';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 
 import type { TestingModule } from '@nestjs/testing';
@@ -61,6 +62,17 @@ describe('ImagesService', () => {
         {
           provide: getRepositoryToken(ProductVariant),
           useValue: { findOne: jest.fn() },
+        },
+        {
+          provide: ImgbbService,
+          useValue: {
+            uploadImage: jest.fn().mockResolvedValue({
+              url: 'https://i.ibb.co/test.jpg',
+              display_url: 'https://i.ibb.co/test.jpg',
+              delete_url: 'https://ibb.co/delete/test',
+              title: 'test',
+            }),
+          },
         },
       ],
     }).compile();

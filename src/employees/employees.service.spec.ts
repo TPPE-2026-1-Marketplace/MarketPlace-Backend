@@ -6,7 +6,9 @@ import { DataSource, QueryFailedError } from 'typeorm';
 import { EmployeesService } from './employees.service';
 import { Employee } from './entities/employee.entity';
 import { Role } from '../common/enums/role.enum';
+import { OrdersService } from '../orders/orders.service';
 import { Person } from '../people/entities/person.entity';
+import { SalesGoalsService } from '../sales-goals/sales-goals.service';
 
 import type { TestingModule } from '@nestjs/testing';
 import type { Repository } from 'typeorm';
@@ -81,6 +83,18 @@ describe('EmployeesService', () => {
         {
           provide: DataSource,
           useValue: dataSource,
+        },
+        {
+          provide: OrdersService,
+          useValue: {
+            findInStoreOrdersByEmployeeAndPeriod: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: SalesGoalsService,
+          useValue: {
+            findGoalByPeriod: jest.fn().mockResolvedValue(null),
+          },
         },
       ],
     }).compile();

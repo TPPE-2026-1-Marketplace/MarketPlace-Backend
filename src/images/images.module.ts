@@ -4,9 +4,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { CatalogImage } from './entities/catalog-image.entity';
 import { Image } from './entities/image.entity';
-import { ImgbbService } from './imgbb.service';
 import { ImagesController } from './images.controller';
 import { ImagesService } from './images.service';
+import { ImgbbService } from './imgbb.service';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 
 @Module({
