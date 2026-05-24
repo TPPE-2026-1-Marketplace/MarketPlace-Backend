@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { ZodValidationPipe } from 'nestjs-zod';
+import { ZodValidationPipe, cleanupOpenApiDoc } from 'nestjs-zod';
 
 import { AppModule } from './app.module';
 import { DEFAULT_API_PORT } from './common/constants';
@@ -38,7 +38,7 @@ async function bootstrap() {
     )
     .build();
 
-  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+  const swaggerDocument = cleanupOpenApiDoc(SwaggerModule.createDocument(app, swaggerConfig));
 
   SwaggerModule.setup('docs', app, swaggerDocument);
 
