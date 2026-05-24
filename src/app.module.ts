@@ -18,6 +18,7 @@ import { ProductVariantsModule } from './product-variants/product-variants.modul
 import { ProductsModule } from './products/products.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { SalesGoalsModule } from './sales-goals/sales-goals.module';
+import { ShippingModule } from './shipping/shipping.module';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const isProduction = nodeEnv === 'production';
@@ -52,6 +53,7 @@ const isProduction = nodeEnv === 'production';
     AuthModule,
     ImagesModule,
     SalesGoalsModule,
+    ShippingModule,
   ],
 })
 export class AppModule {}
