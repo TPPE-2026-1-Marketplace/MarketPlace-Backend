@@ -23,6 +23,22 @@ describe('MeasurementsSchema', () => {
   it('rejeita valores não numéricos', () => {
     expect(() => MeasurementsSchema.parse({ busto: 'noventa' })).toThrow();
   });
+
+  it.each([
+    ['número inteiro', { busto: 90 }, true],
+    ['número decimal', { cintura: 70.5 }, true],
+    ['campo extra numérico', { ombro: 42 }, true],
+    ['string', { busto: 'noventa' }, false],
+    ['booleano', { busto: true }, false],
+    ['nulo', { busto: null }, false],
+  ])('valor do tipo %s => válido=%s', (_descricao, input, valid) => {
+    const parse = () => MeasurementsSchema.parse(input);
+    if (valid) {
+      expect(parse).not.toThrow();
+    } else {
+      expect(parse).toThrow();
+    }
+  });
 });
 
 describe('CreateProductVariantSchema — campo medidas', () => {
