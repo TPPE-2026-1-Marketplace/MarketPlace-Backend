@@ -51,9 +51,12 @@ export class ShippingService {
   ) {
     const cep = process.env.LOJA_CEP_ORIGEM;
     if (!cep) {
-      throw new Error('Variável de ambiente LOJA_CEP_ORIGEM não está definida.');
+      this.logger.warn(
+        'LOJA_CEP_ORIGEM não definida. Cálculo de frete via Melhor Envio indisponível; ' +
+          'fallback por faixa de CEP será usado.',
+      );
     }
-    this.cepOrigem = cep;
+    this.cepOrigem = cep ?? '';
 
     this.baseUrl = process.env.MELHOR_ENVIO_BASE_URL as string;
     this.userAgent = process.env.MELHOR_ENVIO_USER_AGENT as string;
@@ -62,7 +65,7 @@ export class ShippingService {
     this.serviceId = sid ? parseInt(sid, 10) : null;
 
     this.logger.log(
-      `CEP origem: ${this.cepOrigem}. Service ID: ${this.serviceId ?? '(mais barato)'}.`,
+      `CEP origem: ${this.cepOrigem || '(não configurado)'}. Service ID: ${this.serviceId ?? '(mais barato)'}.`,
     );
   }
 
@@ -136,6 +139,12 @@ export class ShippingService {
     cepDestino: string,
     pkg: PackageDimensions,
   ): Promise<IShippingQuote> {
+    if (!this.cepOrigem) {
+      throw new ServiceUnavailableException(
+        'CEP de origem da loja não configurado (LOJA_CEP_ORIGEM)',
+      );
+    }
+
     const accessToken = await this.tokenManager.getValidAccessToken();
 
     let cotacoes: IMelhorEnvioCotacao[];

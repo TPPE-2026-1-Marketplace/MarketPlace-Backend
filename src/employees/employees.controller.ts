@@ -16,6 +16,7 @@ import {
   PAGINATION_MAX_LIMIT,
 } from '../common/constants';
 import { CreateEmployeeDto } from './dtos/create-employee.dto';
+import { QueryRankingDto } from './dtos/query-ranking.dto';
 import { UpdateEmployeeDto } from './dtos/update-employee.dto';
 import { EmployeesService } from './employees.service';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -60,6 +61,15 @@ export class EmployeesController {
   @ApiResponse({ status: 200, description: 'Lista paginada de funcionários' })
   findAll(@Query() query: PaginationDto) {
     return this.employeesService.findAll(query.page, query.limit);
+  }
+
+  @Get('ranking')
+  @Roles(Role.CAIXA, Role.VENDEDOR, Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiOperation({ summary: 'Visualiza o ranking mensal dos vendedores (caixa+)' })
+  @ApiResponse({ status: 200, description: 'Ranking retornado com sucesso' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
+  getSellersRanking(@Query() query: QueryRankingDto) {
+    return this.employeesService.getSellersRanking(query);
   }
 
   @Get(':cpf')

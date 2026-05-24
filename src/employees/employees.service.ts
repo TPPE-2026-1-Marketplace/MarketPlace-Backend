@@ -12,9 +12,14 @@ import {
   TEMP_PASSWORD_BYTES,
 } from '../common/constants';
 import { CreateEmployeeDto } from './dtos/create-employee.dto';
+import { QueryRankingDto } from './dtos/query-ranking.dto';
 import { UpdateEmployeeDto } from './dtos/update-employee.dto';
 import { Employee } from './entities/employee.entity';
+import { Role } from '../common/enums/role.enum';
+import { Order, OrderStatus, TipoRetirada } from '../orders/entities/order.entity';
+import { OrdersService } from '../orders/orders.service';
 import { Person } from '../people/entities/person.entity';
+import { SalesGoalsService } from '../sales-goals/sales-goals.service';
 
 @Injectable()
 export class EmployeesService {
@@ -23,6 +28,8 @@ export class EmployeesService {
     private readonly employeesRepository: Repository<Employee>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly ordersService: OrdersService,
+    private readonly salesGoalsService: SalesGoalsService,
   ) {}
 
   private stripPersonPassword(employee: Employee): Employee {
@@ -187,5 +194,135 @@ export class EmployeesService {
         throw err;
       }
     });
+  }
+
+  /**
+   * Soma as vendas presenciais de um vendedor em um determinado mês e ano.
+   * Retorna o total das vendas e a lista de pedidos correspondente.
+   */
+  async getSalesByEmployee(
+    cpf: string,
+    mes: number,
+    ano: number,
+  ): Promise<{ total: number; pedidos: any[] }> {
+    const pedidos = await this.ordersService.findInStoreOrdersByEmployeeAndPeriod(cpf, mes, ano);
+
+    const totalRaw = pedidos.reduce((acc, order) => acc + Number(order.valorTotal), 0);
+    const total = parseFloat(totalRaw.toFixed(2));
+
+    return {
+      total,
+      pedidos,
+    };
+  }
+
+  /**
+   * Calcula a comissão automática de um vendedor no mês especificado.
+   * Aplica comissão base de 2.5% (ou a cadastrada no vendedor) e
+   * adiciona taxa bônus se a meta (individual ou coletiva) for atingida.
+   */
+  async calculateCommission(
+    cpf: string,
+    mes: number,
+    ano: number,
+  ): Promise<{ total_vendas: number; comissao: number; meta_batida: boolean }> {
+    const employee = await this.employeesRepository.findOne({
+      where: { cpf },
+    });
+
+    if (!employee) {
+      throw new NotFoundException(`Funcionário com CPF "${cpf}" não encontrado.`);
+    }
+
+    // 1. Obter total de vendas presenciais no período
+    const { total: total_vendas } = await this.getSalesByEmployee(cpf, mes, ano);
+
+    // 2. Buscar meta individual do vendedor no período
+    let goal = await this.salesGoalsService.findGoalByPeriod(cpf, mes, ano);
+
+    // 3. Se não houver meta individual, buscar meta coletiva
+    if (!goal) {
+      goal = await this.salesGoalsService.findGoalByPeriod(null, mes, ano);
+    }
+
+    let meta_batida = false;
+    let taxaComissaoBonus = 0;
+
+    if (goal) {
+      meta_batida = total_vendas >= Number(goal.valorMeta);
+      if (meta_batida) {
+        taxaComissaoBonus = Number(goal.taxaComissaoBonus ?? 0);
+      }
+    }
+
+    // 4. Calcular comissão: taxa base + bônus
+    const taxaBase = Number(employee.taxa_comissao);
+    const taxaFinal = taxaBase + taxaComissaoBonus;
+
+    const comissaoRaw = total_vendas * taxaFinal;
+    const comissao = parseFloat(comissaoRaw.toFixed(2));
+
+    return {
+      total_vendas,
+      comissao,
+      meta_batida,
+    };
+  }
+
+  /**
+   * Retorna o ranking mensal dos vendedores ordenado por total de vendas decrescente (Administrador, Vendedor, Caixa, Gerente).
+   */
+  async getSellersRanking(
+    query: QueryRankingDto,
+  ): Promise<
+    Array<{ nome: string; codigo_funcionario: string; total_vendas: number; posicao: number }>
+  > {
+    const now = new Date();
+    const mes = query.mes ?? now.getMonth() + 1;
+    const ano = query.ano ?? now.getFullYear();
+
+    const startDate = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
+    const endDate = new Date(ano, mes, 0, 23, 59, 59, 999);
+
+    const rawRanking = await this.employeesRepository
+      .createQueryBuilder('employee')
+      .innerJoin('employee.person', 'person')
+      .leftJoin(
+        Order,
+        'order',
+        'order.idFuncionario = employee.cpf AND order.tipoRetirada = :tipoRetirada AND order.status IN (:...statuses) AND order.dataPedido BETWEEN :start AND :end',
+        {
+          tipoRetirada: TipoRetirada.LOJA,
+          statuses: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED],
+          start: startDate,
+          end: endDate,
+        },
+      )
+      .select([
+        'person.nome AS nome',
+        'employee.codigo_funcionario AS codigo_funcionario',
+        'COALESCE(SUM(order.valorTotal), 0) AS total_vendas',
+      ])
+      .where('employee.role_perfil = :role', { role: Role.VENDEDOR })
+      .groupBy('employee.cpf')
+      .addGroupBy('person.cpf')
+      .addGroupBy('person.nome')
+      .addGroupBy('employee.codigo_funcionario')
+      .getRawMany();
+
+    const ranking = rawRanking.map((raw) => ({
+      nome: raw.nome || '',
+      codigo_funcionario: raw.codigo_funcionario || '',
+      total_vendas: parseFloat(Number(raw.total_vendas).toFixed(2)),
+    }));
+
+    // Ordenar por valor total de vendas DESC
+    ranking.sort((a, b) => b.total_vendas - a.total_vendas);
+
+    // Mapear incluindo a posição (1-based index)
+    return ranking.map((entry, index) => ({
+      ...entry,
+      posicao: index + 1,
+    }));
   }
 }

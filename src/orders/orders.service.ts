@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, FindOptionsWhere, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, FindOptionsWhere, In, Repository, Between } from 'typeorm';
 
 import { OrderItem } from './entities/order-item.entity';
 import { Order, OrderStatus, TipoRetirada } from './entities/order.entity';
@@ -685,5 +685,47 @@ export class OrdersService {
     await manager.save(coupon);
 
     return valorDesconto;
+  }
+
+  /**
+   * Busca todas as vendas presenciais de um vendedor em um determinado mês e ano.
+   * Filtra apenas pedidos pagos, enviados ou entregues.
+   */
+  async findInStoreOrdersByEmployeeAndPeriod(
+    cpf: string,
+    mes: number,
+    ano: number,
+  ): Promise<Order[]> {
+    const startDate = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
+    const endDate = new Date(ano, mes, 0, 23, 59, 59, 999);
+
+    return await this.ordersRepository.find({
+      where: {
+        idFuncionario: cpf,
+        status: In([OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED]),
+        tipoRetirada: TipoRetirada.LOJA,
+        dataPedido: Between(startDate, endDate),
+      },
+    });
+  }
+
+  /**
+   * Calcula o valor total acumulado de todas as vendas presenciais da loja em um mês e ano (Administrador).
+   */
+  async sumTotalInStoreSalesByPeriod(mes: number, ano: number): Promise<number> {
+    const startDate = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
+    const endDate = new Date(ano, mes, 0, 23, 59, 59, 999);
+
+    const result = await this.ordersRepository
+      .createQueryBuilder('order')
+      .select('SUM(order.valorTotal)', 'sum')
+      .where('order.status IN (:...statuses)', {
+        statuses: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED],
+      })
+      .andWhere('order.tipoRetirada = :type', { type: TipoRetirada.LOJA })
+      .andWhere('order.dataPedido BETWEEN :start AND :end', { start: startDate, end: endDate })
+      .getRawOne();
+
+    return parseFloat(Number(result?.sum ?? 0).toFixed(2));
   }
 }
