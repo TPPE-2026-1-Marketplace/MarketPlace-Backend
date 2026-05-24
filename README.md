@@ -11,4 +11,4 @@ O fluxo oficial usa `make` como interface:
 
 Copie `.env.example` para `.env` e ajuste as variaveis. Em desenvolvimento, use `POSTGRES_HOST=postgres`. Em producao, aponte `POSTGRES_HOST` para o banco externo.
 
-As builds exigem BuildKit habilitado. O `Makefile` exporta `DOCKER_BUILDKIT=1` e `COMPOSE_DOCKER_CLI_BUILD=1` para suportar cache mount do `pnpm`.
+As builds exigem BuildKit habilitado. O `Makefile` exporta `DOCKER_BUILDKIT=1` e `COMPOSE_DOCKER_CLI_BUILD=1` para suportar cache mount do `pnpm`..
