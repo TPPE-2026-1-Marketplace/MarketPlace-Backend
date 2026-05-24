@@ -14,7 +14,7 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "test:integration": "jest --testRegex '.*\\.integration\\.ts$' --runInBand",
+    "test:integration": "jest --testRegex '.*\\.integration\\.ts$' --runInBand --setupFiles ./jest-setup-envs.js",
     "test:watch": "jest --watch",
     "openapi:export": "ts-node scripts/export-openapi.ts",
     "demo:flow": "bash scripts/demo-flow.sh",
