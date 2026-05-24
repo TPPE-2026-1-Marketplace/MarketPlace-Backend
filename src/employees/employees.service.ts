@@ -16,6 +16,7 @@ import { QueryRankingDto } from './dtos/query-ranking.dto';
 import { UpdateEmployeeDto } from './dtos/update-employee.dto';
 import { Employee } from './entities/employee.entity';
 import { Role } from '../common/enums/role.enum';
+import { getMonthDateRange } from '../common/utils';
 import { Order, OrderStatus, TipoRetirada } from '../orders/entities/order.entity';
 import { OrdersService } from '../orders/orders.service';
 import { Person } from '../people/entities/person.entity';
@@ -69,7 +70,6 @@ export class EmployeesService {
         if (dto.email !== undefined) person.email = dto.email;
         if (dto.telefone !== undefined) person.telefone = dto.telefone;
 
-        // Atualizamos a senha para garantir que o funcionário consiga logar
         person.senha = hashedSenha;
 
         person = await peopleRepository.save(person);
@@ -204,7 +204,7 @@ export class EmployeesService {
     cpf: string,
     mes: number,
     ano: number,
-  ): Promise<{ total: number; pedidos: any[] }> {
+  ): Promise<{ total: number; pedidos: Order[] }> {
     const pedidos = await this.ordersService.findInStoreOrdersByEmployeeAndPeriod(cpf, mes, ano);
 
     const totalRaw = pedidos.reduce((acc, order) => acc + Number(order.valorTotal), 0);
@@ -281,8 +281,7 @@ export class EmployeesService {
     const mes = query.mes ?? now.getMonth() + 1;
     const ano = query.ano ?? now.getFullYear();
 
-    const startDate = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
-    const endDate = new Date(ano, mes, 0, 23, 59, 59, 999);
+    const { startDate, endDate } = getMonthDateRange(ano, mes);
 
     const rawRanking = await this.employeesRepository
       .createQueryBuilder('employee')

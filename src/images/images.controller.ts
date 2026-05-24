@@ -25,6 +25,7 @@ import { CreateCatalogImageDto } from './dtos/create-catalog-image.dto';
 import { CreateImageDto } from './dtos/create-image.dto';
 import { UploadImageDto } from './dtos/upload-image.dto';
 import { ImagesService } from './images.service';
+import { MAX_IMAGE_UPLOAD_BYTES } from '../common/constants';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -53,7 +54,7 @@ export class ImagesController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+      limits: { fileSize: MAX_IMAGE_UPLOAD_BYTES },
       fileFilter: (_req, file, cb) => {
         if (!file.mimetype.match(/^image\/(jpeg|png|gif|webp)$/)) {
           cb(

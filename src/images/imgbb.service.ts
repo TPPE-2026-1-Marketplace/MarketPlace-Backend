@@ -1,8 +1,7 @@
 import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const FormData = require('form-data') as typeof import('form-data');
+import FormData from 'form-data';
 
 export interface ImgBBResponse {
   url: string;

@@ -1,12 +1,14 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull, Not } from 'typeorm';
+import { Repository, IsNull, Not, FindOptionsWhere } from 'typeorm';
 
 import { CreateSalesGoalDto } from './dtos/create-sales-goal.dto';
 import { QueryProgressDto } from './dtos/query-progress.dto';
 import { QuerySalesGoalDto } from './dtos/query-sales-goal.dto';
 import { UpdateSalesGoalDto } from './dtos/update-sales-goal.dto';
 import { SalesGoal } from './entities/sales-goal.entity';
+import { PERCENTAGE_MAX } from '../common/constants';
+import { getMonthDateRange } from '../common/utils';
 import { Employee } from '../employees/entities/employee.entity';
 import { Order, OrderStatus, TipoRetirada } from '../orders/entities/order.entity';
 import { OrdersService } from '../orders/orders.service';
@@ -28,33 +30,11 @@ export class SalesGoalsService {
   async create(dto: CreateSalesGoalDto): Promise<SalesGoal> {
     // 1. Validar se o funcionário existe caso o CPF seja informado
     if (dto.cpfFuncionario) {
-      const employee = await this.employeeRepository.findOne({
-        where: { cpf: dto.cpfFuncionario },
-      });
-
-      if (!employee) {
-        throw new NotFoundException(
-          `Funcionário com CPF "${dto.cpfFuncionario}" não foi encontrado.`,
-        );
-      }
+      await this.ensureEmployeeExists(dto.cpfFuncionario);
     }
 
     // 2. Validar a unicidade da meta (Unique Constraint: cpfFuncionario, mes, ano)
-    const existingGoal = await this.salesGoalsRepository.findOne({
-      where: {
-        cpfFuncionario: dto.cpfFuncionario ?? IsNull(),
-        mes: dto.mes,
-        ano: dto.ano,
-      },
-    });
-
-    if (existingGoal) {
-      throw new ConflictException(
-        dto.cpfFuncionario
-          ? `Já existe uma meta cadastrada para o funcionário com CPF "${dto.cpfFuncionario}" no mês ${dto.mes}/${dto.ano}.`
-          : `Já existe uma meta coletiva cadastrada para o mês ${dto.mes}/${dto.ano}.`,
-      );
-    }
+    await this.ensureGoalPeriodIsUnique(dto.cpfFuncionario ?? null, dto.mes, dto.ano);
 
     // 3. Criar e persistir a meta
     const goal = this.salesGoalsRepository.create({
@@ -72,7 +52,7 @@ export class SalesGoalsService {
    * Retorna as metas filtradas por mês e ano (Administrador).
    */
   async findAll(query: QuerySalesGoalDto): Promise<SalesGoal[]> {
-    const where: any = {};
+    const where: FindOptionsWhere<SalesGoal> = {};
     if (query.mes !== undefined) {
       where.mes = query.mes;
     }
@@ -109,63 +89,73 @@ export class SalesGoalsService {
     const goal = await this.findOne(id);
 
     // 1. Validar se o funcionário existe caso o CPF seja atualizado
-    if (dto.cpfFuncionario !== undefined) {
-      if (dto.cpfFuncionario !== null) {
-        const employee = await this.employeeRepository.findOne({
-          where: { cpf: dto.cpfFuncionario },
-        });
-
-        if (!employee) {
-          throw new NotFoundException(
-            `Funcionário com CPF "${dto.cpfFuncionario}" não foi encontrado.`,
-          );
-        }
-      }
+    if (dto.cpfFuncionario !== undefined && dto.cpfFuncionario !== null) {
+      await this.ensureEmployeeExists(dto.cpfFuncionario);
     }
 
     // 2. Validar a unicidade da meta caso cpfFuncionario, mes ou ano estejam sendo alterados
-    const cpfFuncionario =
-      dto.cpfFuncionario !== undefined ? dto.cpfFuncionario : goal.cpfFuncionario;
-    const mes = dto.mes !== undefined ? dto.mes : goal.mes;
-    const ano = dto.ano !== undefined ? dto.ano : goal.ano;
-
-    if (dto.cpfFuncionario !== undefined || dto.mes !== undefined || dto.ano !== undefined) {
-      const existingGoal = await this.salesGoalsRepository.findOne({
-        where: {
-          idGoal: Not(id),
-          cpfFuncionario: cpfFuncionario ?? IsNull(),
-          mes,
-          ano,
-        },
-      });
-
-      if (existingGoal) {
-        throw new ConflictException(
-          cpfFuncionario
-            ? `Já existe uma meta cadastrada para o funcionário com CPF "${cpfFuncionario}" no mês ${mes}/${ano}.`
-            : `Já existe uma meta coletiva cadastrada para o mês ${mes}/${ano}.`,
-        );
-      }
+    const periodChanged =
+      dto.cpfFuncionario !== undefined || dto.mes !== undefined || dto.ano !== undefined;
+    if (periodChanged) {
+      const cpfFuncionario =
+        dto.cpfFuncionario !== undefined ? dto.cpfFuncionario : goal.cpfFuncionario;
+      await this.ensureGoalPeriodIsUnique(
+        cpfFuncionario,
+        dto.mes ?? goal.mes,
+        dto.ano ?? goal.ano,
+        id,
+      );
     }
 
     // 3. Atualizar e salvar
-    if (dto.cpfFuncionario !== undefined) {
-      goal.cpfFuncionario = dto.cpfFuncionario;
-    }
-    if (dto.mes !== undefined) {
-      goal.mes = dto.mes;
-    }
-    if (dto.ano !== undefined) {
-      goal.ano = dto.ano;
-    }
-    if (dto.valorMeta !== undefined) {
-      goal.valorMeta = dto.valorMeta;
-    }
-    if (dto.taxaComissaoBonus !== undefined) {
-      goal.taxaComissaoBonus = dto.taxaComissaoBonus;
-    }
+    this.applyUpdatableFields(goal, dto);
 
     return await this.salesGoalsRepository.save(goal);
+  }
+
+  /** Lança NotFoundException se o funcionário não existir. */
+  private async ensureEmployeeExists(cpf: string): Promise<void> {
+    const employee = await this.employeeRepository.findOne({ where: { cpf } });
+    if (!employee) {
+      throw new NotFoundException(`Funcionário com CPF "${cpf}" não foi encontrado.`);
+    }
+  }
+
+  /**
+   * Garante a unicidade da meta no período (cpfFuncionario, mes, ano).
+   * `excludeId` ignora a própria meta na verificação durante updates.
+   */
+  private async ensureGoalPeriodIsUnique(
+    cpfFuncionario: string | null,
+    mes: number,
+    ano: number,
+    excludeId?: number,
+  ): Promise<void> {
+    const existingGoal = await this.salesGoalsRepository.findOne({
+      where: {
+        ...(excludeId !== undefined ? { idGoal: Not(excludeId) } : {}),
+        cpfFuncionario: cpfFuncionario ?? IsNull(),
+        mes,
+        ano,
+      },
+    });
+
+    if (existingGoal) {
+      throw new ConflictException(
+        cpfFuncionario
+          ? `Já existe uma meta cadastrada para o funcionário com CPF "${cpfFuncionario}" no mês ${mes}/${ano}.`
+          : `Já existe uma meta coletiva cadastrada para o mês ${mes}/${ano}.`,
+      );
+    }
+  }
+
+  /** Aplica no goal apenas os campos presentes (!== undefined) no DTO de atualização. */
+  private applyUpdatableFields(goal: SalesGoal, dto: UpdateSalesGoalDto): void {
+    if (dto.cpfFuncionario !== undefined) goal.cpfFuncionario = dto.cpfFuncionario;
+    if (dto.mes !== undefined) goal.mes = dto.mes;
+    if (dto.ano !== undefined) goal.ano = dto.ano;
+    if (dto.valorMeta !== undefined) goal.valorMeta = dto.valorMeta;
+    if (dto.taxaComissaoBonus !== undefined) goal.taxaComissaoBonus = dto.taxaComissaoBonus;
   }
 
   /**
@@ -209,8 +199,7 @@ export class SalesGoalsService {
     const mes = query.mes ?? now.getMonth() + 1;
     const ano = query.ano ?? now.getFullYear();
 
-    const startDate = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
-    const endDate = new Date(ano, mes, 0, 23, 59, 59, 999);
+    const { startDate, endDate } = getMonthDateRange(ano, mes);
 
     const rawProgress = await this.salesGoalsRepository
       .createQueryBuilder('goal')
@@ -247,7 +236,8 @@ export class SalesGoalsService {
     return rawProgress.map((raw) => {
       const meta = parseFloat(Number(raw.meta).toFixed(2));
       const realizado = parseFloat(Number(raw.realizado).toFixed(2));
-      const percentual = meta > 0 ? parseFloat(((realizado / meta) * 100).toFixed(2)) : 0;
+      const percentual =
+        meta > 0 ? parseFloat(((realizado / meta) * PERCENTAGE_MAX).toFixed(2)) : 0;
 
       return {
         funcionario: {
@@ -280,7 +270,7 @@ export class SalesGoalsService {
 
     const realizado = await this.ordersService.sumTotalInStoreSalesByPeriod(mes, ano);
     const meta = Number(goal.valorMeta);
-    const percentual = meta > 0 ? parseFloat(((realizado / meta) * 100).toFixed(2)) : 0;
+    const percentual = meta > 0 ? parseFloat(((realizado / meta) * PERCENTAGE_MAX).toFixed(2)) : 0;
 
     return {
       meta,
