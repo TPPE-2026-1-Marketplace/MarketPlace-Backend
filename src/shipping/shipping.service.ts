@@ -9,6 +9,8 @@ import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
 
 import {
+  HTTP_STATUS_UNAUTHORIZED,
+  HTTP_STATUS_UNPROCESSABLE_ENTITY,
   MELHOR_ENVIO_CALC_PATH,
   MELHOR_ENVIO_TIMEOUT_MS,
   SHIPPING_CACHE_MAX_ENTRIES,
@@ -32,9 +34,6 @@ interface PackageDimensions {
   largura: number;
   altura: number;
 }
-
-const HTTP_UNAUTHORIZED = 401;
-const HTTP_UNPROCESSABLE = 422;
 
 @Injectable()
 export class ShippingService {
@@ -240,14 +239,14 @@ export class ShippingService {
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;
 
-    if (status === HTTP_UNPROCESSABLE) {
+    if (status === HTTP_STATUS_UNPROCESSABLE_ENTITY) {
       const data = axiosError.response?.data as { message?: string } | undefined;
       const msg = data?.message ?? 'Payload inválido para a Melhor Envio';
       this.logger.warn(`Melhor Envio rejeitou payload (422): ${msg}`);
       throw new BadRequestException(msg);
     }
 
-    if (status === HTTP_UNAUTHORIZED) {
+    if (status === HTTP_STATUS_UNAUTHORIZED) {
       this.tokenManager.invalidate();
       this.logger.error('Melhor Envio retornou 401 — token inválido. Cache invalidado.');
       throw new ServiceUnavailableException('Falha na autenticação com a Melhor Envio');
