@@ -15,4 +15,25 @@ pnpm-debug.log*
 .codex
 Dockerfile*
 compose*
+
+# Docs e markdown (não entram no build)
 README.md
+*.md
+docs
+
+# CI, hooks e configs de dev (mudam com frequência; invalidam cache do COPY . .)
+.github
+.husky
+.editorconfig
+eslint.config.mjs
+.prettierrc.json
+Makefile
+
+# Testes (não compilam para dist; reduz contexto e melhora cache)
+**/*.spec.ts
+**/*.integration.ts
+
+# Editores e logs
+.vscode
+.idea
+*.log

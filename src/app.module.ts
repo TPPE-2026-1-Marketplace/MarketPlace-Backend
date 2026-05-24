@@ -6,9 +6,11 @@ import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { AddressesModule } from './addresses/addresses.module';
 import { AuthModule } from './auth/auth.module';
 import { CategoriesModule } from './categories/categories.module';
+import { validateEnv } from './common/config/env.validation';
 import { DEFAULT_POSTGRES_PORT } from './common/constants';
 import { CouponsModule } from './coupons/coupons.module';
 import { EmployeesModule } from './employees/employees.module';
+import { HealthModule } from './health/health.module';
 import { ImagesModule } from './images/images.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { OrdersModule } from './orders/orders.module';
@@ -27,6 +29,7 @@ const isProduction = nodeEnv === 'production';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateEnv,
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -57,6 +60,7 @@ const isProduction = nodeEnv === 'production';
     ImagesModule,
     SalesGoalsModule,
     ShippingModule,
+    HealthModule,
   ],
 })
 export class AppModule {}
