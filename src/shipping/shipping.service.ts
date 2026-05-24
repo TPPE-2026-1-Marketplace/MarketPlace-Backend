@@ -140,7 +140,9 @@ export class ShippingService {
     pkg: PackageDimensions,
   ): Promise<IShippingQuote> {
     if (!this.cepOrigem) {
-      throw new ServiceUnavailableException('CEP de origem da loja não configurado (LOJA_CEP_ORIGEM)');
+      throw new ServiceUnavailableException(
+        'CEP de origem da loja não configurado (LOJA_CEP_ORIGEM)',
+      );
     }
 
     const accessToken = await this.tokenManager.getValidAccessToken();

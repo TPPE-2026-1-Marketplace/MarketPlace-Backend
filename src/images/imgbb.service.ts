@@ -17,16 +17,15 @@ export class ImgbbService {
   private readonly apiUrl = 'https://api.imgbb.com/1/upload';
 
   constructor(private readonly configService: ConfigService) {
-    const key = this.configService.get<string>('IMGBB_API_KEY');
-    if (!key) {
+    this.apiKey = this.configService.get<string>('IMGBB_API_KEY') ?? '';
+  }
+
+  async uploadImage(file: Express.Multer.File): Promise<ImgBBResponse> {
+    if (!this.apiKey) {
       throw new InternalServerErrorException(
         'IMGBB_API_KEY não configurada nas variáveis de ambiente.',
       );
     }
-    this.apiKey = key;
-  }
-
-  async uploadImage(file: Express.Multer.File): Promise<ImgBBResponse> {
     const form = new FormData();
     form.append('key', this.apiKey);
     form.append('image', file.buffer, {
