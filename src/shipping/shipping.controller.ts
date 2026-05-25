@@ -12,7 +12,7 @@ export class ShippingController {
   @Post('calculate')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Calcula o frete para um CEP de destino',
+    summary: 'Calcula o frete para um CEP de destino (Público)',
     description:
       'Recebe o CEP de destino (8 dígitos) e, opcionalmente, peso e dimensões ' +
       'do pacote. Retorna o valor do frete e o prazo estimado em dias úteis.',
