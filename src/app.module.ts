@@ -1,7 +1,26 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UsersModule } from './users/users.module';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
+
+import { AddressesModule } from './addresses/addresses.module';
+import { AuthModule } from './auth/auth.module';
+import { CategoriesModule } from './categories/categories.module';
+import { validateEnv } from './common/config/env.validation';
+import { DEFAULT_POSTGRES_PORT } from './common/constants';
+import { CouponsModule } from './coupons/coupons.module';
+import { EmployeesModule } from './employees/employees.module';
+import { HealthModule } from './health/health.module';
+import { ImagesModule } from './images/images.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { OrdersModule } from './orders/orders.module';
+import { PaymentsModule } from './payments/payments.module';
+import { PeopleModule } from './people/people.module';
+import { ProductVariantsModule } from './product-variants/product-variants.module';
+import { ProductsModule } from './products/products.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { SalesGoalsModule } from './sales-goals/sales-goals.module';
+import { ShippingModule } from './shipping/shipping.module';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const isProduction = nodeEnv === 'production';
@@ -10,18 +29,39 @@ const isProduction = nodeEnv === 'production';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      validate: validateEnv,
     }),
-    TypeOrmModule.forRoot({
-      synchronize: !isProduction,
-      type: 'postgres',
-      host: process.env.POSTGRES_HOST,
-      port: Number(process.env.POSTGRES_PORT ?? 5432),
-      username: process.env.POSTGRES_USER,
-      password: process.env.POSTGRES_PASSWORD,
-      database: process.env.POSTGRES_DB,
-      autoLoadEntities: true,
+    TypeOrmModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres',
+        host: configService.get<string>('POSTGRES_HOST'),
+        // se nao tiver process.env.POSTGRES_PORT vai tentar conectar em DEFAULT_POSTGRES_PORT
+        port: Number(configService.get<string>('POSTGRES_PORT') ?? DEFAULT_POSTGRES_PORT),
+        username: configService.get<string>('POSTGRES_USER'),
+        password: configService.get<string>('POSTGRES_PASSWORD'),
+        database: configService.get<string>('POSTGRES_DB'),
+        synchronize: !isProduction,
+        autoLoadEntities: true,
+        namingStrategy: new SnakeNamingStrategy(),
+      }),
     }),
-    UsersModule,
+    PeopleModule,
+    AddressesModule,
+    EmployeesModule,
+    CategoriesModule,
+    ProductsModule,
+    ProductVariantsModule,
+    InventoryModule,
+    CouponsModule,
+    ReviewsModule,
+    OrdersModule,
+    PaymentsModule,
+    AuthModule,
+    ImagesModule,
+    SalesGoalsModule,
+    ShippingModule,
+    HealthModule,
   ],
 })
-export class AppModule { }
+export class AppModule {}

@@ -11,25 +11,34 @@ FROM node:${NODE_VERSION} AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
-RUN corepack enable
+RUN corepack enable && apk add --no-cache git && git config --system --add safe.directory /app
 
 WORKDIR /app
 
 FROM base AS deps
 
 COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,target=/pnpm/store \
-    pnpm install --frozen-lockfile --store-dir=/pnpm/store
+RUN --mount=type=cache,target=/app/.pnpm-store \
+    pnpm install --frozen-lockfile --store-dir=/app/.pnpm-store
 
 FROM deps AS dev
+
+# Permite que o container rode como o usuario do host (compose define
+# `user: "${UID:-1000}:${GID:-1000}"`). Ajusta o ownership de /app, que e a
+# fonte de inicializacao do named volume api_node_modules, para o usuario
+# `node` (uid 1000). Sem isso, o named volume nasce com dono root e o
+# container nao consegue escrever em node_modules.
+RUN chown -R node:node /app
+
+USER node
 
 CMD ["pnpm", "start:dev"]
 
 FROM base AS prod-deps
 
 COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod --store-dir=/pnpm/store
+RUN --mount=type=cache,target=/app/.pnpm-store \
+    pnpm install --frozen-lockfile --prod --store-dir=/app/.pnpm-store
 
 FROM base AS build
 
@@ -49,4 +58,8 @@ COPY --chown=nestjs:nodejs package.json ./
 
 USER nestjs
 EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
 CMD ["node", "dist/main.js"]

@@ -1,0 +1,334 @@
+import { ConflictException, NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import * as bcrypt from 'bcrypt';
+import { QueryFailedError } from 'typeorm';
+
+import { PeopleService } from './people.service';
+import { AddressesService } from '../addresses/addresses.service';
+import { Person } from './entities/person.entity';
+
+import type { TestingModule } from '@nestjs/testing';
+import type { Repository } from 'typeorm';
+
+jest.mock('bcrypt');
+
+const mockPerson: Person = {
+  cpf: '12345678901',
+  nome: 'João Silva',
+  email: 'joao@email.com',
+  telefone: null,
+  senha: 'hash_bcrypt_placeholder',
+};
+
+const uniqueViolationError = new QueryFailedError('INSERT', [], {
+  code: '23505',
+  message: 'unique constraint violation',
+} as unknown as Error);
+
+describe('PeopleService', () => {
+  let service: PeopleService;
+  let repo: jest.Mocked<Repository<Person>>;
+  let addressesService: jest.Mocked<AddressesService>;
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+    (bcrypt.hash as jest.Mock).mockResolvedValue('$2b$10$hashedpassword');
+    (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        PeopleService,
+        {
+          provide: getRepositoryToken(Person),
+          useValue: {
+            create: jest.fn(),
+            save: jest.fn(),
+            findOne: jest.fn(),
+            findAndCount: jest.fn(),
+            delete: jest.fn(),
+          },
+        },
+        {
+          provide: AddressesService,
+          useValue: { create: jest.fn() },
+        },
+      ],
+    }).compile();
+
+    service = module.get(PeopleService);
+    repo = module.get(getRepositoryToken(Person));
+    addressesService = module.get(AddressesService);
+  });
+
+  describe('registerPerson', () => {
+    it('cria pessoa sem senha quando email não existe', async () => {
+      repo.findOne.mockResolvedValue(null);
+      repo.create.mockReturnValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+
+      const result = await service.registerPerson({
+        cpf: mockPerson.cpf,
+        email: mockPerson.email,
+        nome: mockPerson.nome!,
+      });
+
+      expect(result).not.toHaveProperty('senha');
+      expect(repo.create).toHaveBeenCalledWith({
+        cpf: mockPerson.cpf,
+        nome: mockPerson.nome,
+        email: mockPerson.email,
+        telefone: null,
+        senha: null,
+      });
+    });
+
+    it('retorna ConflictException quando CPF já existe', async () => {
+      repo.findOne.mockResolvedValue(mockPerson);
+
+      await expect(
+        service.registerPerson({
+          cpf: mockPerson.cpf,
+          email: mockPerson.email,
+          nome: mockPerson.nome!,
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(bcrypt.hash).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('registerUser', () => {
+    it('cria usuário completo com email e senha quando CPF não existe', async () => {
+      repo.findOne.mockResolvedValue(null);
+      repo.create.mockReturnValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+
+      const result = await service.registerUser({
+        email: mockPerson.email,
+        senha: 'senha123',
+      });
+
+      expect(bcrypt.hash).toHaveBeenCalledWith('senha123', 10);
+      expect(result).not.toHaveProperty('senha');
+    });
+
+    it('atualiza Person existente com senha quando CPF já existe', async () => {
+      const personWithoutSenha = { ...mockPerson, senha: null };
+      repo.findOne.mockResolvedValue(personWithoutSenha);
+      repo.save.mockResolvedValue(mockPerson);
+
+      const result = await service.registerUser({
+        cpf: mockPerson.cpf,
+        email: mockPerson.email,
+        senha: 'senha123',
+      });
+
+      expect(bcrypt.hash).toHaveBeenCalledWith('senha123', 10);
+      expect(result).not.toHaveProperty('senha');
+    });
+
+    it('retorna ConflictException quando CPF já tem senha completa', async () => {
+      repo.findOne.mockResolvedValue(mockPerson);
+
+      await expect(
+        service.registerUser({
+          cpf: mockPerson.cpf,
+          email: mockPerson.email,
+          senha: 'senha123',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('retorna ConflictException quando email já existe', async () => {
+      repo.findOne.mockResolvedValue(null);
+      repo.create.mockReturnValue(mockPerson);
+      repo.save.mockRejectedValue(uniqueViolationError);
+
+      await expect(
+        service.registerUser({
+          email: mockPerson.email,
+          senha: 'senha123',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('persiste endereço quando fornecido no cadastro de pessoa nova', async () => {
+      repo.findOne.mockResolvedValue(null);
+      repo.create.mockReturnValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+      addressesService.create.mockResolvedValue({} as any);
+
+      await service.registerUser({
+        email: mockPerson.email,
+        senha: 'senha123',
+        endereco: {
+          cep: '70040010',
+          logradouro: 'Esplanada dos Ministérios',
+          numero: '1',
+          bairro: 'Zona Cívico-Administrativa',
+          cidade: 'Brasília',
+          uf: 'DF',
+        },
+      });
+
+      expect(addressesService.create).toHaveBeenCalledWith(
+        mockPerson.cpf,
+        expect.objectContaining({ cep: '70040010', uf: 'DF' }),
+      );
+    });
+
+    it('não chama addressesService quando endereço não é fornecido', async () => {
+      repo.findOne.mockResolvedValue(null);
+      repo.create.mockReturnValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+
+      await service.registerUser({ email: mockPerson.email, senha: 'senha123' });
+
+      expect(addressesService.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findAll', () => {
+    it('retorna lista paginada sem o campo senha em nenhum item', async () => {
+      repo.findAndCount.mockResolvedValue([[mockPerson], 1]);
+
+      const result = await service.findAll(1, 10);
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]).not.toHaveProperty('senha');
+      expect(result.meta).toEqual({ page: 1, limit: 10, total: 1, totalPages: 1 });
+    });
+
+    it('calcula totalPages corretamente', async () => {
+      const pessoas = Array.from({ length: 3 }, (_, i) => ({
+        ...mockPerson,
+        cpf: `0000000000${i}`,
+      }));
+      repo.findAndCount.mockResolvedValue([pessoas, 25]);
+
+      const result = await service.findAll(1, 10);
+
+      expect(result.meta.totalPages).toBe(3);
+    });
+
+    it('retorna totalPages 1 quando não há registros', async () => {
+      repo.findAndCount.mockResolvedValue([[], 0]);
+
+      const result = await service.findAll(1, 10);
+
+      expect(result.meta.totalPages).toBe(1);
+      expect(result.data).toHaveLength(0);
+    });
+  });
+
+  describe('findOne', () => {
+    it('retorna pessoa sem o campo senha quando CPF existe', async () => {
+      repo.findOne.mockResolvedValue(mockPerson);
+
+      const result = await service.findOne(mockPerson.cpf);
+
+      expect(result).not.toHaveProperty('senha');
+      expect(result.cpf).toBe(mockPerson.cpf);
+    });
+
+    it('lança NotFoundException quando CPF não existe', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      await expect(service.findOne('00000000000')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('update', () => {
+    it('atualiza e retorna pessoa sem o campo senha', async () => {
+      const updated: Person = { ...mockPerson, nome: 'João Atualizado' };
+      repo.findOne.mockResolvedValue(mockPerson);
+      repo.save.mockResolvedValue(updated);
+
+      const result = await service.update(mockPerson.cpf, { nome: 'João Atualizado' });
+
+      expect(result).not.toHaveProperty('senha');
+      expect(result.nome).toBe('João Atualizado');
+    });
+
+    it('aplica hash bcrypt ao atualizar senha', async () => {
+      repo.findOne.mockResolvedValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+
+      await service.update(mockPerson.cpf, { senha: 'novaSenha123' });
+
+      expect(bcrypt.hash).toHaveBeenCalledWith('novaSenha123', 10);
+    });
+
+    it('não chama bcrypt.hash quando senha não está no payload de update', async () => {
+      repo.findOne.mockResolvedValue(mockPerson);
+      repo.save.mockResolvedValue(mockPerson);
+
+      await service.update(mockPerson.cpf, { nome: 'Apenas nome' });
+
+      expect(bcrypt.hash).not.toHaveBeenCalled();
+    });
+
+    it('lança NotFoundException quando CPF não existe', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      await expect(service.update('00000000000', { nome: 'X' })).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('lança ConflictException quando email já pertence a outra pessoa', async () => {
+      repo.findOne.mockResolvedValue(mockPerson);
+      repo.save.mockRejectedValue(uniqueViolationError);
+
+      await expect(
+        service.update(mockPerson.cpf, { email: 'outro@email.com' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('remove', () => {
+    it('remove sem erros quando CPF existe', async () => {
+      repo.delete.mockResolvedValue({ affected: 1, raw: [] });
+
+      await expect(service.remove(mockPerson.cpf)).resolves.toBeUndefined();
+    });
+
+    it('lança NotFoundException quando CPF não existe', async () => {
+      repo.delete.mockResolvedValue({ affected: 0, raw: [] });
+
+      await expect(service.remove('00000000000')).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('validatePassword', () => {
+    it('retorna true para senha correta', async () => {
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      const result = await service.validatePassword('senha123', '$2b$10$hash');
+      expect(result).toBe(true);
+    });
+
+    it('retorna false para senha incorreta', async () => {
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      const result = await service.validatePassword('errada', '$2b$10$hash');
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('findByEmailWithPassword', () => {
+    it('retorna pessoa COM o campo senha (uso interno do AuthService)', async () => {
+      repo.findOne.mockResolvedValue(mockPerson);
+
+      const result = await service.findByEmailWithPassword(mockPerson.email);
+
+      expect(result).toHaveProperty('senha');
+    });
+
+    it('retorna null quando email não existe', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      const result = await service.findByEmailWithPassword('nao@existe.com');
+
+      expect(result).toBeNull();
+    });
+  });
+});
