@@ -21,9 +21,26 @@ export const EnvSchema = z.object({
 
   JWT_SECRET: z.string().min(1, 'JWT_SECRET é obrigatório'),
 
+  // Integrações externas — todas opcionais (têm mock/fallback). Listadas aqui
+  // só para documentar tudo que a app lê num único lugar.
   LOJA_CEP_ORIGEM: z.string().optional(),
+
+  // Pagamentos (InfinitePay)
   PAYMENT_GATEWAY_PROVIDER: z.enum(['mock', 'infinitepay']).optional(),
+  INFINITEPAY_HANDLE: z.string().optional(),
+  INFINITEPAY_REDIRECT_URL: z.string().optional(),
+
+  // Imagens (ImgBB)
   IMGBB_API_KEY: z.string().optional(),
+
+  // Frete (Melhor Envio)
+  MELHOR_ENVIO_BASE_URL: z.string().optional(),
+  MELHOR_ENVIO_USER_AGENT: z.string().optional(),
+  MELHOR_ENVIO_CLIENT_ID: z.string().optional(),
+  MELHOR_ENVIO_CLIENT_SECRET: z.string().optional(),
+  MELHOR_ENVIO_REFRESH_TOKEN: z.string().optional(),
+  MELHOR_ENVIO_ACCESS_TOKEN: z.string().optional(),
+  MELHOR_ENVIO_SERVICE_ID: z.coerce.number().int().positive().optional(),
 });
 
 export function validateEnv(config: Record<string, unknown>): Record<string, unknown> {
