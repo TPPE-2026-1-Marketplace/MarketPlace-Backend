@@ -36,6 +36,7 @@ const isProduction = nodeEnv === 'production';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         host: configService.get<string>('POSTGRES_HOST'),
+        // se nao tiver process.env.POSTGRES_PORT vai tentar conectar em DEFAULT_POSTGRES_PORT
         port: Number(configService.get<string>('POSTGRES_PORT') ?? DEFAULT_POSTGRES_PORT),
         username: configService.get<string>('POSTGRES_USER'),
         password: configService.get<string>('POSTGRES_PASSWORD'),
