@@ -195,17 +195,21 @@ o banco e não é rodado pelo CI. Cada integração é reportada como
 
 ### Cobertura
 
-`make dev-test-cov` roda os unitários com `--coverage`. O relatório vai para
-`coverage/` na raiz (gitignored): resumo no terminal e o HTML navegável em
-`coverage/lcov-report/index.html`. Filtra por módulo com `path=`, ex.:
-`make dev-test-cov path=inventory`.
+`make dev-test-cov` roda **unitários + integração** com `--coverage` (precisa do
+Postgres no ar, como a integração). Assim os testes de integração contam na métrica.
+O relatório vai para `coverage/` na raiz (gitignored): resumo no terminal e o HTML em
+`coverage/lcov-report/index.html`. O `coverageThreshold` no `package.json` trava o
+piso (statements/lines 85, functions 80, branches 70). Para iterar rápido sem banco,
+use `make dev-test` (sem coverage).
 
 ---
 
 ## CI/CD
 
 `.github/workflows/ci.yml` roda em PR/push para `dev` e `main`: `lint` (+ typecheck
-+ format:check), `build`, `test-unit` e `test-integration` (com Postgres de service).
++ format:check), `build`, `test-unit` (rápido, sem banco) e `coverage` (`pnpm test:cov`
+= unit + integração com Postgres de service, falhando se a cobertura cair abaixo do
+`coverageThreshold`; publica o relatório como artefato).
 
 ---
 
