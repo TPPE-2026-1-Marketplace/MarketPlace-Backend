@@ -65,8 +65,9 @@ arquivo desse tipo. Não criar profilaticamente.
   `{ data: [...], meta: { page, limit, total, totalPages } }`.
   Schema Zod usa `z.coerce.number()` (query params chegam como string).
   Service recebe `(page: number, limit: number)` separados — não o DTO inteiro.
-  Exemplo: `src/people/people.controller.ts` (PaginationSchema inline, será movido
-  para `src/common/` quando mais módulos reusarem).
+  `PaginationSchema`/`PaginationDto` compartilhados vivem em
+  `src/common/dtos/pagination.dto.ts` (importe via `from '../common/dtos'`).
+  Usados em `people` e `employees`.
 - **Versionamento:** prefixo único `/api`, sem `/v1`.
 
 ### Tradução `class-validator` → Zod
@@ -124,6 +125,20 @@ Hierarquia de funcionários (cada nível inclui o anterior):
 `ZodValidationPipe` registrado globalmente em `main.ts` (`app.useGlobalPipes`).
 Toda classe DTO que extends `createZodDto(schema)` é validada automaticamente
 antes de chegar ao controller — sem precisar de `@UsePipes()` no endpoint.
+
+### Validação de variáveis de ambiente (boot)
+
+`ConfigModule.forRoot({ validate: validateEnv })` valida o `process.env` no boot
+via Zod (`src/common/config/env.validation.ts`). Faltando uma variável obrigatória
+(`POSTGRES_*`, `JWT_SECRET`), a app falha rápido com mensagem listando o que falta.
+Integrações externas (Melhor Envio, InfinitePay, ImgBB) são opcionais. Ao adicionar
+uma variável de ambiente nova e obrigatória, inclua-a nesse schema.
+
+### Health check
+
+`GET /api/health` (módulo `src/health/`, sem auth) retorna `{ status, timestamp }`.
+É usado pelo `HEALTHCHECK` do `Dockerfile` (estágio `runner`) e pelo healthcheck do
+serviço `api` no `compose.prod.yml`.
 
 ### Resposta de erro padronizada (pendente)
 
@@ -326,11 +341,15 @@ PK composta (`id_imagem`, `codigo_sku`).
 - Gerado automaticamente em toda alteração de `Stock`, na mesma transação.
 - Quando o módulo `orders` for implementado, adicionar `@ManyToOne(() => Order)` em `id_pedido`.
 
-### Tabelas planejadas (ainda não implementadas)
+### Demais tabelas (implementadas)
 
-Forma final esperada com base no diagrama ER. **Sempre que criar uma entity
-nova, conferir aqui se a FK aponta pra coluna certa** (várias apontam pra
-`person.cpf`, não `person.id`).
+> **Status:** todas as tabelas abaixo (`coupon`, `review`, `orders`,
+> `order_item`, `payment`, `sales_goal`) **já foram implementadas**. As definições
+> a seguir descrevem a forma esperada pelo diagrama ER — use-as como referência ao
+> manter o código. Detalhes que divergem do código real (ex.: tamanho de coluna)
+> devem ser confirmados na entity correspondente em `src/<módulo>/entities/`.
+> **Sempre que mexer numa entity, conferir aqui se a FK aponta pra coluna certa**
+> (várias apontam pra `person.cpf`, não `person.id`).
 
 #### `coupon` (D5)
 
@@ -431,14 +450,32 @@ UNIQUE (cpf_funcionario, mes, ano).
 make dev-up        # sobe Docker dev
 make dev-restart   # reinicia sem rebuild
 make dev-logs      # acompanha logs
+make dev-logs-api  # logs só da API (dev-logs-postgres p/ o banco)
 make dev-shell     # shell no container da API
 make db-shell      # psql no container do postgres
+make db-backup     # dump SQL do banco (backup_<timestamp>.sql)
 make dev-reset     # derruba tudo e apaga volumes (banco incluso)
 make dev-test path=<modulo>  # roda testes de um módulo dentro do container
+make demo          # fluxo de compra ponta-a-ponta (recria o ambiente)
 ```
 
-**Testes:** sempre usar `make dev-test path=<modulo>` (ex: `make dev-test path=inventory`).
-Os testes rodam dentro do container Docker — chamar `pnpm test` direto na máquina host não reflete o ambiente correto.
+**Testes:** sempre usar `make dev-test path=<modulo>` (ex: `make dev-test path=inventory`)
+para unitários e `make dev-test-integration` para integração. Os testes rodam dentro
+do container Docker — chamar `pnpm test` direto na máquina host não reflete o ambiente correto.
+
+- **Unitários** (`*.spec.ts`): mocks de repositório/`dataSource.transaction` (ver
+  `inventory.service.spec.ts` e `payments.service.spec.ts` como referência de
+  mock de transação). Regras com múltiplos casos usam testes **parametrizados**
+  (`it.each`) — ex.: `create-payment.dto.spec.ts` (parcelas), `coupons.service.spec.ts`
+  (motivos de validação), `shipping.service.spec.ts` (faixas de CEP).
+- **Integração** (`*.integration.ts`): sobem o `AppModule` contra Postgres real.
+- Dívida conhecida: `reviews` e `sales-goals` ainda não têm spec unitário dedicado
+  (cobertos por integração).
+
+**Cobertura:** `make dev-test-cov` roda unitários **+ integração** com `--coverage`
+(precisa do Postgres no ar). O `coverageThreshold` global no `package.json` trava o
+piso (statements/lines 85, functions 80, branches 70) — não deixe cair abaixo disso.
+Para iterar rápido sem banco, use `make dev-test` (sem coverage).
 
 **Instalar dependências (pnpm):** sempre dentro do container.
 ```bash
@@ -468,12 +505,17 @@ pnpm typecheck      # tsc --noEmit
 
 ### Constantes (sem magic numbers)
 
-Constantes compartilhadas vivem em `src/common/constants/`:
+Constantes compartilhadas vivem em `src/common/constants/` (reexportadas em `index.ts`):
 - `pagination.constants.ts` — `PAGINATION_DEFAULT_PAGE`, `PAGINATION_DEFAULT_LIMIT` (20), `PAGINATION_MAX_LIMIT` (100)
 - `security.constants.ts` — `BCRYPT_ROUNDS` (10)
 - `database.constants.ts` — `PG_UNIQUE_VIOLATION` ('23505')
+- `business.constants.ts` — `EMPLOYEE_DEFAULT_COMMISSION_RATE`, `DEFAULT_API_PORT` (3001), `DEFAULT_POSTGRES_PORT` (5432), `PERCENTAGE_MAX` (100), `CENTS_PER_CURRENCY_UNIT` (100), `MAX_IMAGE_UPLOAD_BYTES`, `VERIFICATION_CODE_*`
+- `http-status.constants.ts` — `HTTP_STATUS_UNAUTHORIZED` (401), `HTTP_STATUS_UNPROCESSABLE_ENTITY` (422)
+- `shipping.constants.ts` — timeouts, TTL de cache e defaults de pacote do Melhor Envio
 
 Para criar nova constante de domínio compartilhado, adicione no arquivo correspondente (ou crie novo `<topico>.constants.ts` e reexporte no `index.ts`). Importe via `from '../common/constants'`.
+
+Helpers puros compartilhados vivem em `src/common/utils/` (ex.: `getMonthDateRange(ano, mes)` para filtros de período de vendas/comissão/metas). Importe via `from '../common/utils'`.
 
 ESLint só impõe `no-magic-numbers` em services/controllers — `entities/`, `dtos/`, `*.spec.ts` e `*.integration.ts` têm override (números literais são domain-natural ou fixtures de teste).
 
@@ -487,8 +529,8 @@ ESLint só impõe `no-magic-numbers` em services/controllers — `entities/`, `d
 |---|---|
 | `lint` | `pnpm lint` + `pnpm typecheck` + `pnpm format:check` |
 | `build` | `pnpm build` (verifica compilação TS) |
-| `test-unit` | `pnpm test` (specs com mocks, sem banco) |
-| `test-integration` | `pnpm test:integration` com Postgres 16 como service do GH Actions |
+| `test-unit` | `pnpm test` (specs com mocks, sem banco) — feedback rápido |
+| `coverage` | `pnpm test:cov` (unit + integração) com Postgres 16 como service; falha se a cobertura cair abaixo do `coverageThreshold`. Sobe o relatório como artefato `coverage-report`. |
 
 Tempo esperado total: ~3min.
 

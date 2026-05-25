@@ -80,8 +80,8 @@ jobs:
       - name: Run unit tests
         run: pnpm test
 
-  test-integration:
-    name: Tests (integration)
+  coverage:
+    name: Coverage (unit + integration)
     runs-on: ubuntu-latest
 
     services:
@@ -148,5 +148,15 @@ jobs:
           MELHOR_ENVIO_ACCESS_TOKEN=${MELHOR_ENVIO_ACCESS_TOKEN}
           EOF
 
-      - name: Run integration tests
-        run: pnpm test:integration
+      # Roda unitários + integração com --coverage e falha se a cobertura cair
+      # abaixo do coverageThreshold definido no package.json.
+      - name: Run tests with coverage
+        run: pnpm test:cov
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7

@@ -24,6 +24,7 @@ import {
 } from '../common/constants';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Role } from '../common/enums/role.enum';
+import { getMonthDateRange } from '../common/utils';
 import { Coupon } from '../coupons/entities/coupon.entity';
 import { Employee } from '../employees/entities/employee.entity';
 import { StockLog, MovementType } from '../inventory/entities/stock-log.entity';
@@ -696,8 +697,7 @@ export class OrdersService {
     mes: number,
     ano: number,
   ): Promise<Order[]> {
-    const startDate = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
-    const endDate = new Date(ano, mes, 0, 23, 59, 59, 999);
+    const { startDate, endDate } = getMonthDateRange(ano, mes);
 
     return await this.ordersRepository.find({
       where: {
@@ -713,8 +713,7 @@ export class OrdersService {
    * Calcula o valor total acumulado de todas as vendas presenciais da loja em um mês e ano (Administrador).
    */
   async sumTotalInStoreSalesByPeriod(mes: number, ano: number): Promise<number> {
-    const startDate = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
-    const endDate = new Date(ano, mes, 0, 23, 59, 59, 999);
+    const { startDate, endDate } = getMonthDateRange(ano, mes);
 
     const result = await this.ordersRepository
       .createQueryBuilder('order')

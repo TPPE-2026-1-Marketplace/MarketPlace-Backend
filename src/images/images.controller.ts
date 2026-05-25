@@ -25,6 +25,7 @@ import { CreateCatalogImageDto } from './dtos/create-catalog-image.dto';
 import { CreateImageDto } from './dtos/create-image.dto';
 import { UploadImageDto } from './dtos/upload-image.dto';
 import { ImagesService } from './images.service';
+import { MAX_IMAGE_UPLOAD_BYTES } from '../common/constants';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -39,7 +40,7 @@ export class ImagesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Registra uma URL de imagem manualmente' })
+  @ApiOperation({ summary: 'Registra uma URL de imagem manualmente (Gerente ou administrador)' })
   @ApiResponse({ status: 201, description: 'Imagem registrada com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   createImage(@Body() dto: CreateImageDto) {
@@ -53,7 +54,7 @@ export class ImagesController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+      limits: { fileSize: MAX_IMAGE_UPLOAD_BYTES },
       fileFilter: (_req, file, cb) => {
         if (!file.mimetype.match(/^image\/(jpeg|png|gif|webp)$/)) {
           cb(
@@ -66,7 +67,10 @@ export class ImagesController {
       },
     }),
   )
-  @ApiOperation({ summary: 'Faz upload de uma imagem para o ImgBB e salva a URL no banco' })
+  @ApiOperation({
+    summary:
+      'Faz upload de uma imagem para o ImgBB e salva a URL no banco (Gerente ou administrador)',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
@@ -101,7 +105,9 @@ export class ImagesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Vincula uma imagem a uma variante de produto' })
+  @ApiOperation({
+    summary: 'Vincula uma imagem a uma variante de produto (Gerente ou administrador)',
+  })
   @ApiResponse({ status: 201, description: 'Imagem vinculada ao catálogo' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 404, description: 'Imagem ou variante não encontrada' })
@@ -110,7 +116,7 @@ export class ImagesController {
   }
 
   @Get('catalog/:variantSku')
-  @ApiOperation({ summary: 'Lista imagens de catálogo de uma variante' })
+  @ApiOperation({ summary: 'Lista imagens de catálogo de uma variante (Público)' })
   @ApiParam({ name: 'variantSku', type: String })
   @ApiResponse({ status: 200, description: 'Imagens de catálogo da variante' })
   @ApiResponse({ status: 404, description: 'Variante não encontrada' })

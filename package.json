@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:integration": "jest --testRegex '.*\\.integration\\.ts$' --runInBand --setupFiles ./jest-setup-envs.js",
+    "test:cov": "jest --coverage --runInBand --setupFiles ./jest-setup-envs.js --testRegex '.*\\.(spec|integration)\\.ts$'",
     "test:watch": "jest --watch",
     "openapi:export": "ts-node scripts/export-openapi.ts",
     "demo:flow": "bash scripts/demo-flow.sh",
@@ -33,8 +34,6 @@
     "@nestjs/typeorm": "^10.0.2",
     "axios": "^1.16.1",
     "bcrypt": "^6.0.0",
-    "class-transformer": "^0.5.1",
-    "class-validator": "^0.15.1",
     "date-fns": "^4.1.0",
     "fast-csv": "^5.0.7",
     "form-data": "^4.0.5",
@@ -108,9 +107,24 @@
       ]
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "**/*.(t|j)s",
+      "!**/*.spec.ts",
+      "!**/*.integration.ts",
+      "!**/*.module.ts",
+      "!**/*.interface.ts",
+      "!**/index.ts",
+      "!main.ts",
+      "!**/jest-setup-envs.js"
     ],
     "coverageDirectory": "../coverage",
+    "coverageThreshold": {
+      "global": {
+        "statements": 85,
+        "lines": 85,
+        "functions": 80,
+        "branches": 70
+      }
+    },
     "testEnvironment": "node",
     "testEnvironmentOptions": {
       "customExportConditions": ["node", "require", "default"]

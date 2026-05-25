@@ -34,7 +34,7 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lista pedidos paginados com filtros (Gerente+)' })
+  @ApiOperation({ summary: 'Lista pedidos paginados com filtros (Gerente ou administrador)' })
   @ApiResponse({ status: 200, description: 'Lista paginada de pedidos' })
   @ApiResponse({ status: 401, description: 'Não autenticado' })
   @ApiResponse({ status: 403, description: 'Acesso negado (Requer Gerente+)' })
@@ -45,7 +45,9 @@ export class OrdersController {
   @Get('my')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lista os próprios pedidos do cliente autenticado (paginado)' })
+  @ApiOperation({
+    summary: 'Lista os próprios pedidos do cliente autenticado (Cliente autenticado)',
+  })
   @ApiResponse({ status: 200, description: 'Lista paginada dos pedidos do cliente' })
   @ApiResponse({ status: 401, description: 'Não autenticado' })
   findMy(@CurrentUser() user: CurrentUserPayload, @Query() query: ListOrdersQueryDto) {
@@ -56,7 +58,7 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Cria um novo pedido (Checkout Online)' })
+  @ApiOperation({ summary: 'Cria um novo pedido (Cliente autenticado)' })
   @ApiResponse({ status: 201, description: 'Pedido criado com sucesso' })
   @ApiResponse({ status: 400, description: 'Cupom inválido ou dados incorretos' })
   @ApiResponse({ status: 401, description: 'Não autenticado' })
@@ -70,7 +72,9 @@ export class OrdersController {
   @Roles(Role.CAIXA, Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registra uma nova venda presencial no caixa (Caixa+)' })
+  @ApiOperation({
+    summary: 'Registra uma nova venda presencial no caixa (Caixa, gerente ou administrador)',
+  })
   @ApiResponse({ status: 201, description: 'Venda presencial registrada com sucesso' })
   @ApiResponse({
     status: 400,
@@ -91,7 +95,10 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.VENDEDOR, Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Insere manualmente o código de rastreamento de frete (Vendedor+)' })
+  @ApiOperation({
+    summary:
+      'Insere manualmente o código de rastreamento de frete (Vendedor, gerente ou administrador)',
+  })
   @ApiParam({ name: 'id', description: 'ID do pedido' })
   @ApiResponse({
     status: 200,
@@ -109,7 +116,8 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Consulta os detalhes de um pedido específico (Autenticado, Dono ou Funcionário)',
+    summary:
+      'Consulta os detalhes de um pedido específico (Cliente autenticado, dono do pedido ou funcionário)',
   })
   @ApiParam({ name: 'id', description: 'ID do pedido' })
   @ApiResponse({ status: 200, description: 'Detalhes do pedido retornados com sucesso' })
@@ -123,7 +131,10 @@ export class OrdersController {
   @Get(':id/verification-code')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Recupera o código de verificação para retirada na loja física' })
+  @ApiOperation({
+    summary:
+      'Recupera o código de verificação para retirada na loja física (Cliente autenticado, dono do pedido ou funcionário)',
+  })
   @ApiParam({ name: 'id', description: 'ID do pedido' })
   @ApiResponse({ status: 200, description: 'Código retornado com sucesso' })
   @ApiResponse({ status: 400, description: 'Pedido não está configurado para retirada na loja' })
@@ -143,7 +154,8 @@ export class OrdersController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Confirma a retirada física de um pedido pelo cliente via validação do PIN (Caixa+)',
+    summary:
+      'Confirma a retirada física de um pedido pelo cliente via validação do PIN (Caixa, gerente ou administrador)',
   })
   @ApiParam({ name: 'id', description: 'ID do pedido' })
   @ApiResponse({

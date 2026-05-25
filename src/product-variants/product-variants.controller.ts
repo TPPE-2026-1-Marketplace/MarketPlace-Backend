@@ -39,7 +39,7 @@ export class ProductVariantsController {
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Cria uma variante de produto' })
+  @ApiOperation({ summary: 'Cria uma variante de produto (Gerente ou administrador)' })
   @ApiResponse({ status: 201, description: 'Variante criada com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 404, description: 'Produto não encontrado' })
@@ -48,7 +48,7 @@ export class ProductVariantsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lista variantes de produto' })
+  @ApiOperation({ summary: 'Lista variantes de produto (Público)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'ativo', required: false, type: Boolean })
@@ -58,7 +58,7 @@ export class ProductVariantsController {
   }
 
   @Get(':sku')
-  @ApiOperation({ summary: 'Busca uma variante por SKU' })
+  @ApiOperation({ summary: 'Busca uma variante por SKU (Público)' })
   @ApiParam({ name: 'sku', type: String })
   @ApiResponse({ status: 200, description: 'Variante encontrada' })
   @ApiResponse({ status: 404, description: 'Variante não encontrada' })
@@ -70,7 +70,7 @@ export class ProductVariantsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Atualiza uma variante' })
+  @ApiOperation({ summary: 'Atualiza uma variante (Gerente ou administrador)' })
   @ApiParam({ name: 'sku', type: String })
   @ApiResponse({ status: 200, description: 'Variante atualizada' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
@@ -84,7 +84,7 @@ export class ProductVariantsController {
   @Roles(Role.ADMINISTRADOR)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove uma variante' })
+  @ApiOperation({ summary: 'Remove uma variante (Administrador)' })
   @ApiParam({ name: 'sku', type: String })
   @ApiResponse({ status: 204, description: 'Variante removida' })
   @ApiResponse({ status: 404, description: 'Variante não encontrada' })

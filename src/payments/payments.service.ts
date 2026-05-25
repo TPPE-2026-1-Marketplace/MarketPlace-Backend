@@ -7,12 +7,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 
 import { CreatePaymentDto } from './dtos/create-payment.dto';
 import { InfinitePayWebhookDto } from './dtos/infinitepay-webhook.dto';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { IPaymentGateway, PAYMENT_GATEWAY_TOKEN } from './providers/payment-gateway.interface';
+import { CENTS_PER_CURRENCY_UNIT } from '../common/constants';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Role } from '../common/enums/role.enum';
 import { StockLog, MovementType } from '../inventory/entities/stock-log.entity';
@@ -149,8 +150,6 @@ export class PaymentsService {
     await this.dataSource.transaction(async (manager) => {
       const paymentsRepo = manager.getRepository(Payment);
       const ordersRepo = manager.getRepository(Order);
-      const stockRepo = manager.getRepository(Stock);
-      const stockLogRepo = manager.getRepository(StockLog);
 
       // 1. Buscar o pagamento pelo NSU do pedido ou slug da fatura
       const payment = await paymentsRepo.findOne({
@@ -164,24 +163,18 @@ export class PaymentsService {
         );
       }
 
-      const order = payment.order;
-
       // 2. Idempotência: Se já estiver aprovado/pago, ignorar notificações duplicadas
       if (payment.status === PaymentStatus.PAID) {
         return;
       }
 
-      const isApproved =
-        dto.status === 'approved' ||
-        dto.status === 'paid' ||
-        dto.event === 'payment.approved' ||
-        (dto.paid_amount !== undefined && dto.paid_amount !== null && dto.paid_amount > 0);
+      const order = payment.order;
 
-      if (isApproved) {
+      if (this.isApprovedNotification(dto)) {
         // 3. Atualizar pagamento e pedido para PAID
         payment.status = PaymentStatus.PAID;
         payment.paidAmount = dto.paid_amount
-          ? parseFloat((dto.paid_amount / 100).toFixed(2))
+          ? parseFloat((dto.paid_amount / CENTS_PER_CURRENCY_UNIT).toFixed(2))
           : Number(payment.amount);
         if (dto.transaction_nsu) payment.transactionNsu = dto.transaction_nsu;
         if (dto.receipt_url) payment.receiptUrl = dto.receipt_url;
@@ -190,54 +183,69 @@ export class PaymentsService {
 
         order.status = OrderStatus.PAID;
         await ordersRepo.save(order);
-      } else if (
-        dto.status === 'failed' ||
-        dto.status === 'cancelled' ||
-        dto.status === 'expired'
-      ) {
-        // 4. Se falhar ou expirar, marcar como falho, cancelar pedido e realizar o estorno de estoque
+      } else if (this.isFailedNotification(dto)) {
+        // 4. Se falhar ou expirar, marcar como falho, cancelar pedido e estornar o estoque
         payment.status = PaymentStatus.FAILED;
         await paymentsRepo.save(payment);
 
         order.status = OrderStatus.CANCELLED;
         await ordersRepo.save(order);
 
-        // Estornar itens ao estoque de forma pessimista e atômica
-        for (const item of order.items) {
-          const stock = await stockRepo.findOne({
-            where: { codigoSku: item.idVariante },
-            lock: { mode: 'pessimistic_write' },
-          });
-
-          if (stock) {
-            const anteriorOnline = stock.qtdOnline;
-            const anteriorLoja = stock.qtdLojaFisica;
-
-            if (order.tipoRetirada === TipoRetirada.LOJA) {
-              stock.qtdLojaFisica += item.quantidade;
-            } else {
-              stock.qtdOnline += item.quantidade;
-            }
-
-            await stockRepo.save(stock);
-
-            // Registrar log de movimentação de entrada
-            const log = stockLogRepo.create({
-              codigoSku: item.idVariante,
-              idPedido: order.idPedido,
-              tipoMovimentacao: MovementType.ENTRADA,
-              quantidadeMovimentada: item.quantidade,
-              valorAnteriorOnline: anteriorOnline,
-              valorNovoOnline: stock.qtdOnline,
-              valorAnteriorLoja: anteriorLoja,
-              valorNovoLoja: stock.qtdLojaFisica,
-              origem: 'infinitepay_webhook',
-              motivo: 'Estorno por cancelamento ou falha de pagamento no checkout InfinitePay',
-            });
-            await stockLogRepo.save(log);
-          }
-        }
+        await this.revertOrderStock(manager, order);
       }
     });
+  }
+
+  private isApprovedNotification(dto: InfinitePayWebhookDto): boolean {
+    return (
+      dto.status === 'approved' ||
+      dto.status === 'paid' ||
+      dto.event === 'payment.approved' ||
+      (dto.paid_amount !== undefined && dto.paid_amount !== null && dto.paid_amount > 0)
+    );
+  }
+
+  private isFailedNotification(dto: InfinitePayWebhookDto): boolean {
+    return dto.status === 'failed' || dto.status === 'cancelled' || dto.status === 'expired';
+  }
+
+  /** Estorna ao estoque (de forma pessimista) os itens de um pedido cancelado e registra o log. */
+  private async revertOrderStock(manager: EntityManager, order: Order): Promise<void> {
+    const stockRepo = manager.getRepository(Stock);
+    const stockLogRepo = manager.getRepository(StockLog);
+
+    for (const item of order.items) {
+      const stock = await stockRepo.findOne({
+        where: { codigoSku: item.idVariante },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!stock) continue;
+
+      const anteriorOnline = stock.qtdOnline;
+      const anteriorLoja = stock.qtdLojaFisica;
+
+      if (order.tipoRetirada === TipoRetirada.LOJA) {
+        stock.qtdLojaFisica += item.quantidade;
+      } else {
+        stock.qtdOnline += item.quantidade;
+      }
+
+      await stockRepo.save(stock);
+
+      const log = stockLogRepo.create({
+        codigoSku: item.idVariante,
+        idPedido: order.idPedido,
+        tipoMovimentacao: MovementType.ENTRADA,
+        quantidadeMovimentada: item.quantidade,
+        valorAnteriorOnline: anteriorOnline,
+        valorNovoOnline: stock.qtdOnline,
+        valorAnteriorLoja: anteriorLoja,
+        valorNovoLoja: stock.qtdLojaFisica,
+        origem: 'infinitepay_webhook',
+        motivo: 'Estorno por cancelamento ou falha de pagamento no checkout InfinitePay',
+      });
+      await stockLogRepo.save(log);
+    }
   }
 }
