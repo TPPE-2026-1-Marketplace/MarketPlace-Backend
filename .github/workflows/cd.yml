@@ -58,9 +58,6 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             # Tag com SHA curto para rastreabilidade exata
             type=sha,prefix=sha-,format=short
-            # Tag semver se houver git tag (ex: v1.0.0 → 1.0.0, 1.0, 1)
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
