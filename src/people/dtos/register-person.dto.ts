@@ -12,7 +12,7 @@ import { z } from 'zod';
  * - Sem endereço: endereço é adicionado apenas no fluxo 2 (auto-cadastro).
  */
 export const RegisterPersonSchema = z.object({
-  email: z.string().email().max(160),
+  email: z.email().max(160),
   nome: z.string().min(1).max(120),
   cpf: z.string().regex(/^\d{11}$/, 'CPF deve conter exatamente 11 dígitos numéricos'),
   telefone: z.string().max(20).optional(),

@@ -17,11 +17,8 @@ export const UpdateCouponSchema = z
       .positive('O valor do desconto deve ser um número positivo')
       .optional(),
     ativo: z.boolean().optional(),
-    dataInicio: z
-      .string()
-      .datetime({ message: 'Data de início inválida (use ISO 8601)' })
-      .optional(),
-    dataFim: z.string().datetime({ message: 'Data de fim inválida (use ISO 8601)' }).optional(),
+    dataInicio: z.iso.datetime({ message: 'Data de início inválida (use ISO 8601)' }).optional(),
+    dataFim: z.iso.datetime({ message: 'Data de fim inválida (use ISO 8601)' }).optional(),
     usoMaximo: z
       .number()
       .int()

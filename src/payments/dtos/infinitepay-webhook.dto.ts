@@ -10,7 +10,7 @@ export const InfinitePayWebhookSchema = z.object({
   capture_method: z.string().optional().nullable(),
   transaction_nsu: z.string().optional().nullable(),
   order_nsu: z.string(),
-  receipt_url: z.string().url().optional().nullable(),
+  receipt_url: z.url().optional().nullable(),
   status: z.string().optional(),
 });
 

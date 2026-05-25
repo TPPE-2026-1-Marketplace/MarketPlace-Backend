@@ -7,34 +7,16 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
 
-import {
-  PAGINATION_DEFAULT_LIMIT,
-  PAGINATION_DEFAULT_PAGE,
-  PAGINATION_MAX_LIMIT,
-} from '../common/constants';
 import { CreateEmployeeDto } from './dtos/create-employee.dto';
 import { QueryRankingDto } from './dtos/query-ranking.dto';
 import { UpdateEmployeeDto } from './dtos/update-employee.dto';
 import { EmployeesService } from './employees.service';
 import { Roles } from '../common/decorators/roles.decorator';
+import { PaginationDto } from '../common/dtos';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-
-const PaginationSchema = z.object({
-  page: z.coerce.number().int().positive().default(PAGINATION_DEFAULT_PAGE),
-  limit: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(PAGINATION_MAX_LIMIT)
-    .default(PAGINATION_DEFAULT_LIMIT),
-});
-
-class PaginationDto extends createZodDto(PaginationSchema) {}
 
 @ApiTags('employees')
 @ApiBearerAuth()
