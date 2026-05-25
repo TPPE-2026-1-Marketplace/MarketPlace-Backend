@@ -40,7 +40,7 @@ export class CategoriesController {
   @Roles(Role.ADMINISTRADOR)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Cria uma categoria' })
+  @ApiOperation({ summary: 'Cria uma categoria (Administrador)' })
   @ApiResponse({ status: 201, description: 'Categoria criada com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   create(@Body() dto: CreateCategoryDto) {
@@ -48,7 +48,7 @@ export class CategoriesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lista categorias' })
+  @ApiOperation({ summary: 'Lista categorias (Público)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiResponse({ status: 200, description: 'Lista paginada de categorias' })
@@ -57,7 +57,7 @@ export class CategoriesController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Busca uma categoria por id' })
+  @ApiOperation({ summary: 'Busca uma categoria por id (Público)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Categoria encontrada' })
   @ApiResponse({ status: 404, description: 'Categoria não encontrada' })
@@ -69,7 +69,7 @@ export class CategoriesController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Atualiza uma categoria' })
+  @ApiOperation({ summary: 'Atualiza uma categoria (Administrador)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Categoria atualizada' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
@@ -83,7 +83,7 @@ export class CategoriesController {
   @Roles(Role.ADMINISTRADOR)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove uma categoria' })
+  @ApiOperation({ summary: 'Remove uma categoria (Administrador)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 204, description: 'Categoria removida' })
   @ApiResponse({ status: 404, description: 'Categoria não encontrada' })

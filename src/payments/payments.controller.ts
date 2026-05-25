@@ -26,7 +26,9 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registra tentativa de pagamento de um pedido (Autenticado, Dono)' })
+  @ApiOperation({
+    summary: 'Registra tentativa de pagamento de um pedido (Cliente autenticado, dono do pedido)',
+  })
   @ApiResponse({ status: 201, description: 'Pagamento registrado com sucesso' })
   @ApiResponse({ status: 400, description: 'Dados de validação incorretos ou pedido não pendente' })
   @ApiResponse({ status: 401, description: 'Não autenticado' })
@@ -41,7 +43,8 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Consulta o status de pagamento do pedido (Autenticado, Dono ou Funcionário)',
+    summary:
+      'Consulta o status de pagamento do pedido (Cliente autenticado, dono do pedido ou funcionário)',
   })
   @ApiParam({ name: 'idPedido', description: 'ID do pedido a ser consultado' })
   @ApiResponse({ status: 200, description: 'Detalhes do pagamento retornados com sucesso' })
@@ -58,7 +61,7 @@ export class PaymentsController {
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Webhook para processamento de notificações de pagamento da InfinitePay',
+    summary: 'Webhook para processamento de notificações de pagamento da InfinitePay (Público)',
   })
   @ApiResponse({ status: 200, description: 'Webhook processado com sucesso' })
   @ApiResponse({ status: 404, description: 'Pagamento associado não encontrado' })

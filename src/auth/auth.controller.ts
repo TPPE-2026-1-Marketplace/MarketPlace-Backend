@@ -11,7 +11,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Autentica um usuário e retorna um JWT' })
+  @ApiOperation({ summary: 'Autentica um usuário e retorna um JWT (Público)' })
   @ApiResponse({
     status: 200,
     description: 'Login bem-sucedido',
