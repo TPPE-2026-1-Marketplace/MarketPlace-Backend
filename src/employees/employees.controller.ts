@@ -27,7 +27,7 @@ export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Cadastra um funcionário em uma única chamada' })
+  @ApiOperation({ summary: 'Cadastra um funcionário em uma única chamada (Administrador)' })
   @ApiResponse({ status: 201, description: 'Funcionário criado com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 403, description: 'Acesso negado' })
@@ -37,7 +37,7 @@ export class EmployeesController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lista funcionários com paginação' })
+  @ApiOperation({ summary: 'Lista funcionários com paginação (Administrador)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiResponse({ status: 200, description: 'Lista paginada de funcionários' })
@@ -47,7 +47,10 @@ export class EmployeesController {
 
   @Get('ranking')
   @Roles(Role.CAIXA, Role.VENDEDOR, Role.GERENTE, Role.ADMINISTRADOR)
-  @ApiOperation({ summary: 'Visualiza o ranking mensal dos vendedores (caixa+)' })
+  @ApiOperation({
+    summary:
+      'Visualiza o ranking mensal dos vendedores (Caixa, vendedor, gerente ou administrador)',
+  })
   @ApiResponse({ status: 200, description: 'Ranking retornado com sucesso' })
   @ApiResponse({ status: 403, description: 'Acesso negado' })
   getSellersRanking(@Query() query: QueryRankingDto) {
@@ -55,7 +58,7 @@ export class EmployeesController {
   }
 
   @Get(':cpf')
-  @ApiOperation({ summary: 'Busca um funcionário por CPF' })
+  @ApiOperation({ summary: 'Busca um funcionário por CPF (Administrador)' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Funcionário encontrado' })
   @ApiResponse({ status: 404, description: 'Funcionário não encontrado' })
@@ -64,7 +67,7 @@ export class EmployeesController {
   }
 
   @Patch(':cpf')
-  @ApiOperation({ summary: 'Atualiza dados do funcionário' })
+  @ApiOperation({ summary: 'Atualiza dados do funcionário (Administrador)' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Funcionário atualizado' })
   @ApiResponse({ status: 404, description: 'Funcionário não encontrado' })

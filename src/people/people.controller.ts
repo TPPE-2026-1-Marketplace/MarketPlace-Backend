@@ -69,7 +69,9 @@ export class PeopleController {
 
   @Post('register-person')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registra uma pessoa na loja (funcionário caixa)' })
+  @ApiOperation({
+    summary: 'Registra uma pessoa na loja (Caixa, vendedor, gerente ou administrador)',
+  })
   @ApiResponse({ status: 201, description: 'Pessoa registrada com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 409, description: 'Email já cadastrado' })
@@ -82,21 +84,23 @@ export class PeopleController {
 
   @Post('register-user')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registra um usuário no site (auto-cadastro)' })
+  @ApiOperation({ summary: 'Registra um usuário no site (Público)' })
   @ApiResponse({ status: 201, description: 'Usuário registrado com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 409, description: 'Email já cadastrado ou CPF já possui conta completa' })
+  @ApiBearerAuth()
   registerUser(@Body() dto: RegisterUserDto) {
     return this.peopleService.registerUser(dto);
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lista pessoas com paginação' })
+  @ApiOperation({ summary: 'Lista pessoas com paginação (Funcionários)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiResponse({ status: 200, description: 'Lista paginada de pessoas' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CAIXA, Role.VENDEDOR, Role.GERENTE, Role.ADMINISTRADOR)
   findAll(@Query() query: PaginationDto) {
     return this.peopleService.findAll(query.page, query.limit);
   }
@@ -104,7 +108,7 @@ export class PeopleController {
   @Get(':cpf')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Busca uma pessoa por CPF' })
+  @ApiOperation({ summary: 'Busca uma pessoa por CPF (Cliente autenticado)' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Pessoa encontrada' })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })
@@ -115,7 +119,7 @@ export class PeopleController {
   @Patch(':cpf')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Atualiza dados de uma pessoa' })
+  @ApiOperation({ summary: 'Atualiza dados de uma pessoa (Cliente autenticado)' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Pessoa atualizada' })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })
@@ -128,7 +132,7 @@ export class PeopleController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove uma pessoa' })
+  @ApiOperation({ summary: 'Remove uma pessoa (Cliente autenticado)' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 204, description: 'Pessoa removida' })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })
