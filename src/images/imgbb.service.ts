@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import FormData from 'form-data';
@@ -51,6 +56,11 @@ export class ImgbbService {
 
       return response.data.data;
     } catch (error) {
+      // Erros que nós mesmos lançamos (ex.: success=false) já são HttpException —
+      // repassa sem reembrulhar num 500 genérico.
+      if (error instanceof HttpException) {
+        throw error;
+      }
       if (axios.isAxiosError(error) && error.response) {
         throw new BadRequestException(
           `Erro na API do ImgBB: ${error.response.data?.error?.message ?? error.message}`,
