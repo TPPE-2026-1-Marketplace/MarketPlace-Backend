@@ -6,11 +6,11 @@ SERVICE := api
 export DOCKER_BUILDKIT := 1
 export COMPOSE_DOCKER_CLI_BUILD := 1
 
-.PHONY: help env-setup gen-secrets install dev lint test build start \
-	dev-up dev-down dev-logs dev-logs-once dev-shell dev-build dev-rebuild dev-restart dev-reset dev-test dev-test-integration \
+.PHONY: help env-setup gen-secrets install dev lint test build start demo smoke-real \
+	dev-up dev-down dev-logs dev-logs-once dev-logs-api dev-logs-postgres dev-shell dev-build dev-rebuild dev-restart dev-reset dev-test dev-test-integration dev-test-cov \
 	dev-lint dev-lint-fix dev-format dev-typecheck dev-check dev-openapi \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
-	db-shell db-reset \
+	db-shell db-reset db-backup \
 	clean check
 
 help:
@@ -28,9 +28,12 @@ help:
 	@echo "  make dev-down         Derruba o ambiente Docker de desenvolvimento"
 	@echo "  make dev-logs         Exibe logs do ambiente Docker de desenvolvimento"
 	@echo "  make dev-logs-once    Exibe logs (uma vez) do ambiente Docker de desenvolvimento"
+	@echo "  make dev-logs-api     Exibe logs apenas do servico da API"
+	@echo "  make dev-logs-postgres Exibe logs apenas do servico do Postgres"
 	@echo "  make dev-shell        Abre um shell no container da API"
 	@echo "  make dev-test         Executa os testes no container (path=<pattern> para filtrar)"
 	@echo "  make dev-test-integration  Executa os testes de integração no container (path=<pattern> para filtrar)"
+	@echo "  make dev-test-cov     Executa os testes com relatório de cobertura no container"
 	@echo "  make dev-build        Apenas constroi a imagem de desenvolvimento"
 	@echo "  make dev-rebuild      Constroi e sobe o ambiente Docker de desenvolvimento"
 	@echo "  make dev-restart      Recria os containers (down + up) sem rebuild"
@@ -54,8 +57,11 @@ help:
 	@echo "Banco de dados:"
 	@echo "  make db-shell         Abre um psql no container do postgres"
 	@echo "  make db-reset         Apaga apenas o volume do postgres (mantem cache de deps)"
+	@echo "  make db-backup        Gera um dump SQL do banco (backup_<timestamp>.sql)"
 	@echo ""
 	@echo "Utilidades:"
+	@echo "  make demo             Roda o fluxo de compra ponta-a-ponta (recria o ambiente)"
+	@echo "  make smoke-real       Valida as integrações REAIS (frete/imagem/pagamento); image=<path> p/ imagem própria"
 	@echo "  make gen-secrets      Gera JWT_SECRET aleatorio nos arquivos .env"
 	@echo "  make clean            Remove artefatos locais de build"
 	@echo "  make check            Verifica se o Dockerfile esta correto"
@@ -110,6 +116,12 @@ dev-logs:
 dev-logs-once:
 	$(COMPOSE_DEV) logs --tail $${TAIL:-120}
 
+dev-logs-api:
+	$(COMPOSE_DEV) logs -f $(SERVICE)
+
+dev-logs-postgres:
+	$(COMPOSE_DEV) logs -f postgres
+
 dev-shell:
 	$(COMPOSE_DEV) exec $(SERVICE) sh
 
@@ -118,6 +130,9 @@ dev-test:
 
 dev-test-integration:
 	$(COMPOSE_DEV) exec $(SERVICE) pnpm test:integration $(if $(path),--testPathPattern="$(path)",)
+
+dev-test-cov:
+	$(COMPOSE_DEV) exec $(SERVICE) pnpm test:cov $(if $(path),--testPathPattern="$(path)",)
 
 dev-lint:
 	$(COMPOSE_DEV) exec $(SERVICE) pnpm lint
@@ -173,6 +188,16 @@ db-reset:
 	$(COMPOSE_DEV) down
 	docker volume rm $(COMPOSE_PROJECT)_postgres_data || true
 	$(COMPOSE_DEV) up -d
+
+db-backup:
+	$(COMPOSE_DEV) exec -T postgres sh -c 'pg_dump -U $${POSTGRES_USER} -d $${POSTGRES_DB}' > backup_$$(date +%Y%m%d_%H%M%S).sql
+	@echo "Backup gerado em backup_$$(date +%Y%m%d_%H%M%S).sql"
+
+demo:
+	bash scripts/demo-flow.sh
+
+smoke-real:
+	bash scripts/smoke-real.sh $(if $(image),$(image),)
 
 clean:
 	rm -rf dist tsconfig.tsbuildinfo tsconfig.build.tsbuildinfo

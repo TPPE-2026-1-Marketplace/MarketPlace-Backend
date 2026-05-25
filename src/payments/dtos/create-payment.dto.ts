@@ -9,7 +9,7 @@ export const CreatePaymentSchema = z
       .number()
       .int('O ID do pedido deve ser um número inteiro')
       .positive('O ID do pedido deve ser maior que zero'),
-    captureMethod: z.nativeEnum(CaptureMethod),
+    captureMethod: z.enum(CaptureMethod),
     installments: z
       .number()
       .int('O número de parcelas deve ser um número inteiro')

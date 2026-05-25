@@ -80,7 +80,9 @@ export class CouponsController {
   }
 
   @Get('validate/:numero')
-  @ApiOperation({ summary: 'Valida publicamente um cupom de desconto para aplicação em compra' })
+  @ApiOperation({
+    summary: 'Valida publicamente um cupom de desconto para aplicação em compra (Público)',
+  })
   @ApiParam({ name: 'numero', description: 'Código do cupom' })
   @ApiQuery({
     name: 'productIds',

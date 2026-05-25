@@ -3,24 +3,23 @@ import { QueryCategoriesSchema } from './query-categories.dto';
 import { UpdateCategorySchema } from './update-category.dto';
 
 describe('CreateCategorySchema', () => {
-  it('aceita nome válido', () => {
-    expect(() => CreateCategorySchema.parse({ nome: 'Camisetas' })).not.toThrow();
-  });
-
-  it('rejeita nome vazio', () => {
-    expect(() => CreateCategorySchema.parse({ nome: '' })).toThrow();
-  });
-
   it('rejeita quando nome está ausente', () => {
     expect(() => CreateCategorySchema.parse({})).toThrow();
   });
 
-  it('rejeita nome com mais de 80 caracteres', () => {
-    expect(() => CreateCategorySchema.parse({ nome: 'a'.repeat(81) })).toThrow();
-  });
-
-  it('aceita nome com exatamente 80 caracteres', () => {
-    expect(() => CreateCategorySchema.parse({ nome: 'a'.repeat(80) })).not.toThrow();
+  it.each([
+    ['nome comum', 'Camisetas', true],
+    ['nome com 80 chars (limite)', 'a'.repeat(80), true],
+    ['1 caractere', 'a', true],
+    ['vazio', '', false],
+    ['81 chars (acima do limite)', 'a'.repeat(81), false],
+  ])('nome %s => válido=%s', (_descricao, nome, valid) => {
+    const parse = () => CreateCategorySchema.parse({ nome });
+    if (valid) {
+      expect(parse).not.toThrow();
+    } else {
+      expect(parse).toThrow();
+    }
   });
 });
 

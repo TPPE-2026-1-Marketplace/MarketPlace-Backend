@@ -22,33 +22,16 @@ import {
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import * as csv from 'fast-csv';
-import { createZodDto } from 'nestjs-zod';
-import { z } from 'zod';
 
-import {
-  PAGINATION_DEFAULT_LIMIT,
-  PAGINATION_DEFAULT_PAGE,
-  PAGINATION_MAX_LIMIT,
-} from '../common/constants';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { PeopleService } from './people.service';
 import { Roles } from '../common/decorators/roles.decorator';
+import { PaginationDto } from '../common/dtos';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
-
-const PaginationSchema = z.object({
-  page: z.coerce.number().int().positive().default(PAGINATION_DEFAULT_PAGE),
-  limit: z.coerce
-    .number()
-    .int()
-    .positive()
-    .max(PAGINATION_MAX_LIMIT)
-    .default(PAGINATION_DEFAULT_LIMIT),
-});
-class PaginationDto extends createZodDto(PaginationSchema) {}
 
 @ApiTags('people')
 @Controller('people')
@@ -86,7 +69,9 @@ export class PeopleController {
 
   @Post('register-person')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registra uma pessoa na loja (funcionário caixa)' })
+  @ApiOperation({
+    summary: 'Registra uma pessoa na loja (Caixa, vendedor, gerente ou administrador)',
+  })
   @ApiResponse({ status: 201, description: 'Pessoa registrada com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 409, description: 'Email já cadastrado' })
@@ -99,21 +84,23 @@ export class PeopleController {
 
   @Post('register-user')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Registra um usuário no site (auto-cadastro)' })
+  @ApiOperation({ summary: 'Registra um usuário no site (Público)' })
   @ApiResponse({ status: 201, description: 'Usuário registrado com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 409, description: 'Email já cadastrado ou CPF já possui conta completa' })
+  @ApiBearerAuth()
   registerUser(@Body() dto: RegisterUserDto) {
     return this.peopleService.registerUser(dto);
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lista pessoas com paginação' })
+  @ApiOperation({ summary: 'Lista pessoas com paginação (Funcionários)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiResponse({ status: 200, description: 'Lista paginada de pessoas' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CAIXA, Role.VENDEDOR, Role.GERENTE, Role.ADMINISTRADOR)
   findAll(@Query() query: PaginationDto) {
     return this.peopleService.findAll(query.page, query.limit);
   }
@@ -121,7 +108,7 @@ export class PeopleController {
   @Get(':cpf')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Busca uma pessoa por CPF' })
+  @ApiOperation({ summary: 'Busca uma pessoa por CPF (Cliente autenticado)' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Pessoa encontrada' })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })
@@ -132,7 +119,7 @@ export class PeopleController {
   @Patch(':cpf')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Atualiza dados de uma pessoa' })
+  @ApiOperation({ summary: 'Atualiza dados de uma pessoa (Cliente autenticado)' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Pessoa atualizada' })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })
@@ -145,7 +132,7 @@ export class PeopleController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove uma pessoa' })
+  @ApiOperation({ summary: 'Remove uma pessoa (Cliente autenticado)' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 204, description: 'Pessoa removida' })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })

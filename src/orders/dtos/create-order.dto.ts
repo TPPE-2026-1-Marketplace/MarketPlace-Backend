@@ -15,7 +15,7 @@ export const CreateOrderSchema = z.object({
   items: z.array(CreateOrderItemSchema).min(1, 'O pedido deve conter ao menos um item'),
   couponNumero: z.string().toUpperCase().trim().optional().nullable(),
   valorFrete: z.number().nonnegative('O valor do frete não pode ser negativo').default(0),
-  tipoRetirada: z.nativeEnum(TipoRetirada).default(TipoRetirada.ENTREGA),
+  tipoRetirada: z.enum(TipoRetirada).default(TipoRetirada.ENTREGA),
 });
 
 export class CreateOrderDto extends createZodDto(CreateOrderSchema) {}

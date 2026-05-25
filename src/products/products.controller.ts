@@ -40,7 +40,7 @@ export class ProductsController {
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Cria um produto' })
+  @ApiOperation({ summary: 'Cria um produto (Gerente ou administrador)' })
   @ApiResponse({ status: 201, description: 'Produto criado com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   create(@Body() dto: CreateProductDto) {
@@ -48,7 +48,7 @@ export class ProductsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Lista produtos com paginação e filtros' })
+  @ApiOperation({ summary: 'Lista produtos com paginação e filtros (Público)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   @ApiQuery({ name: 'categoryId', required: false, type: Number })
@@ -61,7 +61,7 @@ export class ProductsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Busca um produto por id' })
+  @ApiOperation({ summary: 'Busca um produto por id (Público)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Produto encontrado' })
   @ApiResponse({ status: 404, description: 'Produto não encontrado' })
@@ -73,7 +73,7 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Atualiza um produto' })
+  @ApiOperation({ summary: 'Atualiza um produto (Gerente ou administrador)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 200, description: 'Produto atualizado' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
@@ -87,7 +87,7 @@ export class ProductsController {
   @Roles(Role.ADMINISTRADOR)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove um produto' })
+  @ApiOperation({ summary: 'Remove um produto (Administrador)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiResponse({ status: 204, description: 'Produto removido' })
   @ApiResponse({ status: 404, description: 'Produto não encontrado' })
@@ -99,7 +99,7 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Associa uma categoria a um produto' })
+  @ApiOperation({ summary: 'Associa uma categoria a um produto (Gerente ou administrador)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiParam({ name: 'categoryId', type: Number })
   @ApiResponse({ status: 201, description: 'Categoria associada ao produto' })
@@ -115,7 +115,7 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Remove uma categoria de um produto' })
+  @ApiOperation({ summary: 'Remove uma categoria de um produto (Gerente ou administrador)' })
   @ApiParam({ name: 'id', type: Number })
   @ApiParam({ name: 'categoryId', type: Number })
   @ApiResponse({ status: 200, description: 'Categoria removida do produto' })

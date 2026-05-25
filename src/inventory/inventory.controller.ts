@@ -34,7 +34,7 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Get(':sku')
-  @ApiOperation({ summary: 'Consulta disponibilidade de estoque de uma variante (público)' })
+  @ApiOperation({ summary: 'Consulta disponibilidade de estoque de uma variante (Público)' })
   @ApiParam({ name: 'sku', description: 'Código SKU da variante' })
   @ApiResponse({ status: 200, description: 'Quantidades em estoque' })
   @ApiResponse({ status: 404, description: 'Variante não encontrada' })
@@ -47,7 +47,7 @@ export class InventoryController {
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Ajusta o estoque manualmente (gerente/admin)' })
+  @ApiOperation({ summary: 'Ajusta o estoque manualmente (Gerente ou administrador)' })
   @ApiParam({ name: 'sku', description: 'Código SKU da variante' })
   @ApiResponse({ status: 200, description: 'Estoque ajustado' })
   @ApiResponse({ status: 400, description: 'Valor negativo ou payload inválido' })
@@ -65,7 +65,9 @@ export class InventoryController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMINISTRADOR)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Histórico de movimentações de estoque de uma variante (admin)' })
+  @ApiOperation({
+    summary: 'Histórico de movimentações de estoque de uma variante (Administrador)',
+  })
   @ApiParam({ name: 'sku', description: 'Código SKU da variante' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 50 })
