@@ -174,12 +174,31 @@ Frete e token do Melhor Envio: [`docs/melhor-envio-token.md`](./docs/melhor-envi
   validação de cupom e faixas de frete.
 - **Integração** (`*.integration.ts`): sobem o `AppModule` real contra um Postgres,
   limpam o estado entre testes e cobrem jornadas E2E (checkout, webhook, comissão).
+  São **herméticos**: mockam as APIs externas (Melhor Envio, ImgBB, InfinitePay),
+  então rodam sempre igual e não dependem de credencial nem da internet — por isso
+  são seguros no CI, mas **não validam a integração real**.
 
 ```bash
 make dev-test                      # todos os unitários
 make dev-test path=payments        # filtra por módulo
 make dev-test-integration          # integração
+make dev-test-cov                  # unitários + relatório de cobertura
 ```
+
+### Validação das integrações reais (fora do CI)
+
+`make smoke-real` sobe o app e bate nos endpoints de **frete, imagem e pagamento**
+contra as APIs **reais** (usando as credenciais do `.env.development`). Não reseta
+o banco e não é rodado pelo CI. Cada integração é reportada como
+`REAL` / `FALLBACK` / `SKIP` / `FAIL`. Use sua própria imagem com
+`make smoke-real image=caminho/foto.png` (sem isso, gera um PNG 1x1).
+
+### Cobertura
+
+`make dev-test-cov` roda os unitários com `--coverage`. O relatório vai para
+`coverage/` na raiz (gitignored): resumo no terminal e o HTML navegável em
+`coverage/lcov-report/index.html`. Filtra por módulo com `path=`, ex.:
+`make dev-test-cov path=inventory`.
 
 ---
 
