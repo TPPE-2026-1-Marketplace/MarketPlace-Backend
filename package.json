@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:integration": "jest --testRegex '.*\\.integration\\.ts$' --runInBand --setupFiles ./jest-setup-envs.js",
+    "test:cov": "jest --coverage",
     "test:watch": "jest --watch",
     "openapi:export": "ts-node scripts/export-openapi.ts",
     "demo:flow": "bash scripts/demo-flow.sh",
