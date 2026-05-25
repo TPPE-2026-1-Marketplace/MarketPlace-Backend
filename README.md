@@ -86,7 +86,7 @@ Em desenvolvimento, `POSTGRES_HOST=postgres` (nome do serviço no compose).
 | `make demo`                 | Fluxo de compra ponta-a-ponta                          |
 
 > Testes e comandos pnpm sempre rodam **dentro do container** (o `node_modules` é
-> um volume Docker). Use os alvos `dev-*` do Makefile.
+> um volume Docker). Use os alvos `dev-*` do `Makefile`.
 
 ---
 
