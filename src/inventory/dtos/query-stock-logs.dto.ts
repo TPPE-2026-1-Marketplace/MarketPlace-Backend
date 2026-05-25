@@ -16,9 +16,9 @@ export const QueryStockLogsSchema = z.object({
     .positive()
     .max(PAGINATION_MAX_LIMIT)
     .default(PAGINATION_DEFAULT_LIMIT),
-  tipoMovimentacao: z.nativeEnum(MovementType).optional(),
-  dataInicio: z.string().datetime({ offset: true }).optional(),
-  dataFim: z.string().datetime({ offset: true }).optional(),
+  tipoMovimentacao: z.enum(MovementType).optional(),
+  dataInicio: z.iso.datetime({ offset: true }).optional(),
+  dataFim: z.iso.datetime({ offset: true }).optional(),
 });
 
 export class QueryStockLogsDto extends createZodDto(QueryStockLogsSchema) {}
