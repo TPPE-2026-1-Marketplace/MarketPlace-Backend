@@ -65,8 +65,9 @@ arquivo desse tipo. Não criar profilaticamente.
   `{ data: [...], meta: { page, limit, total, totalPages } }`.
   Schema Zod usa `z.coerce.number()` (query params chegam como string).
   Service recebe `(page: number, limit: number)` separados — não o DTO inteiro.
-  Exemplo: `src/people/people.controller.ts` (PaginationSchema inline, será movido
-  para `src/common/` quando mais módulos reusarem).
+  `PaginationSchema`/`PaginationDto` compartilhados vivem em
+  `src/common/dtos/pagination.dto.ts` (importe via `from '../common/dtos'`).
+  Usados em `people` e `employees`.
 - **Versionamento:** prefixo único `/api`, sem `/v1`.
 
 ### Tradução `class-validator` → Zod
