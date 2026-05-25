@@ -11,7 +11,7 @@ export COMPOSE_DOCKER_CLI_BUILD := 1
 	dev-lint dev-lint-fix dev-format dev-typecheck dev-check dev-openapi \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
 	db-shell db-reset db-backup \
-	clean check ci-local docker-build
+	clean check dev-ci prod-image
 
 help:
 	@echo "Setup e local:"
@@ -67,8 +67,8 @@ help:
 	@echo "  make check            Verifica se o Dockerfile esta correto"
 	@echo ""
 	@echo "CI/CD:"
-	@echo "  make ci-local         Roda lint + typecheck + format:check + testes (espelha o CI)"
-	@echo "  make docker-build     Builda a imagem Docker de producao standalone (espelha o CD)"
+	@echo "  make dev-ci           Roda lint + typecheck + format:check + build + testes no container (espelha o CI)"
+	@echo "  make prod-image       Builda a imagem Docker de producao standalone (espelha o CD)"
 
 env-setup:
 	cp -n .env.development.example .env.development || true
@@ -209,12 +209,8 @@ clean:
 check:
 	docker build . --check
 
-ci-local:
-	pnpm lint
-	pnpm typecheck
-	pnpm format:check
-	pnpm build
-	pnpm test
+dev-ci:
+	$(COMPOSE_DEV) exec $(SERVICE) sh -c "pnpm lint && pnpm typecheck && pnpm format:check && pnpm build && pnpm test"
 
-docker-build:
+prod-image:
 	docker build --target runner -t marketplace-backend:local .
