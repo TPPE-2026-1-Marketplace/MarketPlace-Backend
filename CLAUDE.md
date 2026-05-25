@@ -469,8 +469,13 @@ do container Docker — chamar `pnpm test` direto na máquina host não reflete 
   (`it.each`) — ex.: `create-payment.dto.spec.ts` (parcelas), `coupons.service.spec.ts`
   (motivos de validação), `shipping.service.spec.ts` (faixas de CEP).
 - **Integração** (`*.integration.ts`): sobem o `AppModule` contra Postgres real.
-- Dívida conhecida: `addresses`, `reviews` e `sales-goals` ainda não têm spec
-  unitário dedicado (cobertos por integração).
+- Dívida conhecida: `reviews` e `sales-goals` ainda não têm spec unitário dedicado
+  (cobertos por integração).
+
+**Cobertura:** `make dev-test-cov` roda unitários **+ integração** com `--coverage`
+(precisa do Postgres no ar). O `coverageThreshold` global no `package.json` trava o
+piso (statements/lines 85, functions 80, branches 70) — não deixe cair abaixo disso.
+Para iterar rápido sem banco, use `make dev-test` (sem coverage).
 
 **Instalar dependências (pnpm):** sempre dentro do container.
 ```bash
@@ -524,8 +529,8 @@ ESLint só impõe `no-magic-numbers` em services/controllers — `entities/`, `d
 |---|---|
 | `lint` | `pnpm lint` + `pnpm typecheck` + `pnpm format:check` |
 | `build` | `pnpm build` (verifica compilação TS) |
-| `test-unit` | `pnpm test` (specs com mocks, sem banco) |
-| `test-integration` | `pnpm test:integration` com Postgres 16 como service do GH Actions |
+| `test-unit` | `pnpm test` (specs com mocks, sem banco) — feedback rápido |
+| `coverage` | `pnpm test:cov` (unit + integração) com Postgres 16 como service; falha se a cobertura cair abaixo do `coverageThreshold`. Sobe o relatório como artefato `coverage-report`. |
 
 Tempo esperado total: ~3min.
 
