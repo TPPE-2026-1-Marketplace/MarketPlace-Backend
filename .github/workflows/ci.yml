@@ -160,3 +160,24 @@ jobs:
           name: coverage-report
           path: coverage/
           retention-days: 7
+
+  docker:
+    name: Docker image build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Valida que o estágio `runner` do Dockerfile builda (sem push). O CD
+      # publica a imagem no GHCR; aqui só garantimos que ela compila antes do
+      # merge. Espelha `make prod-image`.
+      - name: Build runner image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
