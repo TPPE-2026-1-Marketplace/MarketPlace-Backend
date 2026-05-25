@@ -35,8 +35,8 @@ function loadDevelopmentEnv() {
 
 /**
  * Fluxo de autenticação (US02 / issue #84): registrar → login → acessar rota
- * protegida → rejeitar request sem token. Rota protegida usada: GET /api/people
- * (apenas JwtAuthGuard — qualquer usuário autenticado serve).
+ * protegida → rejeitar request sem token. Rota protegida usada: GET /api/people/:cpf
+ * (apenas JwtAuthGuard — qualquer usuário autenticado serve, inclusive cliente).
  */
 describe('Auth flow (US02) integration', () => {
   jest.setTimeout(30000);
@@ -119,18 +119,18 @@ describe('Auth flow (US02) integration', () => {
     const token = loginRes.body.access_token;
 
     await request(app.getHttpServer())
-      .get('/api/people')
+      .get(`/api/people/${user.cpf}`)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
   });
 
   it('rejeita a rota protegida sem token (401)', async () => {
-    await request(app.getHttpServer()).get('/api/people').expect(401);
+    await request(app.getHttpServer()).get(`/api/people/${user.cpf}`).expect(401);
   });
 
   it('rejeita a rota protegida com token inválido (401)', async () => {
     await request(app.getHttpServer())
-      .get('/api/people')
+      .get(`/api/people/${user.cpf}`)
       .set('Authorization', 'Bearer token-invalido')
       .expect(401);
   });
