@@ -37,7 +37,9 @@ export class ReviewsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Cria uma nova avaliação de produto pelo cliente autenticado' })
+  @ApiOperation({
+    summary: 'Cria uma nova avaliação de produto pelo cliente autenticado (Cliente autenticado)',
+  })
   @ApiResponse({ status: 201, description: 'Avaliação criada com sucesso' })
   @ApiResponse({ status: 400, description: 'Dados de entrada inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
@@ -49,7 +51,7 @@ export class ReviewsController {
   }
 
   @Get('product/:productId')
-  @ApiOperation({ summary: 'Busca as avaliações de um produto por ID (paginado)' })
+  @ApiOperation({ summary: 'Busca as avaliações de um produto por ID (paginado) (Público)' })
   @ApiParam({ name: 'productId', description: 'ID do produto' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 10 })
@@ -70,7 +72,7 @@ export class ReviewsController {
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove uma avaliação inadequada (Gerente/Administrador)' })
+  @ApiOperation({ summary: 'Remove uma avaliação inadequada (Gerente ou administrador)' })
   @ApiParam({ name: 'clienteId', description: 'CPF do cliente que realizou a avaliação' })
   @ApiParam({ name: 'produtoId', description: 'ID do produto avaliado' })
   @ApiResponse({ status: 204, description: 'Avaliação removida com sucesso (Hard Delete)' })
