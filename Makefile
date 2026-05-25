@@ -11,7 +11,7 @@ export COMPOSE_DOCKER_CLI_BUILD := 1
 	dev-lint dev-lint-fix dev-format dev-typecheck dev-check dev-openapi \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
 	db-shell db-reset db-backup \
-	clean check
+	clean check ci-local docker-build
 
 help:
 	@echo "Setup e local:"
@@ -65,6 +65,10 @@ help:
 	@echo "  make gen-secrets      Gera JWT_SECRET aleatorio nos arquivos .env"
 	@echo "  make clean            Remove artefatos locais de build"
 	@echo "  make check            Verifica se o Dockerfile esta correto"
+	@echo ""
+	@echo "CI/CD:"
+	@echo "  make ci-local         Roda lint + typecheck + format:check + testes (espelha o CI)"
+	@echo "  make docker-build     Builda a imagem Docker de producao standalone (espelha o CD)"
 
 env-setup:
 	cp -n .env.development.example .env.development || true
@@ -204,3 +208,13 @@ clean:
 
 check:
 	docker build . --check
+
+ci-local:
+	pnpm lint
+	pnpm typecheck
+	pnpm format:check
+	pnpm build
+	pnpm test
+
+docker-build:
+	docker build --target runner -t marketplace-backend:local .
