@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsEmail, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsEmail, MinLength, IsOptional } from 'class-validator';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -24,17 +24,19 @@ export class CreateUserDto {
   @MinLength(6)
   readonly password: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '12345678901',
-    description: 'CPF do usuário',
+    description: 'CPF do usuário (opcional)',
   })
+  @IsOptional()
   @IsString()
-  readonly cpf: string;
+  readonly cpf?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '(55) 99999-9999',
-    description: 'Telefone do usuário',
+    description: 'Telefone do usuário (opcional)',
   })
+  @IsOptional()
   @IsString()
-  readonly telefone: string;
+  readonly telefone?: string;
 }

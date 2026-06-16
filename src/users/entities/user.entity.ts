@@ -20,10 +20,12 @@ export class User {
   email: string;
   @Column()
   password: string;
-  @Column({ unique: true })
-  cpf: string;
-  @Column()
-  telefone: string;
+  @Column({ unique: true, nullable: true })
+  cpf: string | null;
+  @Column({ nullable: true })
+  telefone: string | null;
+  @Column({ default: 'customer' })
+  role: string;
   @CreateDateColumn()
   createdAt: Date;
 

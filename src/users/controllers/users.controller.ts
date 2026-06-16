@@ -18,7 +18,8 @@ export class UsersController {
 
     const retorno = await this.usersService.create(createUserDto, requestId);
 
-    UsersController.logger.log(`Usuário criado com sucesso: ${JSON.stringify(retorno)}`);
+    UsersController.logger.log(`Usuário criado com sucesso: id=${retorno.id}`);
 
+    return retorno;
   }
 }

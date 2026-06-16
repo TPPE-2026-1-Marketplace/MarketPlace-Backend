@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { ProductsModule } from './products/products.module';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const isProduction = nodeEnv === 'production';
@@ -22,6 +24,8 @@ const isProduction = nodeEnv === 'production';
       autoLoadEntities: true,
     }),
     UsersModule,
+    AuthModule,
+    ProductsModule,
   ],
 })
 export class AppModule { }
