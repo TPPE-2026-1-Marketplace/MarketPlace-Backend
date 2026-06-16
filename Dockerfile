@@ -17,6 +17,9 @@ WORKDIR /app
 
 FROM base AS deps
 
+# bcrypt requires native compilation tools on Alpine
+RUN apk add --no-cache make gcc g++ python3
+
 COPY package.json pnpm-lock.yaml ./
 RUN --mount=type=cache,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir=/pnpm/store
