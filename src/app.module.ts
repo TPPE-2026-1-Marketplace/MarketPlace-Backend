@@ -41,6 +41,7 @@ const isProduction = nodeEnv === 'production';
         username: configService.get<string>('POSTGRES_USER'),
         password: configService.get<string>('POSTGRES_PASSWORD'),
         database: configService.get<string>('POSTGRES_DB'),
+        ssl: isProduction ? { rejectUnauthorized: false } : false,
         synchronize: !isProduction,
         autoLoadEntities: true,
         namingStrategy: new SnakeNamingStrategy(),
