@@ -14,10 +14,10 @@ export class Product {
   @Column({ type: 'text', nullable: true })
   descricao: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   categoria: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   imagem_url: string | null;
 
   @CreateDateColumn()

@@ -20,9 +20,9 @@ export class User {
   email: string;
   @Column()
   password: string;
-  @Column({ unique: true, nullable: true })
+  @Column({ type: 'varchar', unique: true, nullable: true })
   cpf: string | null;
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   telefone: string | null;
   @Column({ default: 'customer' })
   role: string;

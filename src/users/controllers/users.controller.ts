@@ -1,7 +1,7 @@
-import { Controller, Post, Body, Logger } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, ParseIntPipe, Logger, NotFoundException } from '@nestjs/common';
 import { CreateUserDto } from '../dtos/create-user.dto';
+import { UpdateUserDto } from '../dtos/update-user.dto';
 import { UsersService } from '../services/users.service';
-import { User } from '../entities/user.entity';
 
 @Controller('users')
 export class UsersController {
@@ -22,4 +22,33 @@ export class UsersController {
 
     return retorno;
   }
+
+  @Get(':id')
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    UsersController.logger.log(`Requisição GET api/users/${id}`);
+
+    const user = await this.usersService.findById(id);
+
+    if (!user) {
+      throw new NotFoundException(`Usuário com id=${id} não encontrado.`);
+    }
+
+    return this.usersService.toSafeUser(user);
+  }
+
+  @Patch(':id')
+  async update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
+    UsersController.logger.log(`Requisição PATCH api/users/${id}`);
+    UsersController.logger.debug(`Payload: ${JSON.stringify(updateUserDto)}`);
+
+    const updated = await this.usersService.update(id, updateUserDto);
+
+    UsersController.logger.log(`Usuário id=${id} atualizado com sucesso.`);
+
+    return updated;
+  }
 }
+
