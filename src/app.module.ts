@@ -4,6 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
+import { OrdersModule } from './orders/orders.module';
+import { ShippingModule } from './shipping/shipping.module';
 
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const isProduction = nodeEnv === 'production';
@@ -26,6 +28,8 @@ const isProduction = nodeEnv === 'production';
     UsersModule,
     AuthModule,
     ProductsModule,
+    OrdersModule,
+    ShippingModule,
   ],
 })
 export class AppModule { }

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 import { Product } from '../entities/product.entity';
 import { QueryProductsDto } from '../dtos/query-products.dto';
+import { CreateProductDto } from '../dtos/create-product.dto';
 
 export interface PaginatedProducts {
   data: Product[];
@@ -73,5 +74,16 @@ export class ProductsService implements OnModuleInit {
       throw new NotFoundException(`Produto com id=${id} não encontrado.`);
     }
     return product;
+  }
+
+  async create(dto: CreateProductDto): Promise<Product> {
+    const product = this.productsRepository.create({
+      titulo: dto.titulo,
+      preco_base: dto.preco_base,
+      descricao: dto.descricao ?? null,
+      categoria: dto.categoria ?? null,
+      imagem_url: dto.imagem_url ?? null,
+    });
+    return this.productsRepository.save(product);
   }
 }
