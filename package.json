@@ -38,6 +38,7 @@
     "fast-csv": "^5.0.7",
     "form-data": "^4.0.5",
     "helmet": "^8.1.0",
+    "multer": "^2.0.2",
     "nestjs-pino": "^4.6.1",
     "nestjs-zod": "^5.4.0",
     "passport": "^0.7.0",

@@ -33,18 +33,28 @@ const isProduction = nodeEnv === 'production';
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get<string>('POSTGRES_HOST'),
-        // se nao tiver process.env.POSTGRES_PORT vai tentar conectar em DEFAULT_POSTGRES_PORT
-        port: Number(configService.get<string>('POSTGRES_PORT') ?? DEFAULT_POSTGRES_PORT),
-        username: configService.get<string>('POSTGRES_USER'),
-        password: configService.get<string>('POSTGRES_PASSWORD'),
-        database: configService.get<string>('POSTGRES_DB'),
-        synchronize: !isProduction,
-        autoLoadEntities: true,
-        namingStrategy: new SnakeNamingStrategy(),
-      }),
+      useFactory: (configService: ConfigService) => {
+        const databaseUrl = configService.get<string>('DATABASE_URL');
+        const connectionConfig = databaseUrl
+          ? { url: databaseUrl }
+          : {
+              host: configService.get<string>('POSTGRES_HOST'),
+              // se nao tiver process.env.POSTGRES_PORT vai tentar conectar em DEFAULT_POSTGRES_PORT
+              port: Number(configService.get<string>('POSTGRES_PORT') ?? DEFAULT_POSTGRES_PORT),
+              username: configService.get<string>('POSTGRES_USER'),
+              password: configService.get<string>('POSTGRES_PASSWORD'),
+              database: configService.get<string>('POSTGRES_DB'),
+            };
+
+        return {
+          type: 'postgres',
+          ...connectionConfig,
+          ssl: isProduction ? { rejectUnauthorized: false } : false,
+          synchronize: !isProduction,
+          autoLoadEntities: true,
+          namingStrategy: new SnakeNamingStrategy(),
+        };
+      },
     }),
     PeopleModule,
     AddressesModule,

@@ -36,6 +36,25 @@ function loadDevelopmentEnv() {
   }
 }
 
+function buildValidCouponDates() {
+  const now = Date.now();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+
+  return {
+    dataInicio: new Date(now - oneDayMs),
+    dataFim: new Date(now + oneDayMs),
+  };
+}
+
+function buildValidCouponDateStrings() {
+  const dates = buildValidCouponDates();
+
+  return {
+    dataInicio: dates.dataInicio.toISOString(),
+    dataFim: dates.dataFim.toISOString(),
+  };
+}
+
 describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencers)', () => {
   jest.setTimeout(30000);
 
@@ -136,8 +155,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
         numeroDoCupom: testCouponCode,
         tipoCupom: 'fixo',
         valorDesconto: 10,
-        dataInicio: '2026-05-20T00:00:00Z',
-        dataFim: '2026-05-22T00:00:00Z',
+        ...buildValidCouponDateStrings(),
       })
       .expect(403);
 
@@ -159,8 +177,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
         tipoCupom: 'porcentagem',
         valorDesconto: 10,
         ativo: true,
-        dataInicio: '2026-05-20T00:00:00.000Z',
-        dataFim: '2026-05-30T00:00:00.000Z',
+        ...buildValidCouponDateStrings(),
         usoMaximo: 50,
       })
       .expect(201);
@@ -213,8 +230,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
       tipoCupom: 'fixo',
       valorDesconto: 10,
       ativo: true,
-      dataInicio: new Date('2026-05-15T00:00:00Z'),
-      dataFim: new Date('2026-05-30T00:00:00Z'),
+      ...buildValidCouponDates(),
     });
 
     // Associar produto (POST)
@@ -261,8 +277,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
       tipoCupom: 'porcentagem',
       valorDesconto: 20.0,
       ativo: true,
-      dataInicio: new Date('2026-05-15T00:00:00Z'),
-      dataFim: new Date('2026-05-30T00:00:00Z'),
+      ...buildValidCouponDates(),
     });
 
     // Validar sem passar IDs
@@ -287,8 +302,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
       tipoCupom: 'porcentagem',
       valorDesconto: 15.0,
       ativo: true,
-      dataInicio: new Date('2026-05-15T00:00:00Z'),
-      dataFim: new Date('2026-05-30T00:00:00Z'),
+      ...buildValidCouponDates(),
     });
 
     // 2. Associar apenas testProduct1
@@ -347,8 +361,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
         numeroDoCupom: testCouponCode,
         tipoCupom: 'fixo',
         valorDesconto: 10,
-        dataInicio: '2026-05-20T00:00:00Z',
-        dataFim: '2026-05-22T00:00:00Z',
+        ...buildValidCouponDateStrings(),
         nomeInfluenciador: null,
       })
       .expect(201);
@@ -366,8 +379,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
         numeroDoCupom: testCouponCode,
         tipoCupom: 'fixo',
         valorDesconto: 10,
-        dataInicio: '2026-05-20T00:00:00Z',
-        dataFim: '2026-05-22T00:00:00Z',
+        ...buildValidCouponDateStrings(),
         nomeInfluenciador: '',
       })
       .expect(201);
@@ -384,8 +396,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
       tipoCupom: 'fixo',
       valorDesconto: 10,
       ativo: true,
-      dataInicio: new Date('2026-05-15T00:00:00Z'),
-      dataFim: new Date('2026-05-30T00:00:00Z'),
+      ...buildValidCouponDates(),
       nomeInfluenciador: influencerName,
     });
 
@@ -428,8 +439,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
       tipoCupom: 'fixo',
       valorDesconto: 10,
       ativo: true,
-      dataInicio: new Date('2026-05-15T00:00:00Z'),
-      dataFim: new Date('2026-05-30T00:00:00Z'),
+      ...buildValidCouponDates(),
       usosAtuais: 0,
     });
 
@@ -465,8 +475,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
         tipoCupom: 'outro_tipo',
         valorDesconto: 10,
         ativo: true,
-        dataInicio: '2026-05-20T00:00:00Z',
-        dataFim: '2026-05-30T00:00:00Z',
+        ...buildValidCouponDateStrings(),
       })
       .expect(400);
   });
@@ -480,8 +489,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
         tipoCupom: 'porcentagem',
         valorDesconto: 120,
         ativo: true,
-        dataInicio: '2026-05-20T00:00:00Z',
-        dataFim: '2026-05-30T00:00:00Z',
+        ...buildValidCouponDateStrings(),
       })
       .expect(400);
   });
@@ -493,8 +501,7 @@ describe('CouponsModule integration (CRUD, Validation, Products N:N & Influencer
       tipoCupom: 'fixo',
       valorDesconto: 50,
       ativo: true,
-      dataInicio: new Date('2026-05-15T00:00:00Z'),
-      dataFim: new Date('2026-05-30T00:00:00Z'),
+      ...buildValidCouponDates(),
     });
 
     // 1. Tentar atualizar para tipoCupom inválido

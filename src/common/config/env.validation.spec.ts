@@ -15,6 +15,15 @@ describe('validateEnv', () => {
     expect(result.JWT_SECRET).toBe('segredo');
   });
 
+  it('aceita DATABASE_URL no lugar das variáveis POSTGRES_* separadas', () => {
+    const result = validateEnv({
+      DATABASE_URL: 'postgresql://user:pass@example.neon.tech/db?sslmode=require',
+      JWT_SECRET: 'segredo',
+    });
+
+    expect(result.DATABASE_URL).toBe('postgresql://user:pass@example.neon.tech/db?sslmode=require');
+  });
+
   it.each(['POSTGRES_HOST', 'POSTGRES_USER', 'POSTGRES_PASSWORD', 'POSTGRES_DB', 'JWT_SECRET'])(
     'lança quando a obrigatória %s está ausente, citando-a na mensagem',
     (missing) => {
