@@ -51,8 +51,8 @@ export class EmployeesService {
         where: { cpf: dto.cpf },
       });
 
-      // Gera uma senha temporária aleatória de 8 caracteres e faz o hash
-      const senhaTemporaria = crypto.randomBytes(TEMP_PASSWORD_BYTES).toString('hex');
+      // Usa a senha fornecida ou gera uma temporária de 8 caracteres
+      const senhaTemporaria = dto.senha || crypto.randomBytes(TEMP_PASSWORD_BYTES).toString('hex');
       const salt = await bcrypt.genSalt(BCRYPT_ROUNDS);
       const hashedSenha = await bcrypt.hash(senhaTemporaria, salt);
 
@@ -171,6 +171,11 @@ export class EmployeesService {
       if (dto.nome !== undefined) person.nome = dto.nome;
       if (dto.email !== undefined) person.email = dto.email;
       if (dto.telefone !== undefined) person.telefone = dto.telefone ?? null;
+
+      if (dto.senha !== undefined && dto.senha !== '') {
+        const salt = await bcrypt.genSalt(BCRYPT_ROUNDS);
+        person.senha = await bcrypt.hash(dto.senha, salt);
+      }
 
       if (dto.ativo !== undefined) employee.ativo = dto.ativo;
       if (dto.role_perfil !== undefined) employee.role_perfil = dto.role_perfil;

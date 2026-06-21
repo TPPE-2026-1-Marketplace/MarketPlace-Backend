@@ -13,6 +13,7 @@ export const CreateEmployeeSchema = z.object({
   taxa_comissao: z.coerce.number().positive().max(1).optional(),
   meta_vendas: z.coerce.number().nonnegative().nullable().optional(),
   codigo_funcionario: z.string().max(20).nullable().optional(),
+  senha: z.string().min(3).optional(),
 });
 
 export class CreateEmployeeDto extends createZodDto(CreateEmployeeSchema) {}
