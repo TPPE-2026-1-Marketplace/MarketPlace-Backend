@@ -1,130 +1,305 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { CalculateShippingDto } from './calculate-shipping.dto';
+import { HttpService } from '@nestjs/axios';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
+import { AxiosError } from 'axios';
+import { firstValueFrom } from 'rxjs';
 
-export interface ShippingOption {
-  id: number;
-  name: string;
-  price: number;
-  company: { id: number; name: string };
-  delivery_time: number;
-  delivery_range?: { min: number; max: number };
+import {
+  HTTP_STATUS_UNAUTHORIZED,
+  HTTP_STATUS_UNPROCESSABLE_ENTITY,
+  MELHOR_ENVIO_CALC_PATH,
+  MELHOR_ENVIO_TIMEOUT_MS,
+  SHIPPING_CACHE_MAX_ENTRIES,
+  SHIPPING_CACHE_TTL_MS,
+  SHIPPING_PACKAGE_DEFAULTS,
+} from '../common/constants';
+import { MelhorEnvioTokenManager } from './auth/melhor-envio-token-manager';
+import { CEP_RANGES } from './data/cep-ranges';
+import { CalculateShippingDto } from './dtos/calculate-shipping.dto';
+import { IMelhorEnvioCotacao } from './interfaces/melhor-envio.interface';
+import { IShippingQuote } from './interfaces/shipping.interface';
+
+interface CacheEntry {
+  data: IShippingQuote;
+  expiresAt: number;
+}
+
+interface PackageDimensions {
+  peso: number;
+  comprimento: number;
+  largura: number;
+  altura: number;
 }
 
 @Injectable()
 export class ShippingService {
-  private static readonly logger = new Logger(ShippingService.name);
+  private readonly logger = new Logger(ShippingService.name);
+  private readonly cache = new Map<string, CacheEntry>();
+  private readonly cepOrigem: string;
+  private readonly baseUrl: string;
+  private readonly userAgent: string;
+  private readonly serviceId: number | null;
 
-  // Dimensões padrão de um vestido embalado (cm)
-  private static readonly DEFAULT_HEIGHT = 5;
-  private static readonly DEFAULT_WIDTH = 30;
-  private static readonly DEFAULT_LENGTH = 40;
-  private static readonly DEFAULT_WEIGHT = 0.5;
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly tokenManager: MelhorEnvioTokenManager,
+  ) {
+    const cep = process.env.LOJA_CEP_ORIGEM;
+    if (!cep) {
+      this.logger.warn(
+        'LOJA_CEP_ORIGEM não definida. Cálculo de frete via Melhor Envio indisponível; ' +
+          'fallback por faixa de CEP será usado.',
+      );
+    }
+    this.cepOrigem = cep ?? '';
 
-  constructor(private readonly configService: ConfigService) {}
+    this.baseUrl = process.env.MELHOR_ENVIO_BASE_URL as string;
+    this.userAgent = process.env.MELHOR_ENVIO_USER_AGENT as string;
 
-  async calculate(dto: CalculateShippingDto): Promise<ShippingOption[]> {
-    const baseUrl = this.configService.get<string>('MELHOR_ENVIO_BASE_URL');
-    const token = this.configService.get<string>('MELHOR_ENVIO_ACCESS_TOKEN');
-    const userAgent = this.configService.get<string>('MELHOR_ENVIO_USER_AGENT');
-    const cepOrigem = this.configService.get<string>('LOJA_CEP_ORIGEM') || '70002900';
+    const sid = process.env.MELHOR_ENVIO_SERVICE_ID;
+    this.serviceId = sid ? parseInt(sid, 10) : null;
 
-    // Se não houver token configurado, retorna fallback simulado
-    if (!token || !baseUrl) {
-      ShippingService.logger.warn('Melhor Envio não configurado — usando frete simulado');
-      return this.fallbackSimulation(dto);
+    this.logger.log(
+      `CEP origem: ${this.cepOrigem || '(não configurado)'}. Service ID: ${this.serviceId ?? '(mais barato)'}.`,
+    );
+  }
+
+  /**
+   * Calcula o frete para o CEP de destino informado.
+   *
+   * Fluxo:
+   * 1. Resolve valores padrão para peso/dimensões opcionais.
+   * 2. Verifica cache em memória (TTL 30 min). Chave inclui service_id.
+   * 3. Cache miss → consulta Melhor Envio (timeout 5 s).
+   * 4. Qualquer falha do provedor cai no fallback por faixa de CEP.
+   * 5. 422 (payload inválido) propaga como BadRequestException.
+   */
+  async calculate(dto: CalculateShippingDto): Promise<IShippingQuote> {
+    const pkg = this.resolvePackage(dto);
+    const cacheKey = this.buildCacheKey(dto.cep_destino, pkg);
+
+    const cached = this.getFromCache(cacheKey);
+    if (cached) {
+      this.logger.debug(`Cache hit para CEP ${dto.cep_destino}`);
+      return cached;
     }
 
-    const body = {
-      from: { postal_code: cepOrigem.replace(/\D/g, '') },
-      to: { postal_code: dto.cep_destino.replace(/\D/g, '') },
-      package: {
-        height: dto.altura ?? ShippingService.DEFAULT_HEIGHT,
-        width: dto.largura ?? ShippingService.DEFAULT_WIDTH,
-        length: dto.comprimento ?? ShippingService.DEFAULT_LENGTH,
-        weight: dto.peso ?? ShippingService.DEFAULT_WEIGHT,
-      },
-      options: {
-        receipt: false,
-        own_hand: false,
-      },
-      services: '1,2', // 1=PAC, 2=Sedex
-    };
+    const quote = await this.fetchOrFallback(dto.cep_destino, pkg);
+    this.setInCache(cacheKey, quote);
+    return quote;
+  }
 
+  /**
+   * Tenta a Melhor Envio; se cair em qualquer falha do provedor
+   * (timeout, 401, 5xx, cotações todas com erro), cai no fallback por faixa.
+   * 422 (BadRequestException) sobe pro caller — é erro do cliente.
+   */
+  private async fetchOrFallback(
+    cepDestino: string,
+    pkg: PackageDimensions,
+  ): Promise<IShippingQuote> {
     try {
-      const response = await fetch(`${baseUrl}/api/v2/me/shipment/calculate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          Authorization: `Bearer ${token}`,
-          'User-Agent': userAgent || 'DK Fashion',
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        ShippingService.logger.error(`Melhor Envio API error ${response.status}: ${errorText}`);
-        return this.fallbackSimulation(dto);
+      return await this.fetchFromMelhorEnvio(cepDestino, pkg);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
       }
-
-      const data = await response.json();
-      ShippingService.logger.log(`Frete calculado: ${JSON.stringify(data)}`);
-
-      if (!Array.isArray(data)) {
-        return this.fallbackSimulation(dto);
+      if (error instanceof ServiceUnavailableException) {
+        this.logger.warn(
+          `Melhor Envio indisponível para CEP ${cepDestino} — frete calculado via fallback`,
+        );
+        return this.calculateByRange(cepDestino);
       }
-
-      // Normalizar resposta da Melhor Envio
-      const options: ShippingOption[] = data
-        .filter((item: any) => !item.error) // remove serviços que não atendem
-        .map((item: any) => ({
-          id: item.id,
-          name: item.name || item.company?.name || 'Frete',
-          price: parseFloat(item.custom_price ?? item.price ?? 0),
-          company: item.company || { id: 0, name: 'Transportadora' },
-          delivery_time: item.delivery_time ?? item.delivery_range?.max ?? 0,
-          delivery_range: item.delivery_range || undefined,
-        }));
-
-      if (options.length === 0) {
-        return this.fallbackSimulation(dto);
-      }
-
-      return options;
-    } catch (err) {
-      ShippingService.logger.error(`Erro ao consultar Melhor Envio: ${(err as Error).message}`);
-      return this.fallbackSimulation(dto);
+      throw error;
     }
   }
 
-  /** Fallback simulado para quando a API não estiver disponível */
-  private fallbackSimulation(dto: CalculateShippingDto): ShippingOption[] {
-    const cep = dto.cep_destino.replace(/\D/g, '');
-    const isDF = cep.startsWith('70') || cep.startsWith('71') || cep.startsWith('72') || cep.startsWith('73');
+  // ─── Fallback por faixa de CEP (Plano B / Issue #77) ──────────────────
 
-    if (!isDF) {
-      return [];
+  calculateByRange(cepDestino: string): IShippingQuote {
+    const cepInt = parseInt(cepDestino, 10);
+    const range = CEP_RANGES.find((r) => cepInt >= r.start && cepInt <= r.end);
+    if (!range) {
+      this.logger.error(`Fallback sem faixa para CEP ${cepDestino}`);
+      throw new ServiceUnavailableException(
+        'Serviço de frete indisponível e CEP fora das faixas de fallback',
+      );
+    }
+    return { valor: range.valor, prazo_dias: range.prazo_dias };
+  }
+
+  // ─── Melhor Envio ─────────────────────────────────────────────────────
+
+  private async fetchFromMelhorEnvio(
+    cepDestino: string,
+    pkg: PackageDimensions,
+  ): Promise<IShippingQuote> {
+    if (!this.cepOrigem) {
+      throw new ServiceUnavailableException(
+        'CEP de origem da loja não configurado (LOJA_CEP_ORIGEM)',
+      );
     }
 
-    return [
-      {
-        id: 1,
-        name: 'PAC (Correios)',
-        price: 19.90,
-        company: { id: 1, name: 'Correios' },
-        delivery_time: 7,
-        delivery_range: { min: 5, max: 10 },
+    const accessToken = await this.tokenManager.getValidAccessToken();
+
+    let cotacoes: IMelhorEnvioCotacao[];
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post<IMelhorEnvioCotacao[]>(
+          `${this.baseUrl}${MELHOR_ENVIO_CALC_PATH}`,
+          this.buildRequestBody(cepDestino, pkg),
+          {
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+              'User-Agent': this.userAgent,
+            },
+            timeout: MELHOR_ENVIO_TIMEOUT_MS,
+          },
+        ),
+      );
+      cotacoes = response.data;
+    } catch (error) {
+      this.handleMelhorEnvioError(error);
+    }
+
+    return this.pickQuoteFromCotacoes(cotacoes, cepDestino);
+  }
+
+  private buildRequestBody(cepDestino: string, pkg: PackageDimensions): Record<string, unknown> {
+    const body: Record<string, unknown> = {
+      from: { postal_code: this.cepOrigem },
+      to: { postal_code: cepDestino },
+      package: {
+        height: pkg.altura,
+        width: pkg.largura,
+        length: pkg.comprimento,
+        weight: pkg.peso,
       },
-      {
-        id: 2,
-        name: 'Sedex (Correios)',
-        price: 39.90,
-        company: { id: 1, name: 'Correios' },
-        delivery_time: 2,
-        delivery_range: { min: 1, max: 3 },
-      },
-    ];
+    };
+    if (this.serviceId !== null) {
+      body.services = String(this.serviceId);
+    }
+    return body;
+  }
+
+  /**
+   * Filtra cotações com erro, escolhe uma (service específico ou mais barata)
+   * e converte pra IShippingQuote. Se todas falharem, lança ServiceUnavailable.
+   */
+  private pickQuoteFromCotacoes(
+    cotacoes: IMelhorEnvioCotacao[],
+    cepDestino: string,
+  ): IShippingQuote {
+    const validas = cotacoes.filter((c) => !c.error);
+    if (validas.length === 0) {
+      const erros = cotacoes
+        .filter((c) => c.error)
+        .map((c) => `${c.name}: ${c.error as string}`)
+        .join('; ');
+      this.logger.warn(`Sem cotações válidas para CEP ${cepDestino}. Erros: ${erros}`);
+      throw new ServiceUnavailableException('Nenhum serviço disponível para o CEP informado');
+    }
+
+    const escolhida =
+      this.serviceId !== null
+        ? (validas.find((c) => c.id === this.serviceId) ?? this.cheapest(validas))
+        : this.cheapest(validas);
+
+    const valorStr = escolhida.custom_price ?? escolhida.price;
+    const prazo = escolhida.custom_delivery_time ?? escolhida.delivery_time;
+    if (!valorStr || prazo === undefined) {
+      this.logger.error(`Cotação ${escolhida.id} sem preço/prazo: ${JSON.stringify(escolhida)}`);
+      throw new ServiceUnavailableException('Resposta inesperada da Melhor Envio');
+    }
+
+    return { valor: parseFloat(valorStr), prazo_dias: prazo };
+  }
+
+  private cheapest(cotacoes: IMelhorEnvioCotacao[]): IMelhorEnvioCotacao {
+    return cotacoes.reduce((min, c) => {
+      const priceMin = parseFloat(min.custom_price ?? min.price ?? 'Infinity');
+      const priceC = parseFloat(c.custom_price ?? c.price ?? 'Infinity');
+      return priceC < priceMin ? c : min;
+    });
+  }
+
+  /**
+   * Converte erros do Axios na semântica correta:
+   * - 422 → BadRequestException (erro do cliente, propaga)
+   * - 401 → invalida cache do token e lança ServiceUnavailable (cai no fallback)
+   * - timeout/5xx/network → ServiceUnavailable (cai no fallback)
+   */
+  private handleMelhorEnvioError(error: unknown): never {
+    const axiosError = error as AxiosError;
+    const status = axiosError.response?.status;
+
+    if (status === HTTP_STATUS_UNPROCESSABLE_ENTITY) {
+      const data = axiosError.response?.data as { message?: string } | undefined;
+      const msg = data?.message ?? 'Payload inválido para a Melhor Envio';
+      this.logger.warn(`Melhor Envio rejeitou payload (422): ${msg}`);
+      throw new BadRequestException(msg);
+    }
+
+    if (status === HTTP_STATUS_UNAUTHORIZED) {
+      this.tokenManager.invalidate();
+      this.logger.error('Melhor Envio retornou 401 — token inválido. Cache invalidado.');
+      throw new ServiceUnavailableException('Falha na autenticação com a Melhor Envio');
+    }
+
+    if (axiosError.code === 'ECONNABORTED' || axiosError.code === 'ETIMEDOUT') {
+      this.logger.error(`Timeout ao consultar Melhor Envio (limite: ${MELHOR_ENVIO_TIMEOUT_MS}ms)`);
+      throw new ServiceUnavailableException('Melhor Envio indisponível (timeout)');
+    }
+
+    this.logger.error(`Erro ao consultar Melhor Envio: ${axiosError.message}`, axiosError.stack);
+    throw new ServiceUnavailableException('Melhor Envio indisponível');
+  }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────
+
+  private resolvePackage(dto: CalculateShippingDto): PackageDimensions {
+    return {
+      peso: dto.peso ?? SHIPPING_PACKAGE_DEFAULTS.peso,
+      comprimento: dto.dimensoes?.comprimento ?? SHIPPING_PACKAGE_DEFAULTS.comprimento,
+      largura: dto.dimensoes?.largura ?? SHIPPING_PACKAGE_DEFAULTS.largura,
+      altura: dto.dimensoes?.altura ?? SHIPPING_PACKAGE_DEFAULTS.altura,
+    };
+  }
+
+  private buildCacheKey(cep: string, pkg: PackageDimensions): string {
+    const sid = this.serviceId ?? 'cheapest';
+    return `${sid}:${cep}:${pkg.peso}:${pkg.comprimento}:${pkg.largura}:${pkg.altura}`;
+  }
+
+  private getFromCache(key: string): IShippingQuote | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return null;
+    }
+    return entry.data;
+  }
+
+  private setInCache(key: string, data: IShippingQuote): void {
+    if (this.cache.size >= SHIPPING_CACHE_MAX_ENTRIES) {
+      this.evictExpired();
+    }
+    this.cache.set(key, { data, expiresAt: Date.now() + SHIPPING_CACHE_TTL_MS });
+  }
+
+  private evictExpired(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.cache) {
+      if (now > entry.expiresAt) {
+        this.cache.delete(key);
+      }
+    }
   }
 }

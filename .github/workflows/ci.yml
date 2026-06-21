@@ -1,0 +1,183 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '10.33.0'
+
+jobs:
+  lint:
+    name: Lint + Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Format check
+        run: pnpm format:check
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+  test-unit:
+    name: Tests (unit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm test
+
+  coverage:
+    name: Coverage (unit + integration)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: ci_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d ci_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      PORT: 3001
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ci_user
+      POSTGRES_PASSWORD: ci_password
+      POSTGRES_DB: ci_db
+      JWT_SECRET: ci-test-secret-not-for-production
+      # Shipping (Melhor Envio) — valores dummy: testes mockam HttpService,
+      # nenhum request real sai do job. Em produção, ver docs/melhor-envio-token.md.
+      LOJA_CEP_ORIGEM: '70002900'
+      MELHOR_ENVIO_BASE_URL: https://sandbox.melhorenvio.com.br
+      MELHOR_ENVIO_USER_AGENT: 'DK Fashion CI (ci@local)'
+      MELHOR_ENVIO_ACCESS_TOKEN: ci-dummy-token-mocked-in-tests
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # O loader em images.integration.ts lê de .env.development; fornecemos um arquivo
+      # com as mesmas envs já injetadas pelo job pra evitar referenciar credenciais reais.
+      - name: Create .env.development for integration tests
+        run: |
+          cat > .env.development <<EOF
+          PORT=${PORT}
+          POSTGRES_HOST=${POSTGRES_HOST}
+          POSTGRES_PORT=${POSTGRES_PORT}
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          POSTGRES_DB=${POSTGRES_DB}
+          JWT_SECRET=${JWT_SECRET}
+          LOJA_CEP_ORIGEM=${LOJA_CEP_ORIGEM}
+          MELHOR_ENVIO_BASE_URL=${MELHOR_ENVIO_BASE_URL}
+          MELHOR_ENVIO_USER_AGENT=${MELHOR_ENVIO_USER_AGENT}
+          MELHOR_ENVIO_ACCESS_TOKEN=${MELHOR_ENVIO_ACCESS_TOKEN}
+          EOF
+
+      # Roda unitários + integração com --coverage e falha se a cobertura cair
+      # abaixo do coverageThreshold definido no package.json.
+      - name: Run tests with coverage
+        run: pnpm test:cov
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  docker:
+    name: Docker image build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Valida que o estágio `runner` do Dockerfile builda (sem push). O CD
+      # publica a imagem no GHCR; aqui só garantimos que ela compila antes do
+      # merge. Espelha `make prod-image`.
+      - name: Build runner image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

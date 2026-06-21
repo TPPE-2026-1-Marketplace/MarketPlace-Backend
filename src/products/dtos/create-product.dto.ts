@@ -1,34 +1,17 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNumber, IsOptional, Min } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class CreateProductDto {
-  @ApiProperty({ description: 'Título do produto' })
-  @IsString()
-  titulo: string;
+export const CreateProductSchema = z.object({
+  titulo: z.string().min(1).max(180),
+  descricao: z.string().optional(),
+  destaque: z.boolean().optional(),
+  qual_medida: z.string().max(80).optional(),
+  material: z.string().max(120).optional(),
+  composicao: z.string().max(180).optional(),
+  silhueta: z.string().max(120).optional(),
+  tags: z.array(z.string().min(1)).optional(),
+  preco_base: z.number().positive(),
+  sku: z.string().min(1).max(80),
+});
 
-  @ApiProperty({ description: 'Preço base' })
-  @IsNumber()
-  @Min(0)
-  preco_base: number;
-
-  @ApiPropertyOptional({ description: 'Descrição do produto' })
-  @IsOptional()
-  @IsString()
-  descricao?: string;
-
-  @ApiPropertyOptional({ description: 'Categoria' })
-  @IsOptional()
-  @IsString()
-  categoria?: string;
-
-  @ApiPropertyOptional({ description: 'URL da imagem' })
-  @IsOptional()
-  @IsString()
-  imagem_url?: string;
-
-  @ApiPropertyOptional({ description: 'Preço original (para exibir desconto)' })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  preco_original?: number;
-}
+export class CreateProductDto extends createZodDto(CreateProductSchema) {}

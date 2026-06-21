@@ -1,29 +1,45 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
 
-export class QueryProductsDto {
-  @ApiPropertyOptional({ description: 'Filtra por categoria' })
-  @IsOptional()
-  @IsString()
-  categoria?: string;
+import {
+  PAGINATION_DEFAULT_LIMIT,
+  PAGINATION_DEFAULT_PAGE,
+  PAGINATION_MAX_LIMIT,
+} from '../../common/constants';
 
-  @ApiPropertyOptional({ description: 'Busca textual no título' })
-  @IsOptional()
-  @IsString()
-  busca?: string;
+const booleanQuery = z.preprocess((value) => {
+  if (value === 'true') {
+    return true;
+  }
+  if (value === 'false') {
+    return false;
+  }
+  return value;
+}, z.boolean());
 
-  @ApiPropertyOptional({ description: 'Página (1-based)', default: 1 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page?: number = 1;
+export const QueryProductsSchema = z
+  .object({
+    page: z.coerce.number().int().positive().default(PAGINATION_DEFAULT_PAGE),
+    limit: z.coerce
+      .number()
+      .int()
+      .positive()
+      .max(PAGINATION_MAX_LIMIT)
+      .default(PAGINATION_DEFAULT_LIMIT),
+    categoryId: z.coerce.number().int().positive().optional(),
+    destaque: booleanQuery.optional(),
+    precoMin: z.coerce.number().nonnegative().optional(),
+    precoMax: z.coerce.number().nonnegative().optional(),
+  })
+  .refine(
+    (query) =>
+      query.precoMin === undefined ||
+      query.precoMax === undefined ||
+      query.precoMin <= query.precoMax,
+    {
+      message: 'precoMin deve ser menor ou igual a precoMax',
+      path: ['precoMin'],
+    },
+  );
 
-  @ApiPropertyOptional({ description: 'Itens por página', default: 12 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  limit?: number = 12;
-}
+export class QueryProductsDto extends createZodDto(QueryProductsSchema) {}
