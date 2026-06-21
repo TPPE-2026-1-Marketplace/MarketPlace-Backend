@@ -11,7 +11,11 @@
     "lint": "eslint \"src/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",
-    "demo:flow": "bash scripts/demo-flow.sh"
+    "demo:flow": "bash scripts/demo-flow.sh",
+    "typeorm": "typeorm-ts-node-commonjs -d src/data-source.ts",
+    "migration:generate": "pnpm typeorm migration:generate",
+    "migration:run": "pnpm typeorm migration:run",
+    "migration:revert": "pnpm typeorm migration:revert"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.22",
@@ -39,6 +43,7 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^22.13.10",
     "@types/supertest": "^6.0.3",
+    "dotenv": "^17.4.2",
     "eslint": "^9.20.1",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.3",

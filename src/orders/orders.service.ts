@@ -15,6 +15,7 @@ export class OrdersService {
 
   async create(dto: CreateOrderDto): Promise<Order> {
     const orderData: DeepPartial<Order> = {
+      items: dto.items,
       subtotal: dto.subtotal,
       frete: dto.frete ?? 0,
       desconto: dto.desconto ?? 0,

@@ -24,6 +24,9 @@ const isProduction = nodeEnv === 'production';
       password: process.env.POSTGRES_PASSWORD,
       database: process.env.POSTGRES_DB,
       autoLoadEntities: true,
+      // Em produção (synchronize desligado) as migrations rodam no boot.
+      migrations: [__dirname + '/migrations/*.{js,ts}'],
+      migrationsRun: isProduction,
     }),
     UsersModule,
     AuthModule,

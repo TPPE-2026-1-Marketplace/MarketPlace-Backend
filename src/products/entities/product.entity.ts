@@ -11,6 +11,9 @@ export class Product {
   @Column('decimal', { precision: 10, scale: 2 })
   preco_base: number;
 
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  preco_original: number | null;
+
   @Column({ type: 'text', nullable: true })
   descricao: string | null;
 

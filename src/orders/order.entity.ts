@@ -1,9 +1,22 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
+export interface OrderItem {
+  productId: number;
+  variantId: number;
+  titulo: string;
+  tamanho?: string;
+  cor?: string;
+  quantidade: number;
+  preco_unitario: number;
+}
+
 @Entity()
 export class Order {
   @PrimaryGeneratedColumn()
   id_pedido: number;
+
+  @Column('jsonb', { default: () => "'[]'" })
+  items: OrderItem[];
 
   @Column('decimal', { precision: 10, scale: 2 })
   subtotal: number;

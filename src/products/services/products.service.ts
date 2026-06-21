@@ -83,6 +83,7 @@ export class ProductsService implements OnModuleInit {
       descricao: dto.descricao ?? null,
       categoria: dto.categoria ?? null,
       imagem_url: dto.imagem_url ?? null,
+      preco_original: dto.preco_original ?? null,
     });
     return this.productsRepository.save(product);
   }
