@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
@@ -7,8 +7,8 @@ import { AddressesModule } from './addresses/addresses.module';
 import { AuthModule } from './auth/auth.module';
 import { CategoriesModule } from './categories/categories.module';
 import { validateEnv } from './common/config/env.validation';
-import { DEFAULT_POSTGRES_PORT } from './common/constants';
 import { CouponsModule } from './coupons/coupons.module';
+import { buildDatabaseConnectionConfig } from './database/connection-config';
 import { EmployeesModule } from './employees/employees.module';
 import { HealthModule } from './health/health.module';
 import { ImagesModule } from './images/images.module';
@@ -32,29 +32,14 @@ const isProduction = nodeEnv === 'production';
       validate: validateEnv,
     }),
     TypeOrmModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const databaseUrl = configService.get<string>('DATABASE_URL');
-        const connectionConfig = databaseUrl
-          ? { url: databaseUrl }
-          : {
-              host: configService.get<string>('POSTGRES_HOST'),
-              // se nao tiver process.env.POSTGRES_PORT vai tentar conectar em DEFAULT_POSTGRES_PORT
-              port: Number(configService.get<string>('POSTGRES_PORT') ?? DEFAULT_POSTGRES_PORT),
-              username: configService.get<string>('POSTGRES_USER'),
-              password: configService.get<string>('POSTGRES_PASSWORD'),
-              database: configService.get<string>('POSTGRES_DB'),
-            };
-
-        return {
-          type: 'postgres',
-          ...connectionConfig,
-          ssl: isProduction ? { rejectUnauthorized: false } : false,
-          synchronize: !isProduction,
-          autoLoadEntities: true,
-          namingStrategy: new SnakeNamingStrategy(),
-        };
-      },
+      useFactory: () => ({
+        type: 'postgres',
+        ...buildDatabaseConnectionConfig(),
+        ssl: isProduction ? { rejectUnauthorized: false } : false,
+        synchronize: !isProduction,
+        autoLoadEntities: true,
+        namingStrategy: new SnakeNamingStrategy(),
+      }),
     }),
     PeopleModule,
     AddressesModule,

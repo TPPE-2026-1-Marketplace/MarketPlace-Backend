@@ -17,6 +17,12 @@
     "test:integration": "jest --testRegex '.*\\.integration\\.ts$' --runInBand --setupFiles ./jest-setup-envs.js",
     "test:cov": "jest --coverage --runInBand --setupFiles ./jest-setup-envs.js --testRegex '.*\\.(spec|integration)\\.ts$'",
     "test:watch": "jest --watch",
+    "typeorm": "typeorm-ts-node-commonjs -d src/database/data-source.ts",
+    "migration:generate": "pnpm typeorm migration:generate",
+    "migration:create": "typeorm-ts-node-commonjs migration:create",
+    "migration:run": "pnpm typeorm migration:run",
+    "migration:revert": "pnpm typeorm migration:revert",
+    "migration:run:prod": "node ./node_modules/typeorm/cli.js migration:run -d dist/database/data-source.js",
     "openapi:export": "ts-node scripts/export-openapi.ts",
     "demo:flow": "bash scripts/demo-flow.sh",
     "prepare": "husky || true"
@@ -113,6 +119,8 @@
       "!**/*.integration.ts",
       "!**/*.module.ts",
       "!**/*.interface.ts",
+      "!**/database/data-source.ts",
+      "!**/migrations/*.ts",
       "!**/index.ts",
       "!main.ts",
       "!**/jest-setup-envs.js"
@@ -128,7 +136,11 @@
     },
     "testEnvironment": "node",
     "testEnvironmentOptions": {
-      "customExportConditions": ["node", "require", "default"]
+      "customExportConditions": [
+        "node",
+        "require",
+        "default"
+      ]
     },
     "moduleNameMapper": {
       "^pg$": "pg/lib/index.js"
