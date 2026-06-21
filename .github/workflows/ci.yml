@@ -10,10 +10,18 @@ env:
   NODE_VERSION: '22'
   PNPM_VERSION: '10.33.0'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Lint + Typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -41,6 +49,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -62,6 +71,7 @@ jobs:
   test-unit:
     name: Tests (unit)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +93,7 @@ jobs:
   coverage:
     name: Coverage (unit + integration)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     services:
       postgres:
@@ -130,6 +141,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate production migrations (up, down, up)
+        run: |
+          pnpm build
+          pnpm migration:run:prod
+          node ./node_modules/typeorm/cli.js migration:revert -d dist/database/data-source.js
+          pnpm migration:run:prod
+
       # O loader em images.integration.ts lê de .env.development; fornecemos um arquivo
       # com as mesmas envs já injetadas pelo job pra evitar referenciar credenciais reais.
       - name: Create .env.development for integration tests
@@ -164,6 +182,7 @@ jobs:
   docker:
     name: Docker image build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 

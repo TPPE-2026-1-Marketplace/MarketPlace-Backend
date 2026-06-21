@@ -114,6 +114,7 @@ export default tseslint.config(
     files: ['src/**/migrations/*.ts'],
     rules: {
       'no-magic-numbers': 'off',
+      'max-lines-per-function': 'off',
     },
   },
 

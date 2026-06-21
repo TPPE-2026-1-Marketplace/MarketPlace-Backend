@@ -1,132 +1,110 @@
-# Continuous Delivery — DK Fashion
+# CI/CD - GitHub Actions, GHCR e Render
 
-Como funciona o pipeline de CD (`.github/workflows/cd.yml`) e sua relação com o CI.
+## Fluxo de entrega
 
-## Visão geral
+1. Pull requests e pushes para `dev`/`main` executam o CI.
+2. O CI valida lint, tipos, formato, build, testes, cobertura, migrações e a
+   construção da imagem Docker.
+3. Somente um CI bem-sucedido originado por `push` na `main` libera o CD.
+4. O CD reconstrói o commit validado e publica a imagem `linux/amd64` no GHCR com
+   as tags `latest` e `sha-<commit>`.
+5. O CD envia ao Render o digest imutável produzido pelo build, não a tag
+   mutável `latest`.
+6. O workflow consulta a API do Render até o deploy ficar `live` e, em seguida,
+   executa um smoke test em `GET /api/health/ready`.
 
-O CD automatiza o empacotamento da aplicação em uma imagem Docker de produção
-e a publicação no GitHub Container Registry (GHCR). Ele não duplica o CI —
-assume que lint, typecheck, testes e coverage já passaram e se limita à
-entrega do artefato.
+O job de deploy usa o environment `production` do GitHub. É possível configurar
+nesse environment revisores obrigatórios e limitar quais branches podem fazer
+deploy.
 
-| Etapa | O que faz |
-|---|---|
-| `gate` | Verifica se o CI concluiu com sucesso |
-| `docker` | Builda a imagem (multi-stage, target `runner`) e publica no GHCR |
+## Configuração inicial do GHCR
 
-## CI vs CD
+O pacote pode ser público ou privado. Para um pacote privado, crie um Personal
+Access Token (classic) no GitHub com permissão `read:packages`. No Render, abra
+as configurações do workspace, adicione uma credencial de Container Registry e
+use exatamente o nome `github-container-registry`, conforme o `render.yaml`.
 
-| Aspecto | CI | CD |
-|---|---|---|
-| Objetivo | Validar qualidade do código | Empacotar e entregar artefato |
-| Quando executa | Push e PR em `dev` e `main` | Somente após CI com sucesso na `main` |
-| O que produz | Relatório de coverage | Imagem Docker publicada |
+Use como registry `ghcr.io`, seu usuário GitHub e o token criado. O workflow não
+precisa desse token: ele publica com o `GITHUB_TOKEN` efêmero do próprio job.
 
-## Quando o CD executa
+## Criação do serviço no Render
 
-O CD é acionado exclusivamente quando um push na `main` faz o CI concluir
-com sucesso. O GitHub Actions dispara o evento `workflow_run`:
+O `render.yaml` define um serviço image-backed. Como o Render não permite alterar
+o `runtime` de um serviço existente, um serviço antigo criado como Git-backed
+(`runtime: docker`) precisa ser substituído:
 
-```yaml
-on:
-  workflow_run:
-    workflows: ["CI"]      # nome exato do workflow de CI
-    types: [completed]     # dispara ao finalizar (sucesso ou falha)
-    branches: [main]       # somente na main
-```
+1. Garanta que a imagem `ghcr.io/tppe-2026-1-marketplace/marketplace-backend:latest`
+   já foi publicada ao menos uma vez.
+2. Cadastre a credencial `github-container-registry` no workspace do Render.
+3. Crie um novo Blueprint a partir deste repositório e confirme o `render.yaml`.
+4. Informe `DATABASE_URL` e `LOJA_CEP_ORIGEM`. O Render gera `JWT_SECRET`.
+5. Adicione as credenciais opcionais de InfinitePay, ImgBB e Melhor Envio apenas
+   quando essas integrações forem habilitadas.
+6. Depois de validar o novo serviço, remova o serviço Git-backed anterior ou
+   troque os nomes durante a migração para evitar conflito.
 
-O `workflow_run` dispara mesmo quando o CI falha. Por isso o job `gate`
-verifica `conclusion == 'success'` antes de prosseguir.
+O Render injeta `PORT`; não configure uma porta fixa. O serviço image-backed não
+faz auto-deploy ao mudar `latest`: o deploy é controlado exclusivamente pelo CD,
+que informa o digest exato à API.
 
-| Cenário | CI roda? | CD roda? |
-|---|---|---|
-| Push na `dev` | sim | nao |
-| PR para `main` | sim | nao |
-| Push na `main` + CI falha | sim | nao |
-| Push na `main` + CI passa | sim | sim |
-| Tag semver na `main` + CI passa | sim | sim (com tags de versao) |
+## GitHub Environment e segredos
 
-## Tags geradas
+Crie o environment `production` em **Settings > Environments**. Configure nele:
 
-| Tipo | Exemplo | Quando |
-|---|---|---|
-| `latest` | `ghcr.io/org/repo:latest` | Todo push na `main` |
-| `sha-*` | `ghcr.io/org/repo:sha-a1b2c3d` | Todo push na `main` |
-| semver | `ghcr.io/org/repo:1.2.3` | Quando ha tag git `v1.2.3` |
+| Tipo     | Nome                 | Valor                                                          |
+| -------- | -------------------- | -------------------------------------------------------------- |
+| Secret   | `RENDER_API_KEY`     | API key criada no Render                                       |
+| Secret   | `RENDER_SERVICE_ID`  | ID `srv-...` do serviço                                        |
+| Variable | `RENDER_SERVICE_URL` | URL pública, por exemplo `https://dk-fashion-api.onrender.com` |
 
-## Docker multi-stage
+Recomenda-se habilitar proteção da branch `main`, exigir todos os jobs do CI e,
+se disponível no plano do GitHub, exigir aprovação no environment `production`.
 
-O Dockerfile usa 5 estagios. O CD builda apenas o target `runner`:
-
-| Estagio | Proposito | Na imagem final? |
-|---|---|---|
-| `base` | Node 22-alpine + corepack | sim (base) |
-| `deps` | Instala todas as dependencias | nao |
-| `dev` | Ambiente de desenvolvimento | nao |
-| `prod-deps` | Instala apenas deps de producao | sim (node_modules) |
-| `build` | Compila TypeScript → JavaScript | sim (dist/) |
-| `runner` | Imagem final otimizada | sim |
-
-A imagem final contem apenas `dist/`, `node_modules` de producao e
-`package.json`. Roda como usuario nao-root (`nestjs:nodejs`), com
-healthcheck embutido (`/api/health`).
-
-## Por que `workflow_run`
-
-Usar `workflow_run` em vez de colocar tudo no `ci.yml`:
-
-- Separa responsabilidades: CI valida, CD entrega.
-- O CI roda em PRs sem acionar o CD naturalmente.
-- Permissoes isoladas: o CI nao precisa de `packages:write`.
-- Cada pipeline evolui de forma independente.
-
-## Cache
-
-O build usa `cache-from: type=gha` / `cache-to: type=gha,mode=max`. Isso
-persiste layers Docker entre runs usando o storage nativo do GitHub Actions.
-`mode=max` exporta todas as layers intermediarias para maximo
-reaproveitamento.
-
-## Como testar localmente
+## Migrações
 
 ```bash
-# Espelha o CI
-make ci-local
+# Com as variáveis de banco exportadas no ambiente
+pnpm migration:run
+pnpm migration:revert
 
-# Espelha o CD (build Docker standalone, mesmo target do workflow)
-make docker-build
+# Criar uma migração vazia
+pnpm migration:create src/database/migrations/NomeDaMudanca
 
-# Ou via Docker direto
-docker build --target runner -t marketplace-backend:local .
+# Gerar diff das entities contra um banco de desenvolvimento
+pnpm migration:generate src/database/migrations/NomeDaMudanca
+```
 
-# Verificar que a imagem roda
-docker run --rm marketplace-backend:local node -e "console.log('OK')"
+Em produção, `dockerCommand` executa `pnpm migration:run:prod` antes de iniciar a
+API. O plano gratuito não oferece `preDeployCommand`, portanto as migrações devem
+ser compatíveis com a versão anterior da aplicação.
 
-# Via Docker Compose (com banco e envs)
+Em plano pago, prefira mover `pnpm migration:run:prod` para `preDeployCommand` e
+deixar `dockerCommand` apenas com `exec node dist/main.js`.
+
+### Banco existente
+
+A migração baseline pressupõe banco vazio. Se o Neon já contém tabelas criadas
+por `synchronize`, faça backup e compare o schema antes do primeiro deploy. Não
+rode a baseline sobre tabelas existentes sem confirmar equivalência.
+
+## Falhas e rollback
+
+Se o pull da imagem, a migração, o boot ou o health check falhar, o Render não
+promove a nova instância e mantém a última versão saudável. O job do GitHub também
+falha e registra o ID do deploy, o commit e o digest usados.
+
+Rollback da aplicação pode ser feito no Dashboard do Render. Ele não reverte o
+banco automaticamente; por isso migrações destrutivas devem ser divididas em
+etapas compatíveis e revertidas deliberadamente.
+
+## Execução local da imagem de produção
+
+`compose.prod.yml` aceita `DATABASE_URL` ou as variáveis `POSTGRES_*`.
+
+```bash
+docker compose --env-file .env.production -f compose.prod.yml config --quiet
+make prod-build
 make prod-up
 ```
 
-## Evoluindo o pipeline
-
-Sugestoes para futuras equipes:
-
-- **Deploy staging**: adicionar job `deploy-staging` com `environment: staging`
-  e pull da imagem no servidor.
-- **Aprovacao manual**: usar GitHub Environments com protection rules para
-  exigir aprovacao antes de deploy em producao.
-- **Smoke tests**: job pos-deploy que faz `curl --fail` no healthcheck.
-- **Notificacoes**: integrar Discord/Slack com
-  `sarisia/actions-status-discord`.
-- **Multi-arch**: adicionar `platforms: linux/amd64,linux/arm64` no
-  build-push-action.
-- **Vulnerability scanning**: Trivy ou Grype na imagem antes do push.
-
-## Referencia rapida
-
-| Action | Versao | Proposito |
-|---|---|---|
-| `actions/checkout` | v4 | Checkout do codigo |
-| `docker/setup-buildx-action` | v3 | Buildx com cache avancado |
-| `docker/login-action` | v3 | Autenticacao no GHCR |
-| `docker/metadata-action` | v5 | Tags e labels OCI automaticos |
-| `docker/build-push-action` | v6 | Build e push da imagem |
+Nunca salve `.env.production`, tokens do GHCR ou chaves do Render no Git.

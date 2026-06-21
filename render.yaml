@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: dk-fashion-api-image
+    runtime: image
+    plan: free
+    image:
+      url: ghcr.io/tppe-2026-1-marketplace/marketplace-backend:latest
+      creds:
+        fromRegistryCreds:
+          name: github-container-registry
+    dockerCommand: sh -c "exec node dist/main.js"
+    healthCheckPath: /api/health/ready
+    maxShutdownDelaySeconds: 30
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PAYMENT_GATEWAY_PROVIDER
+        value: mock
+      - key: LOJA_CEP_ORIGEM
+        sync: false
