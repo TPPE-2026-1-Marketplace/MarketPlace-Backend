@@ -22,11 +22,7 @@ async function bootstrap() {
 
   // Libera o frontend (Vite) a consumir a API a partir de outra origem.
   app.enableCors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'https://seu-frontend.onrender.com',
-    ],
+    origin: ['http://localhost:3000', 'http://localhost:5173', 'https://seu-frontend.onrender.com'],
     credentials: true,
   });
 
