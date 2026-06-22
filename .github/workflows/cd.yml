@@ -217,9 +217,13 @@ jobs:
         run: |
           set -euo pipefail
           state=success
-          [ "$JOB_STATUS" = success ] || state=failure
+          description=Successful
+          if [ "$JOB_STATUS" != success ]; then
+            state=failure
+            description=Failed
+          fi
           gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT_SHA}" \
             -f state="$state" \
             -f target_url="${RENDER_SERVICE_URL}" \
-            -f context="deploy/render (production)" \
-            -f description="Deploy de produção no Render: ${state}"
+            -f context="CD / Render (production)" \
+            -f description="$description"
