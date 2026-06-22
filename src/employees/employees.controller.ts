@@ -37,6 +37,7 @@ export class EmployeesController {
   }
 
   @Get()
+  @Roles(Role.ADMINISTRADOR, Role.GERENTE, Role.CAIXA, Role.VENDEDOR)
   @ApiOperation({ summary: 'Lista funcionários com paginação (Administrador)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })

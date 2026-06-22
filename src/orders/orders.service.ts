@@ -264,22 +264,29 @@ export class OrdersService {
 
       // 1. Validar se o funcionário/vendedor associado existe e possui perfil correto
       const seller = await manager.findOne(Employee, {
-        where: { cpf: dto.idFuncionario },
+        where: [{ cpf: dto.codigoVendedor }, { codigo_funcionario: dto.codigoVendedor }],
       });
 
       if (!seller) {
         throw new BadRequestException(
-          `Funcionário com CPF "${dto.idFuncionario}" não foi encontrado.`,
+          `Funcionário com código/CPF "${dto.codigoVendedor}" não foi encontrado.`,
         );
       }
 
       if (!seller.ativo) {
-        throw new BadRequestException(`O funcionário com CPF "${dto.idFuncionario}" está inativo.`);
+        throw new BadRequestException(
+          `O funcionário "${seller.person?.nome || seller.cpf}" está inativo.`,
+        );
       }
 
-      if (seller.role_perfil !== Role.VENDEDOR) {
+      if (
+        seller.role_perfil !== Role.VENDEDOR &&
+        seller.role_perfil !== Role.CAIXA &&
+        seller.role_perfil !== Role.GERENTE &&
+        seller.role_perfil !== Role.ADMINISTRADOR
+      ) {
         throw new BadRequestException(
-          `O funcionário com CPF "${dto.idFuncionario}" não possui o perfil de vendedor (role_perfil: "${seller.role_perfil}").`,
+          `O funcionário "${seller.person?.nome || seller.cpf}" não possui permissão para registrar vendas (role: "${seller.role_perfil}").`,
         );
       }
 
@@ -369,7 +376,7 @@ export class OrdersService {
           valorAnteriorLoja: anteriorLoja,
           valorNovoLoja: stock.qtdLojaFisica,
           origem: 'venda_presencial',
-          motivo: `Venda registrada no caixa pelo funcionário ${dto.idFuncionario}`,
+          motivo: `Venda registrada no caixa pelo funcionário ${seller.cpf}`,
         });
       }
 
@@ -404,6 +411,7 @@ export class OrdersService {
       // 9. Criar o pedido (Venda Presencial)
       const order = ordersRepo.create({
         idUsuario: dto.idUsuario ?? null,
+        clienteNomeAvulso: dto.clienteNomeAvulso ?? null,
         idCupom: dto.couponNumero ? dto.couponNumero.toUpperCase().trim() : null,
         subtotal,
         valorFrete: 0,
@@ -411,7 +419,7 @@ export class OrdersService {
         tipoRetirada: TipoRetirada.LOJA, // Sempre retirada física
         codigoVerificacaoRetirada: null, // Sem PIN de retirada
         status: OrderStatus.PAID, // Inicializa como PAGO
-        idFuncionario: dto.idFuncionario, // Vendedor associado
+        idFuncionario: seller.cpf, // Vendedor associado
       });
 
       // Itens cascade
@@ -585,7 +593,7 @@ export class OrdersService {
 
     const [data, total] = await this.ordersRepository.findAndCount({
       where,
-      relations: ['items'],
+      relations: ['items', 'user', 'employee', 'employee.person'],
       order: { dataPedido: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
@@ -613,7 +621,7 @@ export class OrdersService {
 
     const [data, total] = await this.ordersRepository.findAndCount({
       where,
-      relations: ['items'],
+      relations: ['items', 'user', 'employee', 'employee.person'],
       order: { dataPedido: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
