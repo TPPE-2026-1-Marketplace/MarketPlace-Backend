@@ -111,6 +111,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: publish
+    permissions:
+      contents: read
+      statuses: write
+      deployments: write
     environment:
       name: production
       url: ${{ vars.RENDER_SERVICE_URL }}
@@ -203,3 +207,19 @@ jobs:
             echo "- Image: \`${IMAGE_URL}\`"
             echo "- Service: ${RENDER_SERVICE_URL}"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish commit status for deploy
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          state=success
+          [ "$JOB_STATUS" = success ] || state=failure
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT_SHA}" \
+            -f state="$state" \
+            -f target_url="${RENDER_SERVICE_URL}" \
+            -f context="deploy/render (production)" \
+            -f description="Deploy de produção no Render: ${state}"
