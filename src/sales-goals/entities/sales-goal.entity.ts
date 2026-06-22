@@ -41,6 +41,6 @@ export class SalesGoal {
   @Column({ name: 'valor_meta', type: 'decimal', precision: 12, scale: 2 })
   valorMeta: number;
 
-  @Column({ name: 'valor_bonus', type: 'decimal', precision: 12, scale: 2, nullable: true })
+  @Column({ name: 'valor_bonus', type: 'decimal', precision: 5, scale: 4, nullable: true })
   valorBonus: number | null;
 }

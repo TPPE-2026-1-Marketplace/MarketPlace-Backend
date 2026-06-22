@@ -260,10 +260,10 @@ export class EmployeesService {
       }
     }
 
-    // 4. Calcular comissão: taxa base sobre vendas + bônus fixo
+    // 4. Calcular comissão: taxa base + bônus (valorBonus atua como uma taxa)
     const taxaBase = Number(employee.taxa_comissao);
-    const comissaoBase = total_vendas * taxaBase;
-    const comissaoTotalRaw = comissaoBase + valorBonus;
+    const taxaFinal = taxaBase + valorBonus;
+    const comissaoTotalRaw = total_vendas * taxaFinal;
     const comissao = parseFloat(comissaoTotalRaw.toFixed(2));
 
     return {
