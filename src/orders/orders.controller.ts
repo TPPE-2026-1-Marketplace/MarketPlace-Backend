@@ -32,7 +32,7 @@ export class OrdersController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.GERENTE, Role.ADMINISTRADOR)
+  @Roles(Role.GERENTE, Role.ADMINISTRADOR, Role.CAIXA, Role.VENDEDOR)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lista pedidos paginados com filtros (Gerente ou administrador)' })
   @ApiResponse({ status: 200, description: 'Lista paginada de pedidos' })

@@ -51,6 +51,9 @@ export class Order {
   @JoinColumn({ name: 'id_usuario', referencedColumnName: 'cpf' })
   user: Person | null;
 
+  @Column({ name: 'cliente_nome_avulso', type: 'varchar', length: 150, nullable: true })
+  clienteNomeAvulso: string | null;
+
   @Index()
   @Column({ name: 'id_cupom', type: 'varchar', length: 50, nullable: true })
   idCupom: string | null;

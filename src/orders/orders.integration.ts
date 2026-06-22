@@ -551,7 +551,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
     await request(app.getHttpServer())
       .post('/api/orders/in-store')
       .send({
-        idFuncionario: testSellerCpf,
+        codigoVendedor: testSellerCpf,
         items: [{ variantSku: testSku, quantidade: 1 }],
       })
       .expect(401);
@@ -562,7 +562,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .post('/api/orders/in-store')
       .set('Authorization', `Bearer ${clientToken}`)
       .send({
-        idFuncionario: testSellerCpf,
+        codigoVendedor: testSellerCpf,
         items: [{ variantSku: testSku, quantidade: 1 }],
       })
       .expect(403);
@@ -573,21 +573,21 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .post('/api/orders/in-store')
       .set('Authorization', `Bearer ${employeeToken}`)
       .send({
-        idFuncionario: '99999999999', // CPF inexistente
+        codigoVendedor: '99999999999', // CPF inexistente
         items: [{ variantSku: testSku, quantidade: 1 }],
       })
       .expect(400);
   });
 
-  it('deve rejeitar registro se o funcionário informado não for vendedor (e.g. role caixa) (retorna 400) (US24 - Critério de Aceite)', async () => {
+  it('deve permitir que funcionário caixa registre venda presencial (US24 - Critério de Aceite)', async () => {
     await request(app.getHttpServer())
       .post('/api/orders/in-store')
       .set('Authorization', `Bearer ${employeeToken}`)
       .send({
-        idFuncionario: invalidSellerCpf,
+        codigoVendedor: invalidSellerCpf,
         items: [{ variantSku: testSku, quantidade: 1 }],
       })
-      .expect(400);
+      .expect(201);
   });
 
   it('deve registrar venda presencial com sucesso sem cliente associado (anônima) e com status paid (US24 - Critério de Aceite)', async () => {
@@ -595,7 +595,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .post('/api/orders/in-store')
       .set('Authorization', `Bearer ${employeeToken}`)
       .send({
-        idFuncionario: testSellerCpf,
+        codigoVendedor: testSellerCpf,
         items: [{ variantSku: testSku, quantidade: 2 }],
       })
       .expect(201);
@@ -628,7 +628,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .post('/api/orders/in-store')
       .set('Authorization', `Bearer ${employeeToken}`)
       .send({
-        idFuncionario: testSellerCpf,
+        codigoVendedor: testSellerCpf,
         idUsuario: testCpf,
         items: [{ variantSku: testSku, quantidade: 1 }],
       })
@@ -644,7 +644,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .post('/api/orders/in-store')
       .set('Authorization', `Bearer ${employeeToken}`)
       .send({
-        idFuncionario: testSellerCpf,
+        codigoVendedor: testSellerCpf,
         idUsuario: '11111111111',
         items: [{ variantSku: testSku, quantidade: 1 }],
       })
@@ -771,7 +771,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .post('/api/orders/in-store')
       .set('Authorization', `Bearer ${employeeToken}`)
       .send({
-        idFuncionario: testSellerCpf,
+        codigoVendedor: testSellerCpf,
         items: [{ variantSku: testSku, quantidade: 1 }],
       })
       .expect(400);
@@ -788,7 +788,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .post('/api/orders/in-store')
       .set('Authorization', `Bearer ${employeeToken}`)
       .send({
-        idFuncionario: testSellerCpf,
+        codigoVendedor: testSellerCpf,
         items: [{ variantSku: testSku, quantidade: 1 }],
       })
       .expect(400);
