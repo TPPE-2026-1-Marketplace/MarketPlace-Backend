@@ -127,6 +127,7 @@ export class EmployeesService {
       skip: (page - 1) * limit,
       take: limit,
       order: { cpf: 'ASC' },
+      relations: ['person'],
     });
 
     return {
