@@ -8,7 +8,6 @@ services:
       creds:
         fromRegistryCreds:
           name: github-container-registry
-    dockerCommand: npm run start:prod:migrate
     healthCheckPath: /api/health/ready
     envVars:
       - key: NODE_ENV
