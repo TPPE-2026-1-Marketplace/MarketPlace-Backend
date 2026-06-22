@@ -60,7 +60,7 @@ COPY --chown=nestjs:nodejs scripts/start-prod.sh ./scripts/start-prod.sh
 USER nestjs
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health/ready',(r)=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
 CMD ["sh", "./scripts/start-prod.sh"]
