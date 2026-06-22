@@ -639,8 +639,8 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
     expect(res.body.status).toBe('paid');
   });
 
-  it('deve retornar 404 se tentar associar cliente com CPF não existente no banco de dados (US24 - Critério de Aceite)', async () => {
-    await request(app.getHttpServer())
+  it('deve registrar venda presencial com sucesso mesmo que o CPF do cliente não esteja cadastrado (US24 - Critério de Aceite)', async () => {
+    const res = await request(app.getHttpServer())
       .post('/api/orders/in-store')
       .set('Authorization', `Bearer ${employeeToken}`)
       .send({
@@ -648,7 +648,11 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
         idUsuario: '11111111111',
         items: [{ variantSku: testSku, quantidade: 1 }],
       })
-      .expect(404);
+      .expect(201);
+
+    // CPF não cadastrado: idUsuario fica null, CPF fica em clienteCpfAvulso
+    expect(res.body.idUsuario).toBeNull();
+    expect(res.body.clienteCpfAvulso).toBe('11111111111');
   });
 
   // Novos Testes E2E para US18 (Shipping Tracking Code & Order Query)
