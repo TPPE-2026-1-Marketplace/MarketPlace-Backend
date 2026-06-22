@@ -17,12 +17,7 @@ export const CreateSalesGoalSchema = z.object({
     .int('O ano deve ser um número inteiro')
     .positive('O ano deve ser um número positivo'),
   valorMeta: z.number().nonnegative('O valor da meta não pode ser negativo'),
-  taxaComissaoBonus: z
-    .number()
-    .nonnegative('A comissão bônus não pode ser negativa')
-    .max(1, 'A taxa de comissão bônus não pode ser maior que 1 (100%)')
-    .optional()
-    .nullable(),
+  valorBonus: z.number().nonnegative('O valor bônus não pode ser negativo').optional().nullable(),
 });
 
 export class CreateSalesGoalDto extends createZodDto(CreateSalesGoalSchema) {}

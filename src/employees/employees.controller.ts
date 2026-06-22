@@ -66,6 +66,24 @@ export class EmployeesController {
     return this.employeesService.findOne(cpf);
   }
 
+  @Get(':cpf/commissions')
+  @Roles(Role.CAIXA, Role.VENDEDOR, Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiOperation({
+    summary:
+      'Obtém o relatório de comissões e vendas do funcionário no mês e ano (Administrador/Gerente/Caixa/Vendedor)',
+  })
+  @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
+  @ApiQuery({ name: 'mes', required: false, example: 5 })
+  @ApiQuery({ name: 'ano', required: false, example: 2026 })
+  @ApiResponse({ status: 200, description: 'Relatório de comissões retornado com sucesso' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
+  getCommissionReport(@Param('cpf') cpf: string, @Query() query: QueryRankingDto) {
+    const now = new Date();
+    const mes = query.mes ?? now.getMonth() + 1;
+    const ano = query.ano ?? now.getFullYear();
+    return this.employeesService.getCommissionReport(cpf, mes, ano);
+  }
+
   @Patch(':cpf')
   @ApiOperation({ summary: 'Atualiza dados do funcionário (Administrador)' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })

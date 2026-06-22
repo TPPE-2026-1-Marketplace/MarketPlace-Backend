@@ -251,26 +251,46 @@ export class EmployeesService {
     }
 
     let meta_batida = false;
-    let taxaComissaoBonus = 0;
+    let valorBonus = 0;
 
     if (goal) {
       meta_batida = total_vendas >= Number(goal.valorMeta);
       if (meta_batida) {
-        taxaComissaoBonus = Number(goal.taxaComissaoBonus ?? 0);
+        valorBonus = Number(goal.valorBonus ?? 0);
       }
     }
 
-    // 4. Calcular comissão: taxa base + bônus
+    // 4. Calcular comissão: taxa base sobre vendas + bônus fixo
     const taxaBase = Number(employee.taxa_comissao);
-    const taxaFinal = taxaBase + taxaComissaoBonus;
-
-    const comissaoRaw = total_vendas * taxaFinal;
-    const comissao = parseFloat(comissaoRaw.toFixed(2));
+    const comissaoBase = total_vendas * taxaBase;
+    const comissaoTotalRaw = comissaoBase + valorBonus;
+    const comissao = parseFloat(comissaoTotalRaw.toFixed(2));
 
     return {
       total_vendas,
       comissao,
       meta_batida,
+    };
+  }
+
+  /**
+   * Obtém o relatório detalhado de comissões e vendas do funcionário no mês e ano.
+   */
+  async getCommissionReport(cpf: string, mes: number, ano: number) {
+    const { total_vendas, comissao, meta_batida } = await this.calculateCommission(cpf, mes, ano);
+    const { pedidos } = await this.getSalesByEmployee(cpf, mes, ano);
+
+    const goal =
+      (await this.salesGoalsService.findGoalByPeriod(cpf, mes, ano)) ||
+      (await this.salesGoalsService.findGoalByPeriod(null, mes, ano));
+
+    return {
+      total_vendas,
+      comissao,
+      meta_batida,
+      pedidos,
+      meta_vendas: goal ? Number(goal.valorMeta) : 0,
+      valor_bonus: goal ? Number(goal.valorBonus ?? 0) : 0,
     };
   }
 
