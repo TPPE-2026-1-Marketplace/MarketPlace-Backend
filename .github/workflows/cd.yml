@@ -216,12 +216,11 @@ jobs:
           COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          state=success
-          description=Successful
-          if [ "$JOB_STATUS" != success ]; then
-            state=failure
-            description=Failed
-          fi
+          case "$JOB_STATUS" in
+            success)   state=success; description=Successful ;;
+            cancelled) state=error;   description=Cancelled ;;
+            *)         state=failure; description=Failed ;;
+          esac
           gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${COMMIT_SHA}" \
             -f state="$state" \
             -f target_url="${RENDER_SERVICE_URL}" \
