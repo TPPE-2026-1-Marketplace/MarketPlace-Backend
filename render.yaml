@@ -10,7 +10,6 @@ services:
           name: github-container-registry
     dockerCommand: sh -c "exec node dist/main.js"
     healthCheckPath: /api/health/ready
-    maxShutdownDelaySeconds: 30
     envVars:
       - key: NODE_ENV
         value: production
