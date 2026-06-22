@@ -11,15 +11,15 @@ PostgreSQL**. Projeto da disciplina **TPPE (UnB)**.
 
 ## Stack
 
-| Camada        | Tecnologia                                                    |
-| ------------- | ------------------------------------------------------------- |
-| Linguagem     | TypeScript 5.7                                                |
-| Framework     | NestJS 10                                                     |
-| ORM / Banco   | TypeORM 0.3 + PostgreSQL 16 (`SnakeNamingStrategy`)           |
-| Validação     | Zod via `nestjs-zod` (sem `class-validator`)                  |
-| Auth          | JWT (`@nestjs/jwt` + `passport-jwt`), bcrypt, roles           |
-| Docs          | `@nestjs/swagger` em `/docs`                                  |
-| Infra         | Docker Compose, pnpm 10, Node 22 Alpine                       |
+| Camada      | Tecnologia                                          |
+| ----------- | --------------------------------------------------- |
+| Linguagem   | TypeScript 5.7                                      |
+| Framework   | NestJS 10                                           |
+| ORM / Banco | TypeORM 0.3 + PostgreSQL 16 (`SnakeNamingStrategy`) |
+| Validação   | Zod via `nestjs-zod` (sem `class-validator`)        |
+| Auth        | JWT (`@nestjs/jwt` + `passport-jwt`), bcrypt, roles |
+| Docs        | `@nestjs/swagger` em `/docs`                        |
+| Infra       | Docker Compose, pnpm 10, Node 22 Alpine             |
 
 Integrações externas: **Melhor Envio** (frete), **InfinitePay** (pagamento),
 **ImgBB** (upload de imagens) — todas com mock/fallback para desenvolvimento.
@@ -72,18 +72,18 @@ Em desenvolvimento, `POSTGRES_HOST=postgres` (nome do serviço no compose).
 
 `make help` lista todos. Principais:
 
-| Comando                     | O que faz                                              |
-| --------------------------- | ------------------------------------------------------ |
-| `make dev-up` / `dev-down`  | Sobe / derruba o ambiente de desenvolvimento           |
-| `make dev-shell`            | Shell no container da API                              |
-| `make dev-logs-api`         | Logs apenas da API                                     |
-| `make dev-test path=<mod>`  | Testes unitários (filtrando por módulo)                |
-| `make dev-test-integration` | Testes de integração                                   |
-| `make dev-check`            | lint + typecheck + format:check (espelha o CI)         |
-| `make dev-reset`            | Derruba tudo e **apaga os volumes** (banco incluso)    |
-| `make db-shell`             | `psql` no Postgres                                     |
-| `make db-backup`            | Dump SQL do banco                                      |
-| `make demo`                 | Fluxo de compra ponta-a-ponta                          |
+| Comando                     | O que faz                                           |
+| --------------------------- | --------------------------------------------------- |
+| `make dev-up` / `dev-down`  | Sobe / derruba o ambiente de desenvolvimento        |
+| `make dev-shell`            | Shell no container da API                           |
+| `make dev-logs-api`         | Logs apenas da API                                  |
+| `make dev-test path=<mod>`  | Testes unitários (filtrando por módulo)             |
+| `make dev-test-integration` | Testes de integração                                |
+| `make dev-check`            | lint + typecheck + format:check (espelha o CI)      |
+| `make dev-reset`            | Derruba tudo e **apaga os volumes** (banco incluso) |
+| `make db-shell`             | `psql` no Postgres                                  |
+| `make db-backup`            | Dump SQL do banco                                   |
+| `make demo`                 | Fluxo de compra ponta-a-ponta                       |
 
 > Testes e comandos pnpm sempre rodam **dentro do container** (o `node_modules` é
 > um volume Docker). Use os alvos `dev-*` do `Makefile`.
@@ -206,10 +206,14 @@ use `make dev-test` (sem coverage).
 
 ## CI/CD
 
-`.github/workflows/ci.yml` roda em PR/push para `dev` e `main`: `lint` (+ typecheck
-+ format:check), `build`, `test-unit` (rápido, sem banco) e `coverage` (`pnpm test:cov`
-= unit + integração com Postgres de service, falhando se a cobertura cair abaixo do
-`coverageThreshold`; publica o relatório como artefato).
+`.github/workflows/ci.yml` roda em PR/push para `dev` e `main`: `lint` (typecheck +
+format:check), `build`, `test-unit` (rápido, sem banco) e `coverage`
+(`pnpm test:cov` = unit + integração com Postgres de service, falhando se a
+cobertura cair abaixo do `coverageThreshold`; publica o relatório como artefato).
+
+Após os checks da `main` passarem, o workflow `CD` publica uma imagem imutável no
+GHCR, envia o digest exato ao Render, aguarda o deploy ficar `live` e executa um
+smoke test em `/api/health/ready`. Veja [`docs/cd.md`](./docs/cd.md).
 
 ---
 

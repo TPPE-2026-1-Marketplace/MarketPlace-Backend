@@ -2,41 +2,57 @@ name: CD
 
 on:
   workflow_run:
-    workflows: ["CI"]
+    workflows: ['CI']
     types: [completed]
     branches: [main]
 
 permissions:
   contents: read
-  packages: write
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 concurrency:
-  group: cd-${{ github.ref }}
-  cancel-in-progress: true
+  group: production
+  cancel-in-progress: false
 
 jobs:
   gate:
     name: CI Gate
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    timeout-minutes: 2
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     steps:
-      - name: CI passed 
-        run: echo "CI workflow concluído com sucesso — prosseguindo com CD."
+      - name: Confirm trusted CI result
+        run: echo "CI da main concluido com sucesso para ${{ github.event.workflow_run.head_sha }}."
 
-  docker:
-    name: Docker Build & Push
+  publish:
+    name: Build & Publish Image
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: gate
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_url: ${{ steps.image.outputs.repository }}@${{ steps.build.outputs.digest }}
+      image_tags: ${{ steps.meta.outputs.tags }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout validated commit
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Define lowercase image repository
+        id: image
+        shell: bash
+        run: echo "repository=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -52,37 +68,138 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ steps.image.outputs.repository }}
           tags: |
-            # Tag "latest" para todo push na main
-            type=raw,value=latest,enable={{is_default_branch}}
-            # Tag com SHA curto para rastreabilidade exata
-            type=sha,prefix=sha-,format=short
+            type=raw,value=latest
+            type=raw,value=sha-${{ github.event.workflow_run.head_sha }}
 
-      - name: Build and push Docker image
+      - name: Build and push production image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           target: runner
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
-          sbom: false
+          sbom: true
 
-      - name: Print image summary
+      - name: Publish image summary
+        env:
+          IMAGE_REPOSITORY: ${{ steps.image.outputs.repository }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          echo "## Docker Image Published" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Registry:** \`${{ env.REGISTRY }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Image:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Tags" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** \`${{ github.event.workflow_run.head_sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Triggered by:** CI workflow #${{ github.event.workflow_run.run_number }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Production image"
+            echo
+            echo "- Image: \`${IMAGE_REPOSITORY}@${IMAGE_DIGEST}\`"
+            echo "- Commit: \`${COMMIT_SHA}\`"
+            echo
+            echo '```text'
+            echo "${IMAGE_TAGS}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: publish
+    environment:
+      name: production
+      url: ${{ vars.RENDER_SERVICE_URL }}
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+      RENDER_SERVICE_URL: ${{ vars.RENDER_SERVICE_URL }}
+      IMAGE_URL: ${{ needs.publish.outputs.image_url }}
+
+    steps:
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable in RENDER_API_KEY RENDER_SERVICE_ID RENDER_SERVICE_URL IMAGE_URL; do
+            if [ -z "${!variable:-}" ]; then
+              echo "::error::Required deployment configuration is missing: ${variable}"
+              exit 1
+            fi
+          done
+
+      - name: Trigger immutable image deploy
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$({
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --url "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys" \
+              --header "Authorization: Bearer ${RENDER_API_KEY}" \
+              --header "Content-Type: application/json" \
+              --data "$(jq --null-input --arg imageUrl "$IMAGE_URL" '{imageUrl: $imageUrl}')"
+          })"
+          deploy_id="$(jq --raw-output --exit-status '.id' <<< "$response")"
+          echo "deploy_id=${deploy_id}" >> "$GITHUB_OUTPUT"
+          echo "Render deploy started: ${deploy_id}"
+
+      - name: Wait for Render deployment
+        shell: bash
+        env:
+          DEPLOY_ID: ${{ steps.deploy.outputs.deploy_id }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 100); do
+            response="$({
+              curl --fail-with-body --silent --show-error \
+                --url "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${DEPLOY_ID}" \
+                --header "Authorization: Bearer ${RENDER_API_KEY}"
+            })"
+            status="$(jq --raw-output --exit-status '.status' <<< "$response")"
+            echo "Attempt ${attempt}/100: ${status}"
+            case "$status" in
+              live)
+                exit 0
+                ;;
+              build_failed | update_failed | pre_deploy_failed | canceled | deactivated)
+                echo "::error::Render deployment ended with status: ${status}"
+                exit 1
+                ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Timed out waiting for Render deployment"
+          exit 1
+
+      - name: Run production smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          health_url="${RENDER_SERVICE_URL%/}/api/health/ready"
+          curl --fail-with-body --silent --show-error \
+            --retry 5 --retry-delay 5 --retry-all-errors \
+            --max-time 20 "$health_url"
+          echo
+          echo "Production readiness check passed: ${health_url}"
+
+      - name: Publish deployment summary
+        if: always()
+        env:
+          DEPLOY_ID: ${{ steps.deploy.outputs.deploy_id }}
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          {
+            echo "## Render deployment"
+            echo
+            echo "- Result: **${{ job.status }}**"
+            echo "- Deploy ID: \`${DEPLOY_ID:-not-created}\`"
+            echo "- Commit: \`${COMMIT_SHA}\`"
+            echo "- Image: \`${IMAGE_URL}\`"
+            echo "- Service: ${RENDER_SERVICE_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -42,7 +42,7 @@ export class SalesGoalsService {
       mes: dto.mes,
       ano: dto.ano,
       valorMeta: dto.valorMeta,
-      taxaComissaoBonus: dto.taxaComissaoBonus ?? null,
+      valorBonus: dto.valorBonus ?? null,
     });
 
     return await this.salesGoalsRepository.save(goal);
@@ -155,7 +155,7 @@ export class SalesGoalsService {
     if (dto.mes !== undefined) goal.mes = dto.mes;
     if (dto.ano !== undefined) goal.ano = dto.ano;
     if (dto.valorMeta !== undefined) goal.valorMeta = dto.valorMeta;
-    if (dto.taxaComissaoBonus !== undefined) goal.taxaComissaoBonus = dto.taxaComissaoBonus;
+    if (dto.valorBonus !== undefined) goal.valorBonus = dto.valorBonus;
   }
 
   /**
