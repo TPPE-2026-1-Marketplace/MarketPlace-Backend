@@ -490,6 +490,22 @@ export class OrdersService {
   }
 
   /**
+   * Atualiza o status de um pedido manualmente (Gerente/Admin).
+   */
+  async updateStatus(idPedido: number, newStatus: OrderStatus): Promise<Order> {
+    const order = await this.ordersRepository.findOne({
+      where: { idPedido },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Pedido com ID ${idPedido} não foi encontrado.`);
+    }
+
+    order.status = newStatus;
+    return await this.ordersRepository.save(order);
+  }
+
+  /**
    * Consulta os detalhes de um pedido.
    * Apenas o dono do pedido (cliente) ou funcionários autorizados têm acesso.
    */
