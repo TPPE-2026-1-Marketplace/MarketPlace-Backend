@@ -51,8 +51,8 @@ export class EmployeesService {
         where: { cpf: dto.cpf },
       });
 
-      // Gera uma senha temporária aleatória de 8 caracteres e faz o hash
-      const senhaTemporaria = crypto.randomBytes(TEMP_PASSWORD_BYTES).toString('hex');
+      // Usa a senha fornecida ou gera uma temporária de 8 caracteres
+      const senhaTemporaria = dto.senha || crypto.randomBytes(TEMP_PASSWORD_BYTES).toString('hex');
       const salt = await bcrypt.genSalt(BCRYPT_ROUNDS);
       const hashedSenha = await bcrypt.hash(senhaTemporaria, salt);
 
@@ -172,6 +172,11 @@ export class EmployeesService {
       if (dto.email !== undefined) person.email = dto.email;
       if (dto.telefone !== undefined) person.telefone = dto.telefone ?? null;
 
+      if (dto.senha !== undefined && dto.senha !== '') {
+        const salt = await bcrypt.genSalt(BCRYPT_ROUNDS);
+        person.senha = await bcrypt.hash(dto.senha, salt);
+      }
+
       if (dto.ativo !== undefined) employee.ativo = dto.ativo;
       if (dto.role_perfil !== undefined) employee.role_perfil = dto.role_perfil;
       if (dto.taxa_comissao !== undefined) employee.taxa_comissao = dto.taxa_comissao;
@@ -246,26 +251,46 @@ export class EmployeesService {
     }
 
     let meta_batida = false;
-    let taxaComissaoBonus = 0;
+    let valorBonus = 0;
 
     if (goal) {
       meta_batida = total_vendas >= Number(goal.valorMeta);
       if (meta_batida) {
-        taxaComissaoBonus = Number(goal.taxaComissaoBonus ?? 0);
+        valorBonus = Number(goal.valorBonus ?? 0);
       }
     }
 
-    // 4. Calcular comissão: taxa base + bônus
+    // 4. Calcular comissão: taxa base + bônus (valorBonus atua como uma taxa)
     const taxaBase = Number(employee.taxa_comissao);
-    const taxaFinal = taxaBase + taxaComissaoBonus;
-
-    const comissaoRaw = total_vendas * taxaFinal;
-    const comissao = parseFloat(comissaoRaw.toFixed(2));
+    const taxaFinal = taxaBase + valorBonus;
+    const comissaoTotalRaw = total_vendas * taxaFinal;
+    const comissao = parseFloat(comissaoTotalRaw.toFixed(2));
 
     return {
       total_vendas,
       comissao,
       meta_batida,
+    };
+  }
+
+  /**
+   * Obtém o relatório detalhado de comissões e vendas do funcionário no mês e ano.
+   */
+  async getCommissionReport(cpf: string, mes: number, ano: number) {
+    const { total_vendas, comissao, meta_batida } = await this.calculateCommission(cpf, mes, ano);
+    const { pedidos } = await this.getSalesByEmployee(cpf, mes, ano);
+
+    const goal =
+      (await this.salesGoalsService.findGoalByPeriod(cpf, mes, ano)) ||
+      (await this.salesGoalsService.findGoalByPeriod(null, mes, ano));
+
+    return {
+      total_vendas,
+      comissao,
+      meta_batida,
+      pedidos,
+      meta_vendas: goal ? Number(goal.valorMeta) : 0,
+      valor_bonus: goal ? Number(goal.valorBonus ?? 0) : 0,
     };
   }
 

@@ -252,7 +252,7 @@ describe('EmployeesCommission Integration Tests', () => {
       mes: 5,
       ano: 2026,
       valorMeta: 1000.0,
-      taxaComissaoBonus: 0.015,
+      valorBonus: 0.015,
     });
 
     const result = await employeesService.calculateCommission(vendedorCpf, 5, 2026);
@@ -281,7 +281,7 @@ describe('EmployeesCommission Integration Tests', () => {
       mes: 5,
       ano: 2026,
       valorMeta: 1200.0,
-      taxaComissaoBonus: 0.02,
+      valorBonus: 0.02,
     });
 
     const result = await employeesService.calculateCommission(vendedorCpf, 5, 2026);

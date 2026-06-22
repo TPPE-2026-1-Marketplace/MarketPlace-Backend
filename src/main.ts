@@ -22,6 +22,12 @@ async function bootstrap() {
   // como o swagger está por fora, basta acessar apenas pelo prefixo /docs
   app.setGlobalPrefix('api');
 
+  // Libera o frontend (Vite) a consumir a API a partir de outra origem.
+  app.enableCors({
+    origin: ['http://localhost:3000', 'http://localhost:5173', 'https://seu-frontend.onrender.com'],
+    credentials: true,
+  });
+
   const swaggerConfig = new DocumentBuilder()
     .setTitle('API DK Fashion')
     .setDescription('Documentação da API com Swagger')

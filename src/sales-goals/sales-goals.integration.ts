@@ -155,7 +155,7 @@ describe('SalesGoalsModule Integration - Schema and API', () => {
         mes: 5,
         ano: 2026,
         valorMeta: 50000.0,
-        taxaComissaoBonus: 0.015,
+        valorBonus: 0.015,
       })
       .expect(201);
 
@@ -164,7 +164,7 @@ describe('SalesGoalsModule Integration - Schema and API', () => {
     expect(res.body.mes).toBe(5);
     expect(res.body.ano).toBe(2026);
     expect(Number(res.body.valorMeta)).toBe(50000.0);
-    expect(Number(res.body.taxaComissaoBonus)).toBe(0.015);
+    expect(Number(res.body.valorBonus)).toBe(0.015);
   });
 
   it('deve cadastrar meta coletiva com sucesso (CPF nulo) por um Administrador (retorna 201)', async () => {
@@ -330,12 +330,12 @@ describe('SalesGoalsModule Integration - Schema and API', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         valorMeta: 60000.0,
-        taxaComissaoBonus: 0.02,
+        valorBonus: 0.02,
       })
       .expect(200);
 
     expect(Number(res.body.valorMeta)).toBe(60000.0);
-    expect(Number(res.body.taxaComissaoBonus)).toBe(0.02);
+    expect(Number(res.body.valorBonus)).toBe(0.02);
   });
 
   it('deve rejeitar atualização para funcionário inexistente', async () => {

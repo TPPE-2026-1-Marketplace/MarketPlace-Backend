@@ -19,7 +19,7 @@ import { Employee } from '../../employees/entities/employee.entity';
 @Entity()
 @Check(`"mes" BETWEEN 1 AND 12`)
 @Check(`"valor_meta" >= 0`)
-@Check(`"taxa_comissao_bonus" IS NULL OR "taxa_comissao_bonus" >= 0`)
+@Check(`"valor_bonus" IS NULL OR "valor_bonus" >= 0`)
 @Unique(['cpfFuncionario', 'mes', 'ano'])
 export class SalesGoal {
   @PrimaryGeneratedColumn({ name: 'id_goal' })
@@ -41,6 +41,6 @@ export class SalesGoal {
   @Column({ name: 'valor_meta', type: 'decimal', precision: 12, scale: 2 })
   valorMeta: number;
 
-  @Column({ name: 'taxa_comissao_bonus', type: 'decimal', precision: 5, scale: 4, nullable: true })
-  taxaComissaoBonus: number | null;
+  @Column({ name: 'valor_bonus', type: 'decimal', precision: 5, scale: 4, nullable: true })
+  valorBonus: number | null;
 }
