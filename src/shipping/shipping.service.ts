@@ -43,6 +43,7 @@ export class ShippingService {
   private readonly baseUrl: string;
   private readonly userAgent: string;
   private readonly serviceId: number | null;
+  private readonly fallbackEnabled: boolean;
 
   constructor(
     private readonly httpService: HttpService,
@@ -62,6 +63,8 @@ export class ShippingService {
 
     const sid = process.env.MELHOR_ENVIO_SERVICE_ID;
     this.serviceId = sid ? parseInt(sid, 10) : null;
+
+    this.fallbackEnabled = this.resolveFallbackEnabled();
 
     this.logger.log(
       `CEP origem: ${this.cepOrigem || '(não configurado)'}. Service ID: ${this.serviceId ?? '(mais barato)'}.`,
@@ -109,13 +112,37 @@ export class ShippingService {
         throw error;
       }
       if (error instanceof ServiceUnavailableException) {
-        this.logger.warn(
-          `Melhor Envio indisponível para CEP ${cepDestino} — frete calculado via fallback`,
+        if (this.fallbackEnabled) {
+          this.logger.warn(
+            `Melhor Envio indisponível para CEP ${cepDestino} — frete calculado via fallback`,
+          );
+          return this.calculateByRange(cepDestino);
+        }
+        throw new ServiceUnavailableException(
+          'Não foi possível calcular frete pela API real dos Correios/Melhor Envio. ' +
+            'Verifique as credenciais e tente novamente.',
         );
-        return this.calculateByRange(cepDestino);
       }
       throw error;
     }
+  }
+
+  private resolveFallbackEnabled(): boolean {
+    if (process.env.SHIPPING_ENABLE_FALLBACK === 'true') {
+      return true;
+    }
+
+    const hasOauthCredentials = Boolean(
+      process.env.MELHOR_ENVIO_CLIENT_ID &&
+      process.env.MELHOR_ENVIO_CLIENT_SECRET &&
+      process.env.MELHOR_ENVIO_REFRESH_TOKEN,
+    );
+    const hasStaticToken = Boolean(process.env.MELHOR_ENVIO_ACCESS_TOKEN);
+    const hasApiConfig = Boolean(
+      this.cepOrigem && this.baseUrl && this.userAgent && (hasOauthCredentials || hasStaticToken),
+    );
+
+    return !hasApiConfig;
   }
 
   // ─── Fallback por faixa de CEP (Plano B / Issue #77) ──────────────────
@@ -144,7 +171,12 @@ export class ShippingService {
       );
     }
 
-    const accessToken = await this.tokenManager.getValidAccessToken();
+    let accessToken: string;
+    try {
+      accessToken = await this.tokenManager.getValidAccessToken();
+    } catch (error) {
+      this.handleMelhorEnvioError(error);
+    }
 
     let cotacoes: IMelhorEnvioCotacao[];
     try {

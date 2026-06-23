@@ -80,6 +80,11 @@ describe('ShippingService', () => {
     'MELHOR_ENVIO_BASE_URL',
     'MELHOR_ENVIO_USER_AGENT',
     'MELHOR_ENVIO_SERVICE_ID',
+    'MELHOR_ENVIO_CLIENT_ID',
+    'MELHOR_ENVIO_CLIENT_SECRET',
+    'MELHOR_ENVIO_REFRESH_TOKEN',
+    'MELHOR_ENVIO_ACCESS_TOKEN',
+    'SHIPPING_ENABLE_FALLBACK',
   ];
   const originalEnv: Record<string, string | undefined> = {};
 
@@ -114,7 +119,12 @@ describe('ShippingService', () => {
     process.env.LOJA_CEP_ORIGEM = '70002900';
     process.env.MELHOR_ENVIO_BASE_URL = 'https://sandbox.melhorenvio.com.br';
     process.env.MELHOR_ENVIO_USER_AGENT = 'Test (test@local)';
+    process.env.MELHOR_ENVIO_ACCESS_TOKEN = 'test-access-token';
+    delete process.env.MELHOR_ENVIO_CLIENT_ID;
+    delete process.env.MELHOR_ENVIO_CLIENT_SECRET;
+    delete process.env.MELHOR_ENVIO_REFRESH_TOKEN;
     delete process.env.MELHOR_ENVIO_SERVICE_ID;
+    delete process.env.SHIPPING_ENABLE_FALLBACK;
   });
 
   describe('inicialização', () => {
@@ -185,19 +195,52 @@ describe('ShippingService', () => {
       expect(result).toEqual({ valor: 50.5, prazo_dias: 2 });
     });
 
-    it('cai no fallback quando todas as cotações têm error', async () => {
+    it('não usa fallback quando todas as cotações têm error e a API real está configurada', async () => {
       const todasComErro: IMelhorEnvioCotacao[] = [
         { ...COTACOES_OK[3], id: 1, name: 'PAC', error: 'CEP de destino inválido' },
       ];
       httpServiceMock.post.mockReturnValue(of(makeResponse(todasComErro)));
 
-      const result = await service.calculate({ cep_destino: '01310100' } as CalculateShippingDto);
-
-      // 01310100 (Sudeste): fallback R$ 22, 5 dias
-      expect(result).toEqual({ valor: 22.0, prazo_dias: 5 });
+      await expect(
+        service.calculate({ cep_destino: '01310100' } as CalculateShippingDto),
+      ).rejects.toThrow(ServiceUnavailableException);
     });
 
-    it('cai no fallback quando dá timeout', async () => {
+    it('não usa fallback quando dá timeout e a API real está configurada', async () => {
+      httpServiceMock.post.mockReturnValue(
+        throwError(() => Object.assign(new AxiosError('timeout'), { code: 'ECONNABORTED' })),
+      );
+
+      await expect(
+        service.calculate({ cep_destino: '01310100' } as CalculateShippingDto),
+      ).rejects.toThrow(ServiceUnavailableException);
+    });
+
+    it('401 invalida o cache do token e não usa fallback quando a API real está configurada', async () => {
+      httpServiceMock.post.mockReturnValue(
+        throwError(() => makeAxiosError(401, { message: 'Unauthenticated.' })),
+      );
+
+      await expect(
+        service.calculate({ cep_destino: '90010000' } as CalculateShippingDto),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(tokenManagerMock.invalidate).toHaveBeenCalled();
+    });
+
+    it('não usa fallback quando a obtenção do token falha e a API real está configurada', async () => {
+      tokenManagerMock.getValidAccessToken.mockRejectedValueOnce(
+        new ServiceUnavailableException('Falha ao renovar token'),
+      );
+
+      await expect(
+        service.calculate({ cep_destino: '01310100' } as CalculateShippingDto),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(httpServiceMock.post).not.toHaveBeenCalled();
+    });
+
+    it('usa fallback somente quando SHIPPING_ENABLE_FALLBACK=true', async () => {
+      process.env.SHIPPING_ENABLE_FALLBACK = 'true';
+      service = await build();
       httpServiceMock.post.mockReturnValue(
         throwError(() => Object.assign(new AxiosError('timeout'), { code: 'ECONNABORTED' })),
       );
@@ -205,18 +248,6 @@ describe('ShippingService', () => {
       const result = await service.calculate({ cep_destino: '01310100' } as CalculateShippingDto);
 
       expect(result).toEqual({ valor: 22.0, prazo_dias: 5 });
-    });
-
-    it('401 invalida o cache do token e cai no fallback', async () => {
-      httpServiceMock.post.mockReturnValue(
-        throwError(() => makeAxiosError(401, { message: 'Unauthenticated.' })),
-      );
-
-      const result = await service.calculate({ cep_destino: '90010000' } as CalculateShippingDto);
-
-      // 90010000 (Sul): R$ 25, 6 dias
-      expect(result).toEqual({ valor: 25.0, prazo_dias: 6 });
-      expect(tokenManagerMock.invalidate).toHaveBeenCalled();
     });
 
     it('422 propaga como BadRequestException (não cai no fallback)', async () => {
