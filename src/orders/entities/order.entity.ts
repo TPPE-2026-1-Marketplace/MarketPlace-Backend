@@ -54,6 +54,9 @@ export class Order {
   @Column({ name: 'cliente_nome_avulso', type: 'varchar', length: 150, nullable: true })
   clienteNomeAvulso: string | null;
 
+  @Column({ name: 'cliente_cpf_avulso', type: 'varchar', length: 11, nullable: true })
+  clienteCpfAvulso: string | null;
+
   @Index()
   @Column({ name: 'id_cupom', type: 'varchar', length: 50, nullable: true })
   idCupom: string | null;

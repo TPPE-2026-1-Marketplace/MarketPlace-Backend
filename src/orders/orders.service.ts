@@ -290,13 +290,20 @@ export class OrdersService {
         );
       }
 
-      // 2. Se o cliente foi informado, validar se existe no banco (retorna 404 se ausente)
+      // 2. Se o CPF do cliente foi informado, verificar se já está cadastrado
+      let clienteCpfAvulso: string | null = null;
+      let idUsuarioFinal: string | null = null;
+
       if (dto.idUsuario) {
         const clientExists = await manager.findOne(Person, {
           where: { cpf: dto.idUsuario },
         });
-        if (!clientExists) {
-          throw new NotFoundException(`Cliente com CPF "${dto.idUsuario}" não encontrado.`);
+        if (clientExists) {
+          // Cliente cadastrado → vincular via FK
+          idUsuarioFinal = dto.idUsuario;
+        } else {
+          // Cliente não cadastrado → salvar CPF no campo avulso (sem FK)
+          clienteCpfAvulso = dto.idUsuario;
         }
       }
 
@@ -410,7 +417,8 @@ export class OrdersService {
 
       // 9. Criar o pedido (Venda Presencial)
       const order = ordersRepo.create({
-        idUsuario: dto.idUsuario ?? null,
+        idUsuario: idUsuarioFinal,
+        clienteCpfAvulso,
         clienteNomeAvulso: dto.clienteNomeAvulso ?? null,
         idCupom: dto.couponNumero ? dto.couponNumero.toUpperCase().trim() : null,
         subtotal,
@@ -478,6 +486,22 @@ export class OrdersService {
     order.codigoRastreamento = dto.codigo_rastreamento;
     order.status = OrderStatus.SHIPPED;
 
+    return await this.ordersRepository.save(order);
+  }
+
+  /**
+   * Atualiza o status de um pedido manualmente (Gerente/Admin).
+   */
+  async updateStatus(idPedido: number, newStatus: OrderStatus): Promise<Order> {
+    const order = await this.ordersRepository.findOne({
+      where: { idPedido },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Pedido com ID ${idPedido} não foi encontrado.`);
+    }
+
+    order.status = newStatus;
     return await this.ordersRepository.save(order);
   }
 
