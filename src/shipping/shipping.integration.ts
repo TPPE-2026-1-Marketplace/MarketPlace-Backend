@@ -72,6 +72,7 @@ describe('ShippingModule integration', () => {
     'MELHOR_ENVIO_CLIENT_SECRET',
     'MELHOR_ENVIO_REFRESH_TOKEN',
     'MELHOR_ENVIO_SERVICE_ID',
+    'SHIPPING_ENABLE_FALLBACK',
   ];
   const originalEnv: Record<string, string | undefined> = {};
 
@@ -87,6 +88,9 @@ describe('ShippingModule integration', () => {
     delete process.env.MELHOR_ENVIO_CLIENT_SECRET;
     delete process.env.MELHOR_ENVIO_REFRESH_TOKEN;
     delete process.env.MELHOR_ENVIO_SERVICE_ID;
+    // Habilita o fallback por faixa de CEP para o teste de timeout cair no Plano B
+    // (com a API configurada, o fallback só liga via esta flag — ver shipping.service.spec).
+    process.env.SHIPPING_ENABLE_FALLBACK = 'true';
 
     httpServiceMock = { post: jest.fn() };
 
