@@ -43,6 +43,22 @@ export class PaymentsController {
     return this.paymentsService.create(user, dto);
   }
 
+  @Post('guest')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Registra pagamento de pedido de convidado (sem autenticação)',
+    description:
+      'Usado para pagar pedidos criados via POST /api/orders/guest. ' +
+      'Apenas pedidos sem usuário vinculado (idUsuario = null) são aceitos.',
+  })
+  @ApiResponse({ status: 201, description: 'Pagamento registrado com sucesso' })
+  @ApiResponse({ status: 400, description: 'Pedido não é de convidado ou não está pendente' })
+  @ApiResponse({ status: 404, description: 'Pedido não encontrado' })
+  @ApiResponse({ status: 409, description: 'Pedido já pago' })
+  createGuest(@Body() dto: CreatePaymentDto) {
+    return this.paymentsService.createGuest(dto);
+  }
+
   @Get('order/:idPedido')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -93,10 +109,7 @@ export class PaymentsController {
   @ApiResponse({ status: 200, description: 'Webhook processado com sucesso' })
   @ApiResponse({ status: 401, description: 'Segredo do webhook ausente ou inválido' })
   @ApiResponse({ status: 404, description: 'Pagamento associado não encontrado' })
-  handleWebhook(
-    @Headers('x-webhook-secret') secret: string,
-    @Body() dto: InfinitePayWebhookDto,
-  ) {
+  handleWebhook(@Headers('x-webhook-secret') secret: string, @Body() dto: InfinitePayWebhookDto) {
     return this.paymentsService.handleWebhook(dto, secret);
   }
 }

@@ -33,7 +33,12 @@ export class InfinitePayProvider implements IPaymentGateway {
     const handle = process.env.INFINITEPAY_HANDLE || 'pabloserrapxx';
     const redirectUrl = process.env.INFINITEPAY_REDIRECT_URL || 'https://seusite.com/obrigado';
 
-    const payload = {
+    const payload: {
+      handle: string;
+      redirect_url: string;
+      order_nsu: string;
+      items: InfinitePayItem[];
+    } = {
       handle,
       redirect_url: redirectUrl,
       order_nsu: String(order?.idPedido ?? Date.now()),
@@ -44,7 +49,7 @@ export class InfinitePayProvider implements IPaymentGateway {
       this.logger.log(
         `Enviando requisição de checkout para InfinitePay. NSU: ${payload.order_nsu}`,
       );
-      const response = await axios.post(this.endpoint, payload);
+      const response = await axios.post(this.endpoint, payload, { timeout: 15000 });
       const data = response.data;
 
       return {

@@ -48,10 +48,10 @@ export class PaymentsService {
       const paymentsRepo = manager.getRepository(Payment);
       const ordersRepo = manager.getRepository(Order);
 
-      // 1. Validar se o pedido existe (carregar items para envio ao gateway)
+      // 1. Validar se o pedido existe (carregar items e user para envio ao gateway)
       const order = await ordersRepo.findOne({
         where: { idPedido: dto.idPedido },
-        relations: ['items'],
+        relations: ['items', 'user'],
       });
 
       if (!order) {
@@ -103,6 +103,73 @@ export class PaymentsService {
 
       // 6. Se aprovado imediatamente (ex.: gateway mock), marca o pedido como pago
       //    e dá baixa no estoque agora (a baixa não ocorre mais na criação do pedido).
+      if (chargeResult.status === PaymentStatus.PAID) {
+        await this.confirmPaidOrder(manager, order);
+      }
+
+      return savedPayment;
+    });
+  }
+
+  /**
+   * Registra pagamento para pedido de convidado (sem autenticação).
+   * Apenas valida que o pedido existe, está pendente e foi criado como convidado
+   * (idUsuario = null). Não verifica ownership — o convidado não tem token JWT.
+   */
+  async createGuest(dto: CreatePaymentDto): Promise<Payment> {
+    return await this.dataSource.transaction(async (manager) => {
+      const paymentsRepo = manager.getRepository(Payment);
+      const ordersRepo = manager.getRepository(Order);
+
+      const order = await ordersRepo.findOne({
+        where: { idPedido: dto.idPedido },
+        relations: ['items', 'user'],
+      });
+
+      if (!order) {
+        throw new NotFoundException(`Pedido com ID ${dto.idPedido} não encontrado.`);
+      }
+
+      // Apenas pedidos de convidado (sem idUsuario) podem usar este endpoint
+      if (order.idUsuario !== null) {
+        throw new BadRequestException(
+          'Este pedido pertence a um usuário registrado. Faça login para pagar.',
+        );
+      }
+
+      if (order.status === OrderStatus.PAID) {
+        throw new ConflictException('O pedido já está pago.');
+      }
+
+      if (order.status !== OrderStatus.PENDING) {
+        throw new BadRequestException(
+          `O pedido não está pendente. Status atual: "${order.status}".`,
+        );
+      }
+
+      const chargeResult = await this.paymentGateway.charge(
+        Number(order.valorTotal),
+        dto.captureMethod,
+        dto.installments,
+        order,
+      );
+
+      const payment = paymentsRepo.create({
+        idPedido: order.idPedido,
+        amount: Number(order.valorTotal),
+        paidAmount: chargeResult.status === PaymentStatus.PAID ? Number(order.valorTotal) : null,
+        captureMethod: dto.captureMethod,
+        installments: dto.installments,
+        status: chargeResult.status,
+        orderNsu: chargeResult.orderNsu,
+        transactionNsu: chargeResult.transactionNsu,
+        invoiceSlug: chargeResult.invoiceSlug,
+        receiptUrl: chargeResult.receiptUrl ?? null,
+        redirectUrl: chargeResult.redirectUrl ?? null,
+      });
+
+      const savedPayment = await paymentsRepo.save(payment);
+
       if (chargeResult.status === PaymentStatus.PAID) {
         await this.confirmPaidOrder(manager, order);
       }

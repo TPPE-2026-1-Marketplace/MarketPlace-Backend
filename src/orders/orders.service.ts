@@ -167,6 +167,13 @@ export class OrdersService {
         tipoRetirada: dto.tipoRetirada,
         codigoVerificacaoRetirada,
         status: OrderStatus.PENDING,
+        enderecoCep: dto.enderecoCep ?? null,
+        enderecoRua: dto.enderecoRua ?? null,
+        enderecoNumero: dto.enderecoNumero ?? null,
+        enderecoComplemento: dto.enderecoComplemento ?? null,
+        enderecoBairro: dto.enderecoBairro ?? null,
+        enderecoCidade: dto.enderecoCidade ?? null,
+        enderecoEstado: dto.enderecoEstado ?? null,
       });
 
       // Criar os itens de pedido correspondentes (cascade save)
@@ -185,6 +192,135 @@ export class OrdersService {
       const savedOrder = await ordersRepo.save(order);
 
       return savedOrder;
+    });
+  }
+
+  /**
+   * Cria um pedido como convidado (sem conta/autenticação).
+   * O cliente informa nome, e-mail e CPF, que são salvos nos campos avulso.
+   * Não há validação de existência do cliente no banco.
+   */
+  // eslint-disable-next-line max-lines-per-function
+  async createGuest(dto: CreateOrderDto): Promise<Order> {
+    if (!dto.clienteCpfAvulso) {
+      throw new BadRequestException('CPF é obrigatório para pedidos de convidado.');
+    }
+    if (!dto.clienteEmailAvulso) {
+      throw new BadRequestException('E-mail é obrigatório para pedidos de convidado.');
+    }
+
+    // eslint-disable-next-line complexity, max-lines-per-function
+    return await this.dataSource.transaction(async (manager) => {
+      const ordersRepo = manager.getRepository(Order);
+      const orderItemsRepo = manager.getRepository(OrderItem);
+      const productVariantsRepo = manager.getRepository(ProductVariant);
+      const stockRepo = manager.getRepository(Stock);
+
+      // 1. Coletar SKUs
+      const skus = dto.items.map((item) => item.variantSku);
+
+      // 2. Buscar variantes
+      const variants = await productVariantsRepo.find({
+        where: { codigoSku: In(skus) },
+        relations: ['product'],
+      });
+      const variantsMap = new Map(variants.map((v) => [v.codigoSku, v]));
+
+      // 3. Validar variantes
+      for (const item of dto.items) {
+        const variant = variantsMap.get(item.variantSku);
+        if (!variant) {
+          throw new NotFoundException(`Variante com SKU "${item.variantSku}" não encontrada.`);
+        }
+        if (!variant.ativo) {
+          throw new BadRequestException(`Variante "${item.variantSku}" está inativa.`);
+        }
+      }
+
+      // 4. Verificar estoque
+      const stocks = await stockRepo.find({ where: { codigoSku: In(skus) } });
+      const stocksMap = new Map(stocks.map((s) => [s.codigoSku, s]));
+      for (const item of dto.items) {
+        const stock = stocksMap.get(item.variantSku);
+        const disponivel =
+          dto.tipoRetirada === TipoRetirada.LOJA
+            ? (stock?.qtdLojaFisica ?? 0)
+            : (stock?.qtdOnline ?? 0);
+        if (disponivel < item.quantidade) {
+          throw new ConflictException(
+            `Estoque insuficiente para "${item.variantSku}". Disponível: ${disponivel}`,
+          );
+        }
+      }
+
+      // 5. Calcular subtotal
+      let subtotal = 0;
+      for (const item of dto.items) {
+        const variant = variantsMap.get(item.variantSku)!;
+        subtotal += Number(variant.precoVariante) * item.quantidade;
+      }
+
+      // 6. Aplicar cupom
+      let valorDesconto = 0;
+      if (dto.couponNumero) {
+        valorDesconto = await this.applyCouponTransactional(
+          manager,
+          dto.couponNumero,
+          variants,
+          subtotal,
+        );
+      }
+
+      subtotal = parseFloat(subtotal.toFixed(2));
+      let valorFrete = 0;
+      let codigoVerificacaoRetirada: string | null = null;
+
+      if (dto.tipoRetirada === TipoRetirada.LOJA) {
+        valorFrete = 0;
+        codigoVerificacaoRetirada = Math.floor(
+          VERIFICATION_CODE_MIN + Math.random() * VERIFICATION_CODE_RANGE,
+        ).toString();
+      } else {
+        valorFrete = parseFloat(dto.valorFrete.toFixed(2));
+      }
+
+      valorDesconto = parseFloat(valorDesconto.toFixed(2));
+      const valorTotalRaw = subtotal + valorFrete - valorDesconto;
+      const valorTotal = parseFloat(Math.max(0, valorTotalRaw).toFixed(2));
+
+      // 7. Criar pedido com dados do convidado
+      const order = ordersRepo.create({
+        idUsuario: null,
+        clienteNomeAvulso: dto.clienteNomeAvulso ?? null,
+        clienteCpfAvulso: dto.clienteCpfAvulso,
+        clienteEmailAvulso: dto.clienteEmailAvulso,
+        clienteTelefone: dto.clienteTelefone ?? null,
+        idCupom: dto.couponNumero ? dto.couponNumero.toUpperCase().trim() : null,
+        subtotal,
+        valorFrete,
+        valorTotal,
+        tipoRetirada: dto.tipoRetirada,
+        codigoVerificacaoRetirada,
+        status: OrderStatus.PENDING,
+        enderecoCep: dto.enderecoCep ?? null,
+        enderecoRua: dto.enderecoRua ?? null,
+        enderecoNumero: dto.enderecoNumero ?? null,
+        enderecoComplemento: dto.enderecoComplemento ?? null,
+        enderecoBairro: dto.enderecoBairro ?? null,
+        enderecoCidade: dto.enderecoCidade ?? null,
+        enderecoEstado: dto.enderecoEstado ?? null,
+      });
+
+      order.items = dto.items.map((item) => {
+        const variant = variantsMap.get(item.variantSku)!;
+        return orderItemsRepo.create({
+          idVariante: item.variantSku,
+          quantidade: item.quantidade,
+          precoUnitario: Number(variant.precoVariante),
+        });
+      });
+
+      return await ordersRepo.save(order);
     });
   }
 
