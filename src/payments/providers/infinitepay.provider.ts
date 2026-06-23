@@ -13,6 +13,13 @@ interface InfinitePayItem {
   quantity: number;
 }
 
+/** Dados do comprador para pré-preencher o checkout hospedado da InfinitePay. */
+interface InfinitePayCustomer {
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
 /**
  * InfinitePayProvider
  *
@@ -38,12 +45,20 @@ export class InfinitePayProvider implements IPaymentGateway {
       redirect_url: string;
       order_nsu: string;
       items: InfinitePayItem[];
+      customer?: InfinitePayCustomer;
     } = {
       handle,
       redirect_url: redirectUrl,
       order_nsu: String(order?.idPedido ?? Date.now()),
       items: this.buildLineItems(amount, order),
     };
+
+    // Pré-preenche nome/e-mail/telefone do comprador no checkout hospedado
+    // (recurso "Dados pré-preenchidos" da InfinitePay) — menos digitação/abandono.
+    const customer = this.buildCustomer(order);
+    if (customer) {
+      payload.customer = customer;
+    }
 
     try {
       this.logger.log(
@@ -89,6 +104,26 @@ export class InfinitePayProvider implements IPaymentGateway {
         quantity: 1,
       },
     ];
+  }
+
+  /**
+   * Monta o comprador a partir do pedido: usa a relação `user` (cliente logado)
+   * e cai para os campos avulsos (compra como convidado). Retorna `undefined`
+   * quando não há nenhum dado útil para pré-preencher.
+   */
+  private buildCustomer(order?: Order): InfinitePayCustomer | undefined {
+    if (!order) return undefined;
+
+    const name = order.user?.nome ?? order.clienteNomeAvulso ?? undefined;
+    const email = order.user?.email ?? order.clienteEmailAvulso ?? undefined;
+    const phone = order.user?.telefone ?? order.clienteTelefone ?? undefined;
+
+    const customer: InfinitePayCustomer = {};
+    if (name) customer.name = name;
+    if (email) customer.email = email;
+    if (phone) customer.phone = phone;
+
+    return Object.keys(customer).length > 0 ? customer : undefined;
   }
 
   private resolvePaymentLink(data: { payment_link?: string; url?: string; id?: string }): string {
