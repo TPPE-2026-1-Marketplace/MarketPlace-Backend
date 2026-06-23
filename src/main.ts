@@ -21,10 +21,14 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // Libera o frontend (Vite) a consumir a API a partir de outra origem.
-  // app.enableCors({
-  //   origin: ['http://localhost:3000', 'http://localhost:5173', 'https://seu-frontend.onrender.com'],
-  //   credentials: true,
-  // });
+  app.enableCors({
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://marketplace-frontend-2ego.onrender.com',
+    ],
+    credentials: true,
+  });
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('API DK Fashion')
