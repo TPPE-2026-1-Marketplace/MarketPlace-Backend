@@ -60,7 +60,6 @@ export class OrdersService {
       const orderItemsRepo = manager.getRepository(OrderItem);
       const productVariantsRepo = manager.getRepository(ProductVariant);
       const stockRepo = manager.getRepository(Stock);
-      const stockLogRepo = manager.getRepository(StockLog);
 
       // 1. Validar se o cliente existe (retorna 404 se não existir)
       const clientExists = await manager.findOne(Person, {
@@ -96,75 +95,26 @@ export class OrdersService {
         }
       }
 
-      // 5. Bloquear pessimistamente e carregar as entidades de estoque para os SKUs envolvidos
-      // Isso impede condições de corrida e garante concorrência atômica segura no banco.
+      // 5. Verificar a DISPONIBILIDADE de estoque (sem decrementar). A baixa de
+      // estoque acontece apenas na confirmação do pagamento (ver PaymentsService),
+      // para não reservar/perder estoque de pedidos que nunca chegam a ser pagos.
       const stocks = await stockRepo.find({
         where: { codigoSku: In(skus) },
-        lock: { mode: 'pessimistic_write' },
       });
       const stocksMap = new Map(stocks.map((s) => [s.codigoSku, s]));
 
-      // 6. Verificar estoque e decrementar baseado no tipo de retirada
-      const stockUpdates: Stock[] = [];
-      const stockLogTemplates: Array<{
-        codigoSku: string;
-        quantidadeMovimentada: number;
-        valorAnteriorOnline: number;
-        valorNovoOnline: number;
-        valorAnteriorLoja: number;
-        valorNovoLoja: number;
-        origem: string;
-        motivo: string;
-      }> = [];
-
       for (const item of dto.items) {
-        let stock = stocksMap.get(item.variantSku);
-        if (!stock) {
-          // Se não existir registro de estoque ainda para o SKU, inicializamos zerado
-          stock = stockRepo.create({
-            codigoSku: item.variantSku,
-            qtdOnline: 0,
-            qtdLojaFisica: 0,
-          });
+        const stock = stocksMap.get(item.variantSku);
+        const disponivel =
+          dto.tipoRetirada === TipoRetirada.LOJA
+            ? (stock?.qtdLojaFisica ?? 0)
+            : (stock?.qtdOnline ?? 0);
+        if (disponivel < item.quantidade) {
+          throw new ConflictException(
+            `Estoque insuficiente para a variante "${item.variantSku}". Disponível: ${disponivel}, Solicitado: ${item.quantidade}`,
+          );
         }
-
-        const anteriorOnline = stock.qtdOnline;
-        const anteriorLoja = stock.qtdLojaFisica;
-
-        if (dto.tipoRetirada === TipoRetirada.LOJA) {
-          // Retirada em Loja Física -> Decrementar estoque da Loja Física
-          if (stock.qtdLojaFisica < item.quantidade) {
-            throw new ConflictException(
-              `Estoque físico insuficiente para a variante "${item.variantSku}". Disponível: ${stock.qtdLojaFisica}, Solicitado: ${item.quantidade}`,
-            );
-          }
-          stock.qtdLojaFisica -= item.quantidade;
-        } else {
-          // Entrega em domicílio -> Decrementar estoque Online
-          if (stock.qtdOnline < item.quantidade) {
-            throw new ConflictException(
-              `Estoque online insuficiente para a variante "${item.variantSku}". Disponível: ${stock.qtdOnline}, Solicitado: ${item.quantidade}`,
-            );
-          }
-          stock.qtdOnline -= item.quantidade;
-        }
-
-        stockUpdates.push(stock);
-
-        stockLogTemplates.push({
-          codigoSku: item.variantSku,
-          quantidadeMovimentada: item.quantidade,
-          valorAnteriorOnline: anteriorOnline,
-          valorNovoOnline: stock.qtdOnline,
-          valorAnteriorLoja: anteriorLoja,
-          valorNovoLoja: stock.qtdLojaFisica,
-          origem: 'checkout_online',
-          motivo: `Venda pelo pedido de ${dto.tipoRetirada === TipoRetirada.LOJA ? 'retirada física' : 'entrega'}`,
-        });
       }
-
-      // Persistir as atualizações de estoque decrementado
-      await stockRepo.save(stockUpdates);
 
       // 7. Calcular subtotal somando precoVariante * quantidade
       let subtotal = 0;
@@ -229,19 +179,10 @@ export class OrdersService {
         });
       });
 
-      // Gravar pedido e obter ID persistido
+      // Gravar pedido e obter ID persistido. O estoque NÃO é baixado aqui — a
+      // baixa (e o respectivo StockLog) ocorre na confirmação do pagamento,
+      // em PaymentsService.
       const savedOrder = await ordersRepo.save(order);
-
-      // 10. Criar logs de movimentação de estoque referenciando o idPedido criado
-      const stockLogs = stockLogTemplates.map((log) => {
-        return stockLogRepo.create({
-          ...log,
-          tipoMovimentacao: MovementType.VENDA,
-          idPedido: savedOrder.idPedido,
-        });
-      });
-
-      await stockLogRepo.save(stockLogs);
 
       return savedOrder;
     });

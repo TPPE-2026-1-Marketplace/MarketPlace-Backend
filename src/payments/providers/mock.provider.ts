@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { IPaymentGateway, TransactionResult } from './payment-gateway.interface';
 import { Order } from '../../orders/entities/order.entity';
-import { CaptureMethod, PaymentStatus } from '../entities/payment.entity';
+import { CaptureMethod, Payment, PaymentStatus } from '../entities/payment.entity';
 
 /**
  * MockPaymentProvider
@@ -27,5 +27,10 @@ export class MockPaymentProvider implements IPaymentGateway {
       receiptUrl: `https://receipt.mock.gateway.com/${timestamp}`,
       redirectUrl: `https://checkout.mock.gateway.com/${timestamp}`,
     };
+  }
+
+  /** No mock, qualquer pagamento iniciado é considerado pago na reconciliação. */
+  async getStatus(_payment: Payment): Promise<PaymentStatus> {
+    return PaymentStatus.PAID;
   }
 }

@@ -31,6 +31,9 @@ export const EnvSchema = z
     PAYMENT_GATEWAY_PROVIDER: z.enum(['mock', 'infinitepay']).optional(),
     INFINITEPAY_HANDLE: z.string().optional(),
     INFINITEPAY_REDIRECT_URL: z.string().optional(),
+    // Segredo compartilhado para validar o webhook de pagamento.
+    // Opcional em dev/test; obrigatório em produção (validado em PaymentsService).
+    INFINITEPAY_WEBHOOK_SECRET: z.string().optional(),
 
     // Imagens (ImgBB)
     IMGBB_API_KEY: z.string().optional(),
