@@ -91,8 +91,13 @@ describe('PaymentsService', () => {
   describe('create', () => {
     const dto = { idPedido: 1, captureMethod: CaptureMethod.PIX, installments: 1 };
 
-    it('aprova imediatamente e marca o pedido como PAID quando o gateway retorna PAID', async () => {
+    it('aprova imediatamente, marca o pedido como PAID e dá baixa no estoque quando o gateway retorna PAID', async () => {
       txOrdersRepo.findOne.mockResolvedValue(buildOrder());
+      txStockRepo.findOne.mockResolvedValue({
+        codigoSku: 'SKU-1',
+        qtdOnline: 10,
+        qtdLojaFisica: 10,
+      });
       gateway.charge.mockResolvedValue({
         status: PaymentStatus.PAID,
         orderNsu: 'NSU-1',
@@ -107,6 +112,8 @@ describe('PaymentsService', () => {
       expect(txOrdersRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ status: OrderStatus.PAID }),
       );
+      // Baixa de estoque ocorre na confirmação do pagamento (10 - 2 = 8).
+      expect(txStockRepo.save).toHaveBeenCalledWith(expect.objectContaining({ qtdOnline: 8 }));
     });
 
     it('mantém pedido pendente quando o gateway retorna PENDING (checkout hospedado)', async () => {
@@ -191,11 +198,16 @@ describe('PaymentsService', () => {
       expect(txPaymentsRepo.save).not.toHaveBeenCalled();
     });
 
-    it('confirma pagamento e converte paid_amount de centavos para reais', async () => {
+    it('confirma pagamento, converte paid_amount de centavos e dá baixa no estoque', async () => {
       txPaymentsRepo.findOne.mockResolvedValue({
         status: PaymentStatus.PENDING,
         amount: 100,
         order: buildOrder(),
+      });
+      txStockRepo.findOne.mockResolvedValue({
+        codigoSku: 'SKU-1',
+        qtdOnline: 10,
+        qtdLojaFisica: 10,
       });
       await service.handleWebhook({
         order_nsu: 'NSU-1',
@@ -209,15 +221,16 @@ describe('PaymentsService', () => {
       expect(txOrdersRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ status: OrderStatus.PAID }),
       );
+      // Aprovação dá baixa no estoque (10 - 2 = 8).
+      expect(txStockRepo.save).toHaveBeenCalledWith(expect.objectContaining({ qtdOnline: 8 }));
     });
 
-    it('falha: cancela pedido e estorna o estoque ao receber status failed', async () => {
+    it('falha: cancela o pedido SEM estornar estoque ao receber status failed', async () => {
       txPaymentsRepo.findOne.mockResolvedValue({
         status: PaymentStatus.PENDING,
         amount: 100,
         order: buildOrder(),
       });
-      txStockRepo.findOne.mockResolvedValue({ codigoSku: 'SKU-1', qtdOnline: 0, qtdLojaFisica: 0 });
 
       await service.handleWebhook({ order_nsu: 'NSU-1', status: 'failed' } as never);
 
@@ -227,8 +240,9 @@ describe('PaymentsService', () => {
       expect(txOrdersRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ status: OrderStatus.CANCELLED }),
       );
-      expect(txStockRepo.save).toHaveBeenCalledWith(expect.objectContaining({ qtdOnline: 2 }));
-      expect(txStockLogRepo.save).toHaveBeenCalled();
+      // O estoque só é debitado na confirmação do pagamento; numa falha não há o que estornar.
+      expect(txStockRepo.save).not.toHaveBeenCalled();
+      expect(txStockLogRepo.save).not.toHaveBeenCalled();
     });
   });
 });
