@@ -68,6 +68,20 @@ export class OrdersController {
     return this.ordersService.create(user.sub, dto);
   }
 
+  @Post('guest')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Cria um novo pedido como convidado (sem autenticação)' })
+  @ApiResponse({ status: 201, description: 'Pedido criado com sucesso' })
+  @ApiResponse({
+    status: 400,
+    description: 'Dados inválidos, cupom inválido ou CPF/e-mail ausente',
+  })
+  @ApiResponse({ status: 404, description: 'Variante de produto não encontrada' })
+  @ApiResponse({ status: 409, description: 'Estoque insuficiente' })
+  createGuest(@Body() dto: CreateOrderDto) {
+    return this.ordersService.createGuest(dto);
+  }
+
   @Post('in-store')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CAIXA, Role.GERENTE, Role.ADMINISTRADOR)

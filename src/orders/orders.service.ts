@@ -60,7 +60,6 @@ export class OrdersService {
       const orderItemsRepo = manager.getRepository(OrderItem);
       const productVariantsRepo = manager.getRepository(ProductVariant);
       const stockRepo = manager.getRepository(Stock);
-      const stockLogRepo = manager.getRepository(StockLog);
 
       // 1. Validar se o cliente existe (retorna 404 se não existir)
       const clientExists = await manager.findOne(Person, {
@@ -96,75 +95,26 @@ export class OrdersService {
         }
       }
 
-      // 5. Bloquear pessimistamente e carregar as entidades de estoque para os SKUs envolvidos
-      // Isso impede condições de corrida e garante concorrência atômica segura no banco.
+      // 5. Verificar a DISPONIBILIDADE de estoque (sem decrementar). A baixa de
+      // estoque acontece apenas na confirmação do pagamento (ver PaymentsService),
+      // para não reservar/perder estoque de pedidos que nunca chegam a ser pagos.
       const stocks = await stockRepo.find({
         where: { codigoSku: In(skus) },
-        lock: { mode: 'pessimistic_write' },
       });
       const stocksMap = new Map(stocks.map((s) => [s.codigoSku, s]));
 
-      // 6. Verificar estoque e decrementar baseado no tipo de retirada
-      const stockUpdates: Stock[] = [];
-      const stockLogTemplates: Array<{
-        codigoSku: string;
-        quantidadeMovimentada: number;
-        valorAnteriorOnline: number;
-        valorNovoOnline: number;
-        valorAnteriorLoja: number;
-        valorNovoLoja: number;
-        origem: string;
-        motivo: string;
-      }> = [];
-
       for (const item of dto.items) {
-        let stock = stocksMap.get(item.variantSku);
-        if (!stock) {
-          // Se não existir registro de estoque ainda para o SKU, inicializamos zerado
-          stock = stockRepo.create({
-            codigoSku: item.variantSku,
-            qtdOnline: 0,
-            qtdLojaFisica: 0,
-          });
+        const stock = stocksMap.get(item.variantSku);
+        const disponivel =
+          dto.tipoRetirada === TipoRetirada.LOJA
+            ? (stock?.qtdLojaFisica ?? 0)
+            : (stock?.qtdOnline ?? 0);
+        if (disponivel < item.quantidade) {
+          throw new ConflictException(
+            `Estoque insuficiente para a variante "${item.variantSku}". Disponível: ${disponivel}, Solicitado: ${item.quantidade}`,
+          );
         }
-
-        const anteriorOnline = stock.qtdOnline;
-        const anteriorLoja = stock.qtdLojaFisica;
-
-        if (dto.tipoRetirada === TipoRetirada.LOJA) {
-          // Retirada em Loja Física -> Decrementar estoque da Loja Física
-          if (stock.qtdLojaFisica < item.quantidade) {
-            throw new ConflictException(
-              `Estoque físico insuficiente para a variante "${item.variantSku}". Disponível: ${stock.qtdLojaFisica}, Solicitado: ${item.quantidade}`,
-            );
-          }
-          stock.qtdLojaFisica -= item.quantidade;
-        } else {
-          // Entrega em domicílio -> Decrementar estoque Online
-          if (stock.qtdOnline < item.quantidade) {
-            throw new ConflictException(
-              `Estoque online insuficiente para a variante "${item.variantSku}". Disponível: ${stock.qtdOnline}, Solicitado: ${item.quantidade}`,
-            );
-          }
-          stock.qtdOnline -= item.quantidade;
-        }
-
-        stockUpdates.push(stock);
-
-        stockLogTemplates.push({
-          codigoSku: item.variantSku,
-          quantidadeMovimentada: item.quantidade,
-          valorAnteriorOnline: anteriorOnline,
-          valorNovoOnline: stock.qtdOnline,
-          valorAnteriorLoja: anteriorLoja,
-          valorNovoLoja: stock.qtdLojaFisica,
-          origem: 'checkout_online',
-          motivo: `Venda pelo pedido de ${dto.tipoRetirada === TipoRetirada.LOJA ? 'retirada física' : 'entrega'}`,
-        });
       }
-
-      // Persistir as atualizações de estoque decrementado
-      await stockRepo.save(stockUpdates);
 
       // 7. Calcular subtotal somando precoVariante * quantidade
       let subtotal = 0;
@@ -217,6 +167,13 @@ export class OrdersService {
         tipoRetirada: dto.tipoRetirada,
         codigoVerificacaoRetirada,
         status: OrderStatus.PENDING,
+        enderecoCep: dto.enderecoCep ?? null,
+        enderecoRua: dto.enderecoRua ?? null,
+        enderecoNumero: dto.enderecoNumero ?? null,
+        enderecoComplemento: dto.enderecoComplemento ?? null,
+        enderecoBairro: dto.enderecoBairro ?? null,
+        enderecoCidade: dto.enderecoCidade ?? null,
+        enderecoEstado: dto.enderecoEstado ?? null,
       });
 
       // Criar os itens de pedido correspondentes (cascade save)
@@ -229,21 +186,141 @@ export class OrdersService {
         });
       });
 
-      // Gravar pedido e obter ID persistido
+      // Gravar pedido e obter ID persistido. O estoque NÃO é baixado aqui — a
+      // baixa (e o respectivo StockLog) ocorre na confirmação do pagamento,
+      // em PaymentsService.
       const savedOrder = await ordersRepo.save(order);
 
-      // 10. Criar logs de movimentação de estoque referenciando o idPedido criado
-      const stockLogs = stockLogTemplates.map((log) => {
-        return stockLogRepo.create({
-          ...log,
-          tipoMovimentacao: MovementType.VENDA,
-          idPedido: savedOrder.idPedido,
+      return savedOrder;
+    });
+  }
+
+  /**
+   * Cria um pedido como convidado (sem conta/autenticação).
+   * O cliente informa nome, e-mail e CPF, que são salvos nos campos avulso.
+   * Não há validação de existência do cliente no banco.
+   */
+  // eslint-disable-next-line max-lines-per-function
+  async createGuest(dto: CreateOrderDto): Promise<Order> {
+    if (!dto.clienteCpfAvulso) {
+      throw new BadRequestException('CPF é obrigatório para pedidos de convidado.');
+    }
+    if (!dto.clienteEmailAvulso) {
+      throw new BadRequestException('E-mail é obrigatório para pedidos de convidado.');
+    }
+
+    // eslint-disable-next-line complexity, max-lines-per-function
+    return await this.dataSource.transaction(async (manager) => {
+      const ordersRepo = manager.getRepository(Order);
+      const orderItemsRepo = manager.getRepository(OrderItem);
+      const productVariantsRepo = manager.getRepository(ProductVariant);
+      const stockRepo = manager.getRepository(Stock);
+
+      // 1. Coletar SKUs
+      const skus = dto.items.map((item) => item.variantSku);
+
+      // 2. Buscar variantes
+      const variants = await productVariantsRepo.find({
+        where: { codigoSku: In(skus) },
+        relations: ['product'],
+      });
+      const variantsMap = new Map(variants.map((v) => [v.codigoSku, v]));
+
+      // 3. Validar variantes
+      for (const item of dto.items) {
+        const variant = variantsMap.get(item.variantSku);
+        if (!variant) {
+          throw new NotFoundException(`Variante com SKU "${item.variantSku}" não encontrada.`);
+        }
+        if (!variant.ativo) {
+          throw new BadRequestException(`Variante "${item.variantSku}" está inativa.`);
+        }
+      }
+
+      // 4. Verificar estoque
+      const stocks = await stockRepo.find({ where: { codigoSku: In(skus) } });
+      const stocksMap = new Map(stocks.map((s) => [s.codigoSku, s]));
+      for (const item of dto.items) {
+        const stock = stocksMap.get(item.variantSku);
+        const disponivel =
+          dto.tipoRetirada === TipoRetirada.LOJA
+            ? (stock?.qtdLojaFisica ?? 0)
+            : (stock?.qtdOnline ?? 0);
+        if (disponivel < item.quantidade) {
+          throw new ConflictException(
+            `Estoque insuficiente para "${item.variantSku}". Disponível: ${disponivel}`,
+          );
+        }
+      }
+
+      // 5. Calcular subtotal
+      let subtotal = 0;
+      for (const item of dto.items) {
+        const variant = variantsMap.get(item.variantSku)!;
+        subtotal += Number(variant.precoVariante) * item.quantidade;
+      }
+
+      // 6. Aplicar cupom
+      let valorDesconto = 0;
+      if (dto.couponNumero) {
+        valorDesconto = await this.applyCouponTransactional(
+          manager,
+          dto.couponNumero,
+          variants,
+          subtotal,
+        );
+      }
+
+      subtotal = parseFloat(subtotal.toFixed(2));
+      let valorFrete = 0;
+      let codigoVerificacaoRetirada: string | null = null;
+
+      if (dto.tipoRetirada === TipoRetirada.LOJA) {
+        valorFrete = 0;
+        codigoVerificacaoRetirada = Math.floor(
+          VERIFICATION_CODE_MIN + Math.random() * VERIFICATION_CODE_RANGE,
+        ).toString();
+      } else {
+        valorFrete = parseFloat(dto.valorFrete.toFixed(2));
+      }
+
+      valorDesconto = parseFloat(valorDesconto.toFixed(2));
+      const valorTotalRaw = subtotal + valorFrete - valorDesconto;
+      const valorTotal = parseFloat(Math.max(0, valorTotalRaw).toFixed(2));
+
+      // 7. Criar pedido com dados do convidado
+      const order = ordersRepo.create({
+        idUsuario: null,
+        clienteNomeAvulso: dto.clienteNomeAvulso ?? null,
+        clienteCpfAvulso: dto.clienteCpfAvulso,
+        clienteEmailAvulso: dto.clienteEmailAvulso,
+        clienteTelefone: dto.clienteTelefone ?? null,
+        idCupom: dto.couponNumero ? dto.couponNumero.toUpperCase().trim() : null,
+        subtotal,
+        valorFrete,
+        valorTotal,
+        tipoRetirada: dto.tipoRetirada,
+        codigoVerificacaoRetirada,
+        status: OrderStatus.PENDING,
+        enderecoCep: dto.enderecoCep ?? null,
+        enderecoRua: dto.enderecoRua ?? null,
+        enderecoNumero: dto.enderecoNumero ?? null,
+        enderecoComplemento: dto.enderecoComplemento ?? null,
+        enderecoBairro: dto.enderecoBairro ?? null,
+        enderecoCidade: dto.enderecoCidade ?? null,
+        enderecoEstado: dto.enderecoEstado ?? null,
+      });
+
+      order.items = dto.items.map((item) => {
+        const variant = variantsMap.get(item.variantSku)!;
+        return orderItemsRepo.create({
+          idVariante: item.variantSku,
+          quantidade: item.quantidade,
+          precoUnitario: Number(variant.precoVariante),
         });
       });
 
-      await stockLogRepo.save(stockLogs);
-
-      return savedOrder;
+      return await ordersRepo.save(order);
     });
   }
 

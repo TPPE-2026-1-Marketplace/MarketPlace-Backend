@@ -1,10 +1,15 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
+  ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
@@ -22,6 +27,8 @@ import { Order, OrderStatus, TipoRetirada } from '../orders/entities/order.entit
 
 @Injectable()
 export class PaymentsService {
+  private readonly logger = new Logger(PaymentsService.name);
+
   constructor(
     @InjectRepository(Payment)
     private readonly paymentsRepository: Repository<Payment>,
@@ -41,10 +48,10 @@ export class PaymentsService {
       const paymentsRepo = manager.getRepository(Payment);
       const ordersRepo = manager.getRepository(Order);
 
-      // 1. Validar se o pedido existe (carregar items para envio ao gateway)
+      // 1. Validar se o pedido existe (carregar items e user para envio ao gateway)
       const order = await ordersRepo.findOne({
         where: { idPedido: dto.idPedido },
-        relations: ['items'],
+        relations: ['items', 'user'],
       });
 
       if (!order) {
@@ -94,10 +101,77 @@ export class PaymentsService {
 
       const savedPayment = await paymentsRepo.save(payment);
 
-      // 6. Atualizar status do pedido para paid (se o pagamento foi aprovado imediatamente)
+      // 6. Se aprovado imediatamente (ex.: gateway mock), marca o pedido como pago
+      //    e dá baixa no estoque agora (a baixa não ocorre mais na criação do pedido).
       if (chargeResult.status === PaymentStatus.PAID) {
-        order.status = OrderStatus.PAID;
-        await ordersRepo.save(order);
+        await this.confirmPaidOrder(manager, order);
+      }
+
+      return savedPayment;
+    });
+  }
+
+  /**
+   * Registra pagamento para pedido de convidado (sem autenticação).
+   * Apenas valida que o pedido existe, está pendente e foi criado como convidado
+   * (idUsuario = null). Não verifica ownership — o convidado não tem token JWT.
+   */
+  async createGuest(dto: CreatePaymentDto): Promise<Payment> {
+    return await this.dataSource.transaction(async (manager) => {
+      const paymentsRepo = manager.getRepository(Payment);
+      const ordersRepo = manager.getRepository(Order);
+
+      const order = await ordersRepo.findOne({
+        where: { idPedido: dto.idPedido },
+        relations: ['items', 'user'],
+      });
+
+      if (!order) {
+        throw new NotFoundException(`Pedido com ID ${dto.idPedido} não encontrado.`);
+      }
+
+      // Apenas pedidos de convidado (sem idUsuario) podem usar este endpoint
+      if (order.idUsuario !== null) {
+        throw new BadRequestException(
+          'Este pedido pertence a um usuário registrado. Faça login para pagar.',
+        );
+      }
+
+      if (order.status === OrderStatus.PAID) {
+        throw new ConflictException('O pedido já está pago.');
+      }
+
+      if (order.status !== OrderStatus.PENDING) {
+        throw new BadRequestException(
+          `O pedido não está pendente. Status atual: "${order.status}".`,
+        );
+      }
+
+      const chargeResult = await this.paymentGateway.charge(
+        Number(order.valorTotal),
+        dto.captureMethod,
+        dto.installments,
+        order,
+      );
+
+      const payment = paymentsRepo.create({
+        idPedido: order.idPedido,
+        amount: Number(order.valorTotal),
+        paidAmount: chargeResult.status === PaymentStatus.PAID ? Number(order.valorTotal) : null,
+        captureMethod: dto.captureMethod,
+        installments: dto.installments,
+        status: chargeResult.status,
+        orderNsu: chargeResult.orderNsu,
+        transactionNsu: chargeResult.transactionNsu,
+        invoiceSlug: chargeResult.invoiceSlug,
+        receiptUrl: chargeResult.receiptUrl ?? null,
+        redirectUrl: chargeResult.redirectUrl ?? null,
+      });
+
+      const savedPayment = await paymentsRepo.save(payment);
+
+      if (chargeResult.status === PaymentStatus.PAID) {
+        await this.confirmPaidOrder(manager, order);
       }
 
       return savedPayment;
@@ -146,7 +220,10 @@ export class PaymentsService {
    * Se o pagamento for aprovado, atualiza a fatura e o status do pedido para 'paid'.
    * Se o pagamento falhar ou for cancelado, cancela o pedido e estorna os itens de volta ao estoque.
    */
-  async handleWebhook(dto: InfinitePayWebhookDto): Promise<void> {
+  async handleWebhook(dto: InfinitePayWebhookDto, providedSecret?: string): Promise<void> {
+    // 0. Autenticidade: só processa notificações que comprovadamente vêm do gateway.
+    this.assertWebhookAuthentic(providedSecret);
+
     await this.dataSource.transaction(async (manager) => {
       const paymentsRepo = manager.getRepository(Payment);
       const ordersRepo = manager.getRepository(Order);
@@ -163,35 +240,34 @@ export class PaymentsService {
         );
       }
 
-      // 2. Idempotência: Se já estiver aprovado/pago, ignorar notificações duplicadas
-      if (payment.status === PaymentStatus.PAID) {
-        return;
-      }
-
       const order = payment.order;
 
+      // 2. Idempotência + tolerância a notificações fora de ordem:
+      //    - aprovação só age se ainda não estiver paga (e tem precedência);
+      //    - falha só age enquanto o pagamento estiver pendente (não desfaz um pago).
       if (this.isApprovedNotification(dto)) {
-        // 3. Atualizar pagamento e pedido para PAID
+        if (payment.status === PaymentStatus.PAID) {
+          return;
+        }
         payment.status = PaymentStatus.PAID;
         payment.paidAmount = dto.paid_amount
           ? parseFloat((dto.paid_amount / CENTS_PER_CURRENCY_UNIT).toFixed(2))
           : Number(payment.amount);
         if (dto.transaction_nsu) payment.transactionNsu = dto.transaction_nsu;
         if (dto.receipt_url) payment.receiptUrl = dto.receipt_url;
-
         await paymentsRepo.save(payment);
 
-        order.status = OrderStatus.PAID;
-        await ordersRepo.save(order);
+        await this.confirmPaidOrder(manager, order);
       } else if (this.isFailedNotification(dto)) {
-        // 4. Se falhar ou expirar, marcar como falho, cancelar pedido e estornar o estoque
+        if (payment.status !== PaymentStatus.PENDING) {
+          return;
+        }
         payment.status = PaymentStatus.FAILED;
         await paymentsRepo.save(payment);
 
         order.status = OrderStatus.CANCELLED;
         await ordersRepo.save(order);
-
-        await this.revertOrderStock(manager, order);
+        // Sem estorno de estoque: a baixa só ocorre na confirmação do pagamento.
       }
     });
   }
@@ -209,8 +285,66 @@ export class PaymentsService {
     return dto.status === 'failed' || dto.status === 'cancelled' || dto.status === 'expired';
   }
 
-  /** Estorna ao estoque (de forma pessimista) os itens de um pedido cancelado e registra o log. */
-  private async revertOrderStock(manager: EntityManager, order: Order): Promise<void> {
+  /**
+   * Reconcilia manualmente o pagamento de um pedido com o gateway (Gerente/Admin).
+   * Útil para pedidos presos em "pending" cujo webhook não chegou: consulta o
+   * status atual no gateway (quando suportado) e aplica o desfecho.
+   */
+  async reconcile(idPedido: number): Promise<Payment> {
+    return await this.dataSource.transaction(async (manager) => {
+      const paymentsRepo = manager.getRepository(Payment);
+
+      const payment = await paymentsRepo.findOne({
+        where: { idPedido },
+        relations: ['order', 'order.items'],
+        order: { createdAt: 'DESC' },
+      });
+
+      if (!payment) {
+        throw new NotFoundException(`Nenhum pagamento registrado para o pedido ${idPedido}.`);
+      }
+
+      // Já resolvido (pago/falho/estornado): nada a reconciliar.
+      if (payment.status !== PaymentStatus.PENDING) {
+        return payment;
+      }
+
+      if (!this.paymentGateway.getStatus) {
+        throw new ServiceUnavailableException(
+          'O provedor de pagamento atual não suporta reconciliação automática.',
+        );
+      }
+
+      const status = await this.paymentGateway.getStatus(payment);
+
+      if (status === PaymentStatus.PAID) {
+        payment.status = PaymentStatus.PAID;
+        payment.paidAmount = Number(payment.amount);
+        await paymentsRepo.save(payment);
+        await this.confirmPaidOrder(manager, payment.order);
+      } else if (status === PaymentStatus.FAILED) {
+        payment.status = PaymentStatus.FAILED;
+        await paymentsRepo.save(payment);
+        payment.order.status = OrderStatus.CANCELLED;
+        await manager.getRepository(Order).save(payment.order);
+      }
+
+      return payment;
+    });
+  }
+
+  /** Marca o pedido como pago e dá baixa no estoque na mesma transação. */
+  private async confirmPaidOrder(manager: EntityManager, order: Order): Promise<void> {
+    order.status = OrderStatus.PAID;
+    await manager.getRepository(Order).save(order);
+    await this.debitOrderStock(manager, order);
+  }
+
+  /**
+   * Dá baixa (pessimista) no estoque dos itens de um pedido pago e registra o log.
+   * É aqui — e não na criação do pedido — que o estoque online/físico é decrementado.
+   */
+  private async debitOrderStock(manager: EntityManager, order: Order): Promise<void> {
     const stockRepo = manager.getRepository(Stock);
     const stockLogRepo = manager.getRepository(StockLog);
 
@@ -220,15 +354,26 @@ export class PaymentsService {
         lock: { mode: 'pessimistic_write' },
       });
 
-      if (!stock) continue;
+      const disponivel = stock
+        ? order.tipoRetirada === TipoRetirada.LOJA
+          ? stock.qtdLojaFisica
+          : stock.qtdOnline
+        : 0;
+
+      if (!stock || disponivel < item.quantidade) {
+        throw new ConflictException(
+          `Estoque insuficiente para a variante "${item.idVariante}" ao confirmar o pagamento. ` +
+            `Disponível: ${disponivel}, Solicitado: ${item.quantidade}`,
+        );
+      }
 
       const anteriorOnline = stock.qtdOnline;
       const anteriorLoja = stock.qtdLojaFisica;
 
       if (order.tipoRetirada === TipoRetirada.LOJA) {
-        stock.qtdLojaFisica += item.quantidade;
+        stock.qtdLojaFisica -= item.quantidade;
       } else {
-        stock.qtdOnline += item.quantidade;
+        stock.qtdOnline -= item.quantidade;
       }
 
       await stockRepo.save(stock);
@@ -236,16 +381,43 @@ export class PaymentsService {
       const log = stockLogRepo.create({
         codigoSku: item.idVariante,
         idPedido: order.idPedido,
-        tipoMovimentacao: MovementType.ENTRADA,
+        tipoMovimentacao: MovementType.VENDA,
         quantidadeMovimentada: item.quantidade,
         valorAnteriorOnline: anteriorOnline,
         valorNovoOnline: stock.qtdOnline,
         valorAnteriorLoja: anteriorLoja,
         valorNovoLoja: stock.qtdLojaFisica,
-        origem: 'infinitepay_webhook',
-        motivo: 'Estorno por cancelamento ou falha de pagamento no checkout InfinitePay',
+        origem: 'pagamento_confirmado',
+        motivo: 'Baixa de estoque na confirmação do pagamento',
       });
       await stockLogRepo.save(log);
+    }
+  }
+
+  /**
+   * Garante a autenticidade do webhook. Em produção exige
+   * `INFINITEPAY_WEBHOOK_SECRET`; em dev/test, sem segredo configurado, apenas
+   * registra um aviso e permite — para não travar o ambiente local e os testes.
+   */
+  private assertWebhookAuthentic(providedSecret?: string): void {
+    const secret = process.env.INFINITEPAY_WEBHOOK_SECRET;
+
+    if (!secret) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new ServiceUnavailableException(
+          'Webhook de pagamento não configurado: defina INFINITEPAY_WEBHOOK_SECRET.',
+        );
+      }
+      this.logger.warn(
+        'INFINITEPAY_WEBHOOK_SECRET não definido — webhook aceito sem validação (apenas fora de produção).',
+      );
+      return;
+    }
+
+    const provided = Buffer.from(providedSecret ?? '');
+    const expected = Buffer.from(secret);
+    if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+      throw new UnauthorizedException('Assinatura/segredo do webhook inválido.');
     }
   }
 }

@@ -25,10 +25,6 @@
     "migration:run:prod": "node ./node_modules/typeorm/cli.js migration:run -d dist/database/data-source.js",
     "openapi:export": "ts-node scripts/export-openapi.ts",
     "demo:flow": "bash scripts/demo-flow.sh",
-    "typeorm": "typeorm-ts-node-commonjs -d src/data-source.ts",
-    "migration:generate": "pnpm typeorm migration:generate",
-    "migration:run": "pnpm typeorm migration:run",
-    "migration:revert": "pnpm typeorm migration:revert",
     "prepare": "husky || true"
   },
   "dependencies": {

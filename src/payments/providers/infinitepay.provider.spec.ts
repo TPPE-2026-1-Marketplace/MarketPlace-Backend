@@ -10,6 +10,7 @@ const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 const orderComItens = {
   idPedido: 42,
+  valorFrete: 15,
   items: [{ idVariante: 'SKU-1', precoUnitario: 10, quantidade: 2 }],
 } as unknown as Order;
 
@@ -40,7 +41,49 @@ describe('InfinitePayProvider', () => {
     const [endpoint, payload] = mockedAxios.post.mock.calls[0];
     expect(endpoint).toContain('infinitepay.io');
     expect(payload).toMatchObject({ handle: 'loja-teste', order_nsu: '42' });
-    expect((payload as { items: unknown[] }).items).toHaveLength(1);
+    expect((payload as { items: unknown[] }).items).toHaveLength(2);
+    expect((payload as { items: { name: string; price: number }[] }).items[1]).toMatchObject({
+      name: 'Frete',
+      price: 1500,
+    });
+  });
+
+  it('envia dados do cliente, endereço e redirect_url com o id do pedido', async () => {
+    process.env.INFINITEPAY_REDIRECT_URL = 'https://loja.test/pedido/{orderId}';
+    mockedAxios.post.mockResolvedValueOnce({
+      data: { id: 'abc', payment_link: 'https://pay/abc' },
+    });
+
+    const order = {
+      ...orderComItens,
+      clienteNomeAvulso: 'Maria Silva',
+      clienteEmailAvulso: 'maria@example.com',
+      clienteTelefone: '(61) 99999-1111',
+      enderecoCep: '70000-000',
+      enderecoRua: 'Rua Central',
+      enderecoBairro: 'Centro',
+      enderecoNumero: '123',
+      enderecoComplemento: 'Sala 4',
+    } as unknown as Order;
+
+    await provider.charge(100, CaptureMethod.PIX, 1, order);
+
+    const [, payload] = mockedAxios.post.mock.calls[0];
+    expect(payload).toMatchObject({
+      redirect_url: 'https://loja.test/pedido/42',
+      customer: {
+        name: 'Maria Silva',
+        email: 'maria@example.com',
+        phone_number: '+5561999991111',
+      },
+      address: {
+        cep: '70000000',
+        street: 'Rua Central',
+        neighborhood: 'Centro',
+        number: '123',
+        complement: 'Sala 4',
+      },
+    });
   });
 
   it.each([

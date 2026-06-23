@@ -1,5 +1,5 @@
 import type { Order } from '../../orders/entities/order.entity';
-import type { PaymentStatus, CaptureMethod } from '../entities/payment.entity';
+import type { Payment, PaymentStatus, CaptureMethod } from '../entities/payment.entity';
 
 export const PAYMENT_GATEWAY_TOKEN = 'PAYMENT_GATEWAY_TOKEN';
 
@@ -34,4 +34,11 @@ export interface IPaymentGateway {
     installments: number,
     order?: Order,
   ): Promise<TransactionResult>;
+
+  /**
+   * (Opcional) Consulta o status atual de um pagamento já iniciado no gateway.
+   * Usado pela reconciliação de pedidos presos em "pending". Provedores que não
+   * expõem consulta de status podem não implementar este método.
+   */
+  getStatus?(payment: Payment): Promise<PaymentStatus>;
 }
