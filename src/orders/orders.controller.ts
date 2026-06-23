@@ -17,6 +17,7 @@ import { ConfirmPickupDto } from './dtos/confirm-pickup.dto';
 import { CreateInStoreOrderDto } from './dtos/create-in-store-order.dto';
 import { CreateOrderDto } from './dtos/create-order.dto';
 import { ListOrdersQueryDto } from './dtos/list-orders-query.dto';
+import { UpdateStatusDto } from './dtos/update-status.dto';
 import { UpdateTrackingDto } from './dtos/update-tracking.dto';
 import { OrdersService } from './orders.service';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
@@ -110,6 +111,22 @@ export class OrdersController {
   @ApiResponse({ status: 404, description: 'Pedido não encontrado' })
   updateTracking(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateTrackingDto) {
     return this.ordersService.updateTracking(id, dto);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Atualiza o status de um pedido manualmente (Gerente ou administrador)',
+  })
+  @ApiParam({ name: 'id', description: 'ID do pedido' })
+  @ApiResponse({ status: 200, description: 'Status atualizado com sucesso' })
+  @ApiResponse({ status: 401, description: 'Não autenticado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado' })
+  @ApiResponse({ status: 404, description: 'Pedido não encontrado' })
+  updateStatus(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateStatusDto) {
+    return this.ordersService.updateStatus(id, dto.status);
   }
 
   @Get(':id')
