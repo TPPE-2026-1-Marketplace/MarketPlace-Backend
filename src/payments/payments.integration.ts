@@ -379,7 +379,7 @@ describe('PaymentsModule Integration - API and Entity Tests', () => {
     expect(orderInDb?.status).toBe(OrderStatus.PAID);
   });
 
-  it('deve cancelar pagamento/pedido e devolver estoque ao receber webhook de falha/cancelamento', async () => {
+  it('deve cancelar pagamento/pedido (sem estornar estoque) ao receber webhook de falha/cancelamento', async () => {
     // 1. Cadastrar produto, variante e estoque
     const prod = await productRepository.save({
       titulo: 'Produto Pagamento',
@@ -448,16 +448,15 @@ describe('PaymentsModule Integration - API and Entity Tests', () => {
     });
     expect(orderInDb?.status).toBe(OrderStatus.CANCELLED);
 
-    // 6. Verificar que estoque foi estornado de 5 para 7 (5 + 2 do pedido)
+    // 6. O estoque NÃO é estornado: a baixa só ocorre na confirmação do pagamento,
+    //    então uma falha não tem o que devolver (permanece em 5).
     const stockInDb = await stockRepository.findOne({ where: { codigoSku: testSku } });
-    expect(stockInDb?.qtdOnline).toBe(7);
+    expect(stockInDb?.qtdOnline).toBe(5);
 
-    // 7. Verificar log de estoque estornado
+    // 7. Não deve existir log de ENTRADA (estorno) de estoque.
     const logInDb = await stockLogRepository.findOne({
       where: { codigoSku: testSku, tipoMovimentacao: MovementType.ENTRADA },
     });
-    expect(logInDb).toBeDefined();
-    expect(logInDb?.quantidadeMovimentada).toBe(2);
-    expect(logInDb?.motivo).toContain('Estorno por cancelamento ou falha de pagamento');
+    expect(logInDb).toBeNull();
   });
 });
