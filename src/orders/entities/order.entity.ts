@@ -57,6 +57,33 @@ export class Order {
   @Column({ name: 'cliente_cpf_avulso', type: 'varchar', length: 11, nullable: true })
   clienteCpfAvulso: string | null;
 
+  @Column({ name: 'cliente_email_avulso', type: 'varchar', length: 255, nullable: true })
+  clienteEmailAvulso: string | null;
+
+  @Column({ name: 'cliente_telefone', type: 'varchar', length: 20, nullable: true })
+  clienteTelefone: string | null;
+
+  @Column({ name: 'endereco_cep', type: 'varchar', length: 9, nullable: true })
+  enderecoCep: string | null;
+
+  @Column({ name: 'endereco_rua', type: 'varchar', length: 255, nullable: true })
+  enderecoRua: string | null;
+
+  @Column({ name: 'endereco_numero', type: 'varchar', length: 20, nullable: true })
+  enderecoNumero: string | null;
+
+  @Column({ name: 'endereco_complemento', type: 'varchar', length: 100, nullable: true })
+  enderecoComplemento: string | null;
+
+  @Column({ name: 'endereco_bairro', type: 'varchar', length: 100, nullable: true })
+  enderecoBairro: string | null;
+
+  @Column({ name: 'endereco_cidade', type: 'varchar', length: 100, nullable: true })
+  enderecoCidade: string | null;
+
+  @Column({ name: 'endereco_estado', type: 'varchar', length: 2, nullable: true })
+  enderecoEstado: string | null;
+
   @Index()
   @Column({ name: 'id_cupom', type: 'varchar', length: 50, nullable: true })
   idCupom: string | null;
