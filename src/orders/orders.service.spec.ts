@@ -131,8 +131,9 @@ describe('OrdersService', () => {
         tipoRetirada: TipoRetirada.ENTREGA,
       }),
     );
-    expect(stockRepo.save).toHaveBeenCalled();
-    expect(stockLogRepo.save).toHaveBeenCalled();
+    // A criação do pedido NÃO baixa estoque — isso ocorre na confirmação do pagamento.
+    expect(stockRepo.save).not.toHaveBeenCalled();
+    expect(stockLogRepo.save).not.toHaveBeenCalled();
   });
 
   it('gera código de verificação e zera o frete em retirada na loja', async () => {

@@ -454,7 +454,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .expect(400);
   });
 
-  it('deve decrementar estoque online (qtdOnline) e registrar StockLog quando tipoRetirada = entrega (US16 - Critério de Aceite)', async () => {
+  it('deve decrementar estoque online (qtdOnline) e registrar StockLog ao confirmar o pagamento quando tipoRetirada = entrega (US16 - Critério de Aceite)', async () => {
     const orderRes = await request(app.getHttpServer())
       .post('/api/orders')
       .set('Authorization', `Bearer ${clientToken}`)
@@ -465,6 +465,13 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .expect(201);
 
     const orderId = orderRes.body.idPedido;
+
+    // A baixa de estoque ocorre na confirmação do pagamento (gateway mock aprova na hora).
+    await request(app.getHttpServer())
+      .post('/api/payments')
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({ idPedido: orderId, captureMethod: 'pix', installments: 1 })
+      .expect(201);
 
     const stock = await stockRepository.findOne({ where: { codigoSku: testSku } });
     expect(stock?.qtdOnline).toBe(7);
@@ -481,7 +488,7 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
     expect(logs[0].valorNovoOnline).toBe(7);
   });
 
-  it('deve decrementar estoque de loja física (qtdLojaFisica) e registrar StockLog quando tipoRetirada = loja (US16 - Critério de Aceite)', async () => {
+  it('deve decrementar estoque de loja física (qtdLojaFisica) e registrar StockLog ao confirmar o pagamento quando tipoRetirada = loja (US16 - Critério de Aceite)', async () => {
     const orderRes = await request(app.getHttpServer())
       .post('/api/orders')
       .set('Authorization', `Bearer ${clientToken}`)
@@ -492,6 +499,12 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .expect(201);
 
     const orderId = orderRes.body.idPedido;
+
+    await request(app.getHttpServer())
+      .post('/api/payments')
+      .set('Authorization', `Bearer ${clientToken}`)
+      .send({ idPedido: orderId, captureMethod: 'pix', installments: 1 })
+      .expect(201);
 
     const stock = await stockRepository.findOne({ where: { codigoSku: testSku } });
     expect(stock?.qtdLojaFisica).toBe(3);
