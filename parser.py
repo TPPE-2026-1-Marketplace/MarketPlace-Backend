@@ -22,8 +22,8 @@ METRICS_SONAR = [
     'reliability_rating',
 ]
  
-BASE_URL_SONAR = 'https://sonarcloud.io/api/measures/component_tree?component=TPPE-2026.1-Marketplace_'
-OWNER = "TPPE-2026.1-Marketplace"
+BASE_URL_SONAR = 'https://sonarcloud.io/api/measures/component_tree?component=TPPE-2026-1-Marketplace_'
+OWNER = "TPPE-2026-1-Marketplace"
  
 def save_sonar_metrics(tag):
     response = requests.get(f'{BASE_URL_SONAR}{REPO}&metricKeys={",".join(METRICS_SONAR)}&ps=500')
