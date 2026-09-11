@@ -32,7 +32,7 @@ def save_sonar_metrics(tag):
  
     print("Extração do Sonar concluída.")
  
-    file_path = f'./qa-analytics/analytics-raw-data/TPPE-2026.1-Marketplace-{REPO}-{TODAY.strftime("%m-%d-%Y-%H-%M-%S")}-{tag}.json'
+    file_path = f'./analytics-raw-data/TPPE-2026.1-Marketplace-{REPO}-{TODAY.strftime("%m-%d-%Y-%H-%M-%S")}-{tag}.json'
  
     with open(file_path, 'w') as fp:
         fp.write(json.dumps(j))
