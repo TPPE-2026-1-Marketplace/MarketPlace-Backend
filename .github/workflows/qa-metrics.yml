@@ -25,9 +25,9 @@ jobs:
           git config --global user.email "${{secrets.USER_EMAIL}}"
           git config --global user.name "${{secrets.USER_NAME}}"
           git clone --single-branch --branch main "https://x-access-token:${{secrets.API_TOKEN_DOC}}@github.com/TPPE-2026-1-Marketplace/documentacao.git" doc
-          mkdir -p qa-analytics/Analytics/data
-          cp -R analytics-raw-data/*.json qa-analytics/Analytics/data
-          cd qa-analytics/
+          mkdir -p doc/qa-analytics/Analytics/data
+          cp -R analytics-raw-data/*.json doc/qa-analytics/Analytics/data
+          cd doc/qa-analytics/
           git add .
           git commit -m "Adicionando métricas do repositório ${{ github.event.repository.name }} ${{ github.ref_name }}"
           git push
