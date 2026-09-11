@@ -23,12 +23,25 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // Libera o frontend (Vite) a consumir a API a partir de outra origem.
-  app.enableCors({
-    origin: [
+  // Origens configuráveis via env CORS_ORIGINS (lista separada por vírgula):
+  // assim trocar a URL do frontend no Render NÃO exige novo deploy do backend
+  // — basta ajustar a env e reiniciar o serviço. Sem a env, usa os defaults
+  // (dev local + serviços de frontend conhecidos no Render).
+  const corsOrigins = (
+    process.env.CORS_ORIGINS ??
+    [
       'http://localhost:3000',
       'http://localhost:5173',
       'https://marketplace-frontend-2ego.onrender.com',
-    ],
+      'https://marketplace-frontend-jh71.onrender.com',
+    ].join(',')
+  )
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
+  app.enableCors({
+    origin: corsOrigins,
     credentials: true,
   });
 
