@@ -396,6 +396,17 @@ PK composta (cpf_cliente, id_produto) — uma avaliação por cliente por produt
 | `codigo_verificacao_retirada`   | varchar(6)                                               | NULL (só se tipo_retirada=loja)     |
 | `id_funcionario`                | varchar(11)                                              | FK → `employee.cpf`, NULL           |
 | `codigo_rastreamento`           | varchar                                                  | NULL                                |
+| `cliente_nome_avulso`           | varchar(150)                                             | NULL (cliente sem cadastro, PDV)    |
+| `cliente_cpf_avulso`            | varchar(11)                                              | NULL                                |
+| `cliente_email_avulso`          | varchar(255)                                             | NULL                                |
+| `cliente_telefone`              | varchar(20)                                              | NULL                                |
+| `endereco_cep`                  | varchar(9)                                               | NULL (snapshot de endereço no pedido) |
+| `endereco_rua`                  | varchar(255)                                             | NULL                                |
+| `endereco_numero`               | varchar(20)                                              | NULL                                |
+| `endereco_complemento`          | varchar(100)                                             | NULL                                |
+| `endereco_bairro`               | varchar(100)                                             | NULL                                |
+| `endereco_cidade`               | varchar(100)                                             | NULL                                |
+| `endereco_estado`               | varchar(2)                                               | NULL                                |
 
 #### `order_item` (D6)
 
@@ -438,7 +449,7 @@ Regras: `pix` e `debit_card` forçam `installments = 1`. `credit_card` aceita 1-
 | `mes`                   | int            | CHECK BETWEEN 1 AND 12            |
 | `ano`                   | int            |                                   |
 | `valor_meta`            | numeric(12,2)  | NOT NULL                          |
-| `taxa_comissao_bonus`   | numeric(5,4)   | NULL (taxa adicional ao bater meta) |
+| `valor_bonus`           | numeric(5,4)   | NULL (taxa adicional ao bater meta) |
 
 UNIQUE (cpf_funcionario, mes, ano).
 
