@@ -31,24 +31,26 @@ constraint — a migration baseline usa nomes manuais (`fk_employee_person`,
 gera hashes (`FK_cc5bc3cbcb...`). Mesmo efeito, nome diferente. Idem para
 formatação de default (`now()` vs `CURRENT_TIMESTAMP`, ambos equivalentes).
 
-**Drift real (corrigido pela migration
-`1789415864466-FixOrdersGuestCheckoutAndSalesGoalBonusColumn`):**
+**Drift real:**
 
 | Tabela       | O que estava faltando                                                                                                                                                                                                                                                                                                       | Origem                                                                                                                            |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `sales_goal` | Coluna `taxa_comissao_bonus` renomeada para `valor_bonus` na entity, sem migration                                                                                                                                                                                                                                          | —                                                                                                                                 |
 | `orders`     | 11 colunas do fluxo de "cliente avulso" (venda presencial sem cadastro) + snapshot de endereço: `cliente_nome_avulso`, `cliente_cpf_avulso`, `cliente_email_avulso`, `cliente_telefone`, `endereco_cep`, `endereco_rua`, `endereco_numero`, `endereco_complemento`, `endereco_bairro`, `endereco_cidade`, `endereco_estado` | Adicionadas na entity em 2026-06-22 (commit `6d24e74`, "fix: cashier login") — um dia depois da `InitialSchema`, e nunca migradas |
 
-O commit que adicionou as colunas de `orders` já está em `main`. Como
-produção só aplica migrations (não usa `synchronize`), é provável que a
-tabela `orders` em produção não tenha essas 11 colunas até esta correção ser
-deployada — nenhum cliente real usa o sistema ainda, então não houve impacto
-em produção, mas o fluxo de cliente avulso quebraria (erro de SQL) assim que
-fosse exercitado.
+O mesmo drift foi identificado de forma independente pela issue #173, cujo
+diagnóstico (`docs/diagnosticos/173-align-orders-goal-schema.md`) comparou o
+schema real de produção (`pg_dump` no Neon) contra um banco só com as
+migrations aplicadas — indo além do que fizemos aqui, que comparou só contra
+um banco local descartável. A confirmação direta contra produção mostrou que
+essas colunas **já existem** lá (foram aplicadas via `synchronize` antes de
+produção passar a rodar só migrations); o problema era só a migration nunca
+ter sido versionada, não uma tabela quebrada em produção.
 
-Depois de aplicar a migration de correção, rodamos `migration:generate`
-novamente: o diff restante foi só o ruído de nome de constraint descrito
-acima — nenhuma tabela, coluna ou tipo real faltando.
+A migration de correção (`1789331861553-AlignOrdersAndGoalSchema`, PR #181)
+foi mergeada em `dev` através da #173. Rodamos `migration:generate` de novo
+depois de aplicá-la: o diff restante foi só o ruído de nome de constraint
+descrito acima — nenhuma tabela, coluna ou tipo real faltando.
 
 ## Decisão
 
@@ -58,8 +60,9 @@ entity — mudança de processo grande demais frente ao ganho, considerando que
 produção já é isolada (roda só migrations, `synchronize: false` hardcoded em
 `src/database/data-source.ts`) e não é afetada pelo comportamento de dev.
 
-**Mitigação adotada nesta issue:** migration de correção fechando o drift
-identificado acima.
+**Mitigação:** drift fechado pela migration da issue #173 (ver acima). Esta
+issue (#157) contribui com o diagnóstico independente (que confirmou o mesmo
+achado) e com a decisão documentada aqui sobre `synchronize`.
 
 **Não implementado nesta issue (fica como melhoria futura):** um passo no CI
 que rode `migration:generate` contra um banco limpo e falhe o PR se detectar
