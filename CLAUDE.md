@@ -531,6 +531,7 @@ ESLint só impõe `no-magic-numbers` em services/controllers — `entities/`, `d
 | `build` | `pnpm build` (verifica compilação TS) |
 | `test-unit` | `pnpm test` (specs com mocks, sem banco) — feedback rápido |
 | `coverage` | `pnpm test:cov` (unit + integração) com Postgres 16 como service; falha se a cobertura cair abaixo do `coverageThreshold`. Sobe o relatório como artefato `coverage-report`. |
+| `sonarcloud` | Baixa o `coverage-report` do job `coverage` e roda a análise estática do [SonarCloud](https://sonarcloud.io) (org `tppe-2026-1-marketplace`), consumindo `coverage/lcov.info`. Config em `sonar-project.properties`. Requer o secret `SONAR_TOKEN` no repositório. |
 
 Tempo esperado total: ~3min.
 
