@@ -45,27 +45,38 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('API DK Fashion')
-    .setDescription('Documentação da API com Swagger')
-    .setVersion('1.0.0')
-    .addBearerAuth(
-      {
-        type: 'http',
-        scheme: 'bearer',
-        bearerFormat: 'JWT',
-        name: 'JWT',
-        description:
-          'Insira **APENAS** o token JWT gerado no login. Não digite a palavra "Bearer ".',
-        in: 'header',
-      },
-      'bearer', // Nome do scheme de segurança, que o @ApiBearerAuth() usa por padrão
-    )
-    .build();
+  // Em produção o Swagger fica desligado por padrão — o mapa completo da API
+  // (endpoints, schemas de request/response, regras de permissão) não deve
+  // ficar público sem uma decisão explícita do time. `SWAGGER_PUBLIC=true`
+  // religa em produção (ex.: período de portfólio). Fora de produção, o
+  // Swagger sempre fica disponível. Ver docs/swagger.md.
+  const isProduction = process.env.NODE_ENV === 'production';
+  const swaggerPublic = process.env.SWAGGER_PUBLIC === 'true';
+  const swaggerEnabled = !isProduction || swaggerPublic;
 
-  const swaggerDocument = cleanupOpenApiDoc(SwaggerModule.createDocument(app, swaggerConfig));
+  if (swaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('API DK Fashion')
+      .setDescription('Documentação da API com Swagger')
+      .setVersion('1.0.0')
+      .addBearerAuth(
+        {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          name: 'JWT',
+          description:
+            'Insira **APENAS** o token JWT gerado no login. Não digite a palavra "Bearer ".',
+          in: 'header',
+        },
+        'bearer', // Nome do scheme de segurança, que o @ApiBearerAuth() usa por padrão
+      )
+      .build();
 
-  SwaggerModule.setup('docs', app, swaggerDocument);
+    const swaggerDocument = cleanupOpenApiDoc(SwaggerModule.createDocument(app, swaggerConfig));
+
+    SwaggerModule.setup('docs', app, swaggerDocument);
+  }
 
   const port = process.env.PORT ?? DEFAULT_API_PORT;
 
@@ -73,7 +84,11 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   logger.log(`Aplicação disponível em http://localhost:${port}/api`);
-  logger.log(`Swagger disponível em http://localhost:${port}/docs`);
+  if (swaggerEnabled) {
+    logger.log(`Swagger disponível em http://localhost:${port}/docs`);
+  } else {
+    logger.log('Swagger desligado (produção). Religue com SWAGGER_PUBLIC=true.');
+  }
 }
 
 void bootstrap();

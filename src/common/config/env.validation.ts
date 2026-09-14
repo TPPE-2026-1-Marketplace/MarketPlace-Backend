@@ -14,6 +14,12 @@ export const EnvSchema = z
     NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
     PORT: z.coerce.number().int().positive().optional(),
 
+    // Liga o Swagger (`/docs`) quando NODE_ENV=production. Fora de produção o
+    // Swagger fica sempre disponível; em produção fica desligado por padrão —
+    // essa flag existe para religá-lo como decisão explícita do time (ex.:
+    // período de portfólio). Ver docs/swagger.md.
+    SWAGGER_PUBLIC: z.enum(['true', 'false']).optional(),
+
     DATABASE_URL: z.string().url('DATABASE_URL inválida').optional(),
     POSTGRES_HOST: z.string().min(1, 'POSTGRES_HOST é obrigatório').optional(),
     POSTGRES_PORT: z.coerce.number().int().positive().optional(),
