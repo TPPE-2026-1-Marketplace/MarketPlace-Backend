@@ -37,7 +37,8 @@ o `runtime` de um serviço existente, um serviço antigo criado como Git-backed
    já foi publicada ao menos uma vez.
 2. Cadastre a credencial `github-container-registry` no workspace do Render.
 3. Crie um novo Blueprint a partir deste repositório e confirme o `render.yaml`.
-4. Informe `DATABASE_URL` e `LOJA_CEP_ORIGEM`. O Render gera `JWT_SECRET`.
+4. Informe `DATABASE_URL`, `LOJA_CEP_ORIGEM` e `PAYMENT_GATEWAY_PROVIDER`
+   (produção usa `infinitepay`). O Render gera `JWT_SECRET`.
 5. Adicione as credenciais opcionais de InfinitePay, ImgBB e Melhor Envio apenas
    quando essas integrações forem habilitadas.
 6. Depois de validar o novo serviço, remova o serviço Git-backed anterior ou
@@ -46,6 +47,17 @@ o `runtime` de um serviço existente, um serviço antigo criado como Git-backed
 O Render injeta `PORT`; não configure uma porta fixa. O serviço image-backed não
 faz auto-deploy ao mudar `latest`: o deploy é controlado exclusivamente pelo CD,
 que informa o digest exato à API.
+
+### `sync: false` vs. valor versionado no `render.yaml`
+
+Toda variável cujo valor de produção **difere do default de desenvolvimento**, é
+secreta, ou pode divergir do repositório por correção manual no dashboard deve
+usar `sync: false` — assim um re-sync do Blueprint nunca sobrescreve o que está
+configurado em produção. É o caso de `DATABASE_URL`, `LOJA_CEP_ORIGEM` e
+`PAYMENT_GATEWAY_PROVIDER` (produção usa `infinitepay`, diferente do `mock` que
+faz sentido versionar como default de dev/staging). Só use `value:` fixo no
+arquivo para configuração que é igual em todo ambiente e não é sensível (ex.:
+`NODE_ENV=production`). Ver issue #162 para o incidente que motivou esta regra.
 
 ## GitHub Environment e segredos
 

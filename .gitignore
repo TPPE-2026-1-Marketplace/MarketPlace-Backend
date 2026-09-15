@@ -15,3 +15,7 @@ package-lock.json
 .demo-backend.log
 coverage
 openapi.json
+.scannerwork
+
+# Shim gerado por "make hooks" (delega para .githooks/commit-msg)
+.husky/commit-msg

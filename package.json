@@ -38,13 +38,13 @@
     "@nestjs/swagger": "^11.4.2",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^10.0.2",
-    "axios": "^1.16.1",
+    "axios": "^1.18.0",
     "bcrypt": "^6.0.0",
     "date-fns": "^4.1.0",
     "fast-csv": "^5.0.7",
-    "form-data": "^4.0.5",
+    "form-data": "^4.0.6",
     "helmet": "^8.1.0",
-    "multer": "^2.0.2",
+    "multer": "^2.3.0",
     "nestjs-pino": "^4.6.1",
     "nestjs-zod": "^5.4.0",
     "passport": "^0.7.0",
@@ -54,7 +54,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
-    "typeorm": "^0.3.24",
+    "typeorm": "^0.3.31",
     "typeorm-naming-strategies": "^4.1.0",
     "uuid": "^14.0.0",
     "zod": "^4.4.3"
@@ -92,6 +92,14 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.59.4"
+  },
+  "pnpm": {
+    "overrides": {
+      "lodash": ">=4.18.0",
+      "js-yaml": ">=4.3.2",
+      "glob>minimatch": ">=10.2.5",
+      "multer": ">=2.3.0"
+    }
   },
   "jest": {
     "moduleFileExtensions": [
