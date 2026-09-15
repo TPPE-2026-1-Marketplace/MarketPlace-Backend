@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ZodValidationPipe, cleanupOpenApiDoc } from 'nestjs-zod';
 
 import { AppModule } from './app.module';
+import { isSwaggerEnabled } from './common/config/swagger.config';
 import { DEFAULT_API_PORT } from './common/constants';
 
 async function bootstrap() {
@@ -49,10 +50,8 @@ async function bootstrap() {
   // (endpoints, schemas de request/response, regras de permissão) não deve
   // ficar público sem uma decisão explícita do time. `SWAGGER_PUBLIC=true`
   // religa em produção (ex.: período de portfólio). Fora de produção, o
-  // Swagger sempre fica disponível. Ver docs/swagger.md.
-  const isProduction = process.env.NODE_ENV === 'production';
-  const swaggerPublic = process.env.SWAGGER_PUBLIC === 'true';
-  const swaggerEnabled = !isProduction || swaggerPublic;
+  // Swagger sempre fica disponível. Regra em `isSwaggerEnabled`, ver docs/swagger.md.
+  const swaggerEnabled = isSwaggerEnabled();
 
   if (swaggerEnabled) {
     const swaggerConfig = new DocumentBuilder()
