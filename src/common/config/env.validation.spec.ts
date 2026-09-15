@@ -54,4 +54,23 @@ describe('validateEnv', () => {
     const result = validateEnv({ ...validEnv, PORT: '3001' });
     expect(result.PORT).toBe(3001);
   });
+
+  it('aceita SWAGGER_PUBLIC ausente (o padrão é não religar o /docs)', () => {
+    const result = validateEnv(validEnv);
+    expect(result.SWAGGER_PUBLIC).toBeUndefined();
+  });
+
+  it.each(['true', 'false'])('aceita SWAGGER_PUBLIC=%s', (value) => {
+    const result = validateEnv({ ...validEnv, SWAGGER_PUBLIC: value });
+    expect(result.SWAGGER_PUBLIC).toBe(value);
+  });
+
+  // A flag decide se o /docs fica público em produção: um valor fora do enum
+  // deve derrubar o boot em vez de virar "false" silenciosamente.
+  it.each(['TRUE', '1', 'yes', 'sim', ''])(
+    'rejeita SWAGGER_PUBLIC fora do enum (%p), citando-a na mensagem',
+    (value) => {
+      expect(() => validateEnv({ ...validEnv, SWAGGER_PUBLIC: value })).toThrow(/SWAGGER_PUBLIC/);
+    },
+  );
 });
