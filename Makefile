@@ -6,7 +6,7 @@ SERVICE := api
 export DOCKER_BUILDKIT := 1
 export COMPOSE_DOCKER_CLI_BUILD := 1
 
-.PHONY: help env-setup gen-secrets install dev lint test build start demo smoke-real \
+.PHONY: help hooks hooks-off env-setup gen-secrets install dev lint test build start demo smoke-real \
 	dev-up dev-down dev-logs dev-logs-once dev-logs-api dev-logs-postgres dev-shell dev-build dev-rebuild dev-restart dev-reset dev-test dev-test-integration dev-test-cov \
 	dev-lint dev-lint-fix dev-format dev-typecheck dev-check dev-openapi \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
@@ -15,6 +15,8 @@ export COMPOSE_DOCKER_CLI_BUILD := 1
 
 help:
 	@echo "Setup e local:"
+	@echo "  make hooks            Ativa o commit-msg versionado (.githooks) via husky"
+	@echo "  make hooks-off        Desativa o commit-msg versionado"
 	@echo "  make env-setup        Cria .env.development e .env.production a partir dos .example"
 	@echo "  make install          Instala dependencias localmente com pnpm"
 	@echo "  make dev              Sobe o Nest localmente (sem Docker) em modo desenvolvimento"
@@ -69,6 +71,19 @@ help:
 	@echo "CI/CD:"
 	@echo "  make dev-ci           Roda lint + typecheck + format:check + build + testes no container (espelha o CI)"
 	@echo "  make prod-image       Builda a imagem Docker de producao standalone (espelha o CD)"
+
+# O core.hooksPath aqui pertence ao husky (.husky/_), que já roda o
+# pre-commit/lint-staged. Em vez de sequestrar essa config, instalamos um
+# shim .husky/commit-msg que delega para .githooks/commit-msg — assim os
+# dois hooks convivem e o shim sobrevive a um 'pnpm install'.
+hooks:
+	@printf '%s\n' '#!/usr/bin/env sh' 'exec "$$(dirname "$$0")/../.githooks/commit-msg" "$$@"' > .husky/commit-msg
+	@chmod +x .husky/commit-msg
+	@echo "Hook commit-msg ativado a partir de .githooks/ (shim em .husky/commit-msg)"
+
+hooks-off:
+	@rm -f .husky/commit-msg
+	@echo "Hook commit-msg desativado (husky/pre-commit segue ativo)"
 
 env-setup:
 	cp -n .env.development.example .env.development || true
