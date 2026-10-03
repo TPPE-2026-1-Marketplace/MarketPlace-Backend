@@ -32,8 +32,8 @@ async function bootstrap() {
     [
       'http://localhost:3000',
       'http://localhost:5173',
-      'https://marketplace-frontend-2ego.onrender.com',
-      'https://marketplace-frontend-jh71.onrender.com',
+      'https://dkfashion.onrender.com',
+      'https://dkfashion.onrender.com',
     ].join(',')
   )
     .split(',')
