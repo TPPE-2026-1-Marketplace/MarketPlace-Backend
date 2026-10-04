@@ -22,3 +22,8 @@ if (fs.existsSync(envPath)) {
 // Force the mock payment gateway to be used during tests to ensure deterministic and hermetic test runs.
 process.env.PAYMENT_GATEWAY_PROVIDER = 'mock';
 
+// Desliga o rate limiting nos testes de integração, que criam vários pedidos/
+// pagamentos em sequência e estourariam o limite. O teste do 429
+// (auth.throttle.spec) monta o próprio ThrottlerModule e não lê esta flag.
+process.env.THROTTLE_DISABLED = 'true';
+

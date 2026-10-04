@@ -34,7 +34,14 @@ const isProduction = nodeEnv === 'production';
       isGlobal: true,
       validate: validateEnv,
     }),
-    ThrottlerModule.forRoot([THROTTLE_DEFAULT]),
+    ThrottlerModule.forRoot({
+      throttlers: [THROTTLE_DEFAULT],
+      // Desliga o rate limiting durante os testes de integração (criam vários
+      // pedidos/pagamentos em sequência). A flag é setada em jest-setup-envs.js.
+      // O teste dedicado do 429 (auth.throttle.spec) monta o próprio
+      // ThrottlerModule sem skipIf e não é afetado.
+      skipIf: () => process.env.THROTTLE_DISABLED === 'true',
+    }),
     TypeOrmModule.forRootAsync({
       useFactory: () => ({
         type: 'postgres',
