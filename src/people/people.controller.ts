@@ -20,6 +20,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import * as csv from 'fast-csv';
 
@@ -27,6 +28,7 @@ import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { PeopleService } from './people.service';
+import { THROTTLE_REGISTER } from '../common/config/throttle.config';
 import { Roles } from '../common/decorators/roles.decorator';
 import { PaginationDto } from '../common/dtos';
 import { Role } from '../common/enums/role.enum';
@@ -83,11 +85,13 @@ export class PeopleController {
   }
 
   @Post('register-user')
+  @Throttle(THROTTLE_REGISTER)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Registra um usuário no site (Público)' })
   @ApiResponse({ status: 201, description: 'Usuário registrado com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 409, description: 'Email já cadastrado ou CPF já possui conta completa' })
+  @ApiResponse({ status: 429, description: 'Limite de cadastros excedido' })
   @ApiBearerAuth()
   registerUser(@Body() dto: RegisterUserDto) {
     return this.peopleService.registerUser(dto);

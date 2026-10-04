@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
@@ -7,6 +9,7 @@ import { AddressesModule } from './addresses/addresses.module';
 import { AuthModule } from './auth/auth.module';
 import { CategoriesModule } from './categories/categories.module';
 import { validateEnv } from './common/config/env.validation';
+import { THROTTLE_DEFAULT } from './common/config/throttle.config';
 import { CouponsModule } from './coupons/coupons.module';
 import { buildDatabaseConnectionConfig } from './database/connection-config';
 import { EmployeesModule } from './employees/employees.module';
@@ -31,6 +34,7 @@ const isProduction = nodeEnv === 'production';
       isGlobal: true,
       validate: validateEnv,
     }),
+    ThrottlerModule.forRoot([THROTTLE_DEFAULT]),
     TypeOrmModule.forRootAsync({
       useFactory: () => ({
         type: 'postgres',
@@ -57,6 +61,12 @@ const isProduction = nodeEnv === 'production';
     SalesGoalsModule,
     ShippingModule,
     HealthModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

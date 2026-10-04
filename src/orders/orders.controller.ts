@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { ConfirmPickupDto } from './dtos/confirm-pickup.dto';
 import { CreateInStoreOrderDto } from './dtos/create-in-store-order.dto';
@@ -20,6 +21,7 @@ import { ListOrdersQueryDto } from './dtos/list-orders-query.dto';
 import { UpdateStatusDto } from './dtos/update-status.dto';
 import { UpdateTrackingDto } from './dtos/update-tracking.dto';
 import { OrdersService } from './orders.service';
+import { THROTTLE_CHECKOUT } from '../common/config/throttle.config';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
@@ -56,6 +58,7 @@ export class OrdersController {
   }
 
   @Post()
+  @Throttle(THROTTLE_CHECKOUT)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
@@ -64,11 +67,13 @@ export class OrdersController {
   @ApiResponse({ status: 400, description: 'Cupom inválido ou dados incorretos' })
   @ApiResponse({ status: 401, description: 'Não autenticado' })
   @ApiResponse({ status: 404, description: 'Variante de produto ou cliente não encontrada' })
+  @ApiResponse({ status: 429, description: 'Limite de requisições excedido' })
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateOrderDto) {
     return this.ordersService.create(user.sub, dto);
   }
 
   @Post('guest')
+  @Throttle(THROTTLE_CHECKOUT)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Cria um novo pedido como convidado (sem autenticação)' })
   @ApiResponse({ status: 201, description: 'Pedido criado com sucesso' })
@@ -78,6 +83,7 @@ export class OrdersController {
   })
   @ApiResponse({ status: 404, description: 'Variante de produto não encontrada' })
   @ApiResponse({ status: 409, description: 'Estoque insuficiente' })
+  @ApiResponse({ status: 429, description: 'Limite de requisições excedido' })
   createGuest(@Body() dto: CreateOrderDto) {
     return this.ordersService.createGuest(dto);
   }
