@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
@@ -7,7 +7,9 @@ import { QueryFailedError } from 'typeorm';
 import { PeopleService } from './people.service';
 import { AddressesService } from '../addresses/addresses.service';
 import { Person } from './entities/person.entity';
+import { Role } from '../common/enums/role.enum';
 
+import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import type { TestingModule } from '@nestjs/testing';
 import type { Repository } from 'typeorm';
 
@@ -20,6 +22,18 @@ const mockPerson: Person = {
   telefone: null,
   senha: 'hash_bcrypt_placeholder',
 };
+
+const ownerOf = (cpf: string): CurrentUserPayload => ({
+  sub: cpf,
+  email: 'owner@email.com',
+  role: Role.CLIENTE,
+});
+
+const employee = (role: Role): CurrentUserPayload => ({
+  sub: '99999999999',
+  email: 'func@email.com',
+  role,
+});
 
 const uniqueViolationError = new QueryFailedError('INSERT', [], {
   code: '23505',
@@ -225,7 +239,7 @@ describe('PeopleService', () => {
     it('retorna pessoa sem o campo senha quando CPF existe', async () => {
       repo.findOne.mockResolvedValue(mockPerson);
 
-      const result = await service.findOne(mockPerson.cpf);
+      const result = await service.findOne(mockPerson.cpf, ownerOf(mockPerson.cpf));
 
       expect(result).not.toHaveProperty('senha');
       expect(result.cpf).toBe(mockPerson.cpf);
@@ -234,7 +248,9 @@ describe('PeopleService', () => {
     it('lança NotFoundException quando CPF não existe', async () => {
       repo.findOne.mockResolvedValue(null);
 
-      await expect(service.findOne('00000000000')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.findOne('00000000000', ownerOf('00000000000'))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -244,7 +260,11 @@ describe('PeopleService', () => {
       repo.findOne.mockResolvedValue(mockPerson);
       repo.save.mockResolvedValue(updated);
 
-      const result = await service.update(mockPerson.cpf, { nome: 'João Atualizado' });
+      const result = await service.update(
+        mockPerson.cpf,
+        { nome: 'João Atualizado' },
+        ownerOf(mockPerson.cpf),
+      );
 
       expect(result).not.toHaveProperty('senha');
       expect(result.nome).toBe('João Atualizado');
@@ -254,7 +274,7 @@ describe('PeopleService', () => {
       repo.findOne.mockResolvedValue(mockPerson);
       repo.save.mockResolvedValue(mockPerson);
 
-      await service.update(mockPerson.cpf, { senha: 'novaSenha123' });
+      await service.update(mockPerson.cpf, { senha: 'novaSenha123' }, ownerOf(mockPerson.cpf));
 
       expect(bcrypt.hash).toHaveBeenCalledWith('novaSenha123', 10);
     });
@@ -263,7 +283,7 @@ describe('PeopleService', () => {
       repo.findOne.mockResolvedValue(mockPerson);
       repo.save.mockResolvedValue(mockPerson);
 
-      await service.update(mockPerson.cpf, { nome: 'Apenas nome' });
+      await service.update(mockPerson.cpf, { nome: 'Apenas nome' }, ownerOf(mockPerson.cpf));
 
       expect(bcrypt.hash).not.toHaveBeenCalled();
     });
@@ -271,9 +291,9 @@ describe('PeopleService', () => {
     it('lança NotFoundException quando CPF não existe', async () => {
       repo.findOne.mockResolvedValue(null);
 
-      await expect(service.update('00000000000', { nome: 'X' })).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.update('00000000000', { nome: 'X' }, ownerOf('00000000000')),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('lança ConflictException quando email já pertence a outra pessoa', async () => {
@@ -281,7 +301,7 @@ describe('PeopleService', () => {
       repo.save.mockRejectedValue(uniqueViolationError);
 
       await expect(
-        service.update(mockPerson.cpf, { email: 'outro@email.com' }),
+        service.update(mockPerson.cpf, { email: 'outro@email.com' }, ownerOf(mockPerson.cpf)),
       ).rejects.toBeInstanceOf(ConflictException);
     });
   });
@@ -290,13 +310,86 @@ describe('PeopleService', () => {
     it('remove sem erros quando CPF existe', async () => {
       repo.delete.mockResolvedValue({ affected: 1, raw: [] });
 
-      await expect(service.remove(mockPerson.cpf)).resolves.toBeUndefined();
+      await expect(
+        service.remove(mockPerson.cpf, ownerOf(mockPerson.cpf)),
+      ).resolves.toBeUndefined();
     });
 
     it('lança NotFoundException quando CPF não existe', async () => {
       repo.delete.mockResolvedValue({ affected: 0, raw: [] });
 
-      await expect(service.remove('00000000000')).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.remove('00000000000', ownerOf('00000000000'))).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('autorização de acesso por CPF (IDOR #154)', () => {
+    describe('findOne', () => {
+      it('403 quando cliente acessa CPF alheio, sem tocar o repositório', async () => {
+        await expect(
+          service.findOne(mockPerson.cpf, ownerOf('00000000000')),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(repo.findOne).not.toHaveBeenCalled();
+      });
+
+      it('permite funcionário acessar CPF alheio', async () => {
+        repo.findOne.mockResolvedValue(mockPerson);
+
+        const result = await service.findOne(mockPerson.cpf, employee(Role.CAIXA));
+
+        expect(result.cpf).toBe(mockPerson.cpf);
+      });
+    });
+
+    describe('update', () => {
+      it('403 quando caixa/vendedor altera CPF alheio, sem tocar o repositório', async () => {
+        await expect(
+          service.update(mockPerson.cpf, { nome: 'X' }, employee(Role.CAIXA)),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(repo.findOne).not.toHaveBeenCalled();
+      });
+
+      it('403 quando gerente tenta alterar senha de CPF alheio', async () => {
+        await expect(
+          service.update(mockPerson.cpf, { senha: 'novaSenha123' }, employee(Role.GERENTE)),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('403 quando gerente tenta alterar email de CPF alheio', async () => {
+        await expect(
+          service.update(mockPerson.cpf, { email: 'x@email.com' }, employee(Role.GERENTE)),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      });
+
+      it('permite gerente alterar dados não sensíveis de CPF alheio', async () => {
+        repo.findOne.mockResolvedValue(mockPerson);
+        repo.save.mockResolvedValue({ ...mockPerson, nome: 'Corrigido' });
+
+        const result = await service.update(
+          mockPerson.cpf,
+          { nome: 'Corrigido' },
+          employee(Role.GERENTE),
+        );
+
+        expect(result.nome).toBe('Corrigido');
+      });
+    });
+
+    describe('remove', () => {
+      it('403 quando cliente remove CPF alheio, sem tocar o repositório', async () => {
+        await expect(service.remove(mockPerson.cpf, ownerOf('00000000000'))).rejects.toBeInstanceOf(
+          ForbiddenException,
+        );
+        expect(repo.delete).not.toHaveBeenCalled();
+      });
+
+      it('403 quando funcionário (inclusive admin) remove CPF alheio', async () => {
+        await expect(
+          service.remove(mockPerson.cpf, employee(Role.ADMINISTRADOR)),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+        expect(repo.delete).not.toHaveBeenCalled();
+      });
     });
   });
 

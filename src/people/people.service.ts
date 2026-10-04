@@ -1,4 +1,9 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { QueryFailedError, Repository } from 'typeorm';
@@ -10,6 +15,9 @@ import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { Person } from './entities/person.entity';
 import { IPersonSafe } from './interfaces/person.interface';
+import { Role } from '../common/enums/role.enum';
+
+import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
 @Injectable()
 export class PeopleService {
@@ -155,7 +163,11 @@ export class PeopleService {
     };
   }
 
-  async findOne(cpf: string): Promise<IPersonSafe> {
+  async findOne(cpf: string, user: CurrentUserPayload): Promise<IPersonSafe> {
+    if (user.role === Role.CLIENTE && user.sub !== cpf) {
+      throw new ForbiddenException('Você só pode acessar o próprio cadastro.');
+    }
+
     const person = await this.peopleRepository.findOne({ where: { cpf } });
     if (!person) {
       throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
@@ -163,7 +175,25 @@ export class PeopleService {
     return this.stripPassword(person);
   }
 
-  async update(cpf: string, dto: UpdatePersonDto): Promise<IPersonSafe> {
+  private assertCanUpdate(cpf: string, dto: UpdatePersonDto, user: CurrentUserPayload): void {
+    if (user.sub === cpf) {
+      return;
+    }
+
+    const isManager = user.role === Role.GERENTE || user.role === Role.ADMINISTRADOR;
+    if (!isManager) {
+      throw new ForbiddenException(
+        'Apenas gerente ou administrador podem alterar o cadastro de outra pessoa.',
+      );
+    }
+    if (dto.senha !== undefined || dto.email !== undefined) {
+      throw new ForbiddenException('Não é permitido alterar senha ou email de outra pessoa.');
+    }
+  }
+
+  async update(cpf: string, dto: UpdatePersonDto, user: CurrentUserPayload): Promise<IPersonSafe> {
+    this.assertCanUpdate(cpf, dto, user);
+
     const person = await this.peopleRepository.findOne({ where: { cpf } });
     if (!person) {
       throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
@@ -189,7 +219,11 @@ export class PeopleService {
     }
   }
 
-  async remove(cpf: string): Promise<void> {
+  async remove(cpf: string, user: CurrentUserPayload): Promise<void> {
+    if (user.sub !== cpf) {
+      throw new ForbiddenException('Não é permitido remover o cadastro de outra pessoa.');
+    }
+
     const result = await this.peopleRepository.delete({ cpf });
     if (result.affected === 0) {
       throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
