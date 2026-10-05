@@ -25,6 +25,7 @@ import { UpdatePersonDto } from './dtos/update-person.dto';
 import { Person } from './entities/person.entity';
 import { IPersonSafe } from './interfaces/person.interface';
 import { Role } from '../common/enums/role.enum';
+import { Employee } from '../employees/entities/employee.entity';
 import { Order, OrderStatus } from '../orders/entities/order.entity';
 
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
@@ -32,6 +33,8 @@ import type { CurrentUserPayload } from '../common/decorators/current-user.decor
 const ORDER_STATUSES_IN_PROGRESS = [OrderStatus.PENDING, OrderStatus.PAID, OrderStatus.SHIPPED];
 
 const NOT_ANONYMIZED = Not(Like(`%@${ANONYMIZED_EMAIL_DOMAIN}`));
+
+const ROLES_MANAGED_BY_GERENTE = [Role.CAIXA, Role.VENDEDOR];
 
 @Injectable()
 export class PeopleService {
@@ -41,6 +44,8 @@ export class PeopleService {
     private readonly addressesService: AddressesService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    @InjectRepository(Employee)
+    private readonly employeesRepository: Repository<Employee>,
   ) {}
 
   /**
@@ -192,24 +197,42 @@ export class PeopleService {
     return this.stripPassword(person);
   }
 
-  private assertCanUpdate(cpf: string, dto: UpdatePersonDto, user: CurrentUserPayload): void {
-    if (user.sub === cpf) {
+  /**
+   * Cadastro de outra pessoa:
+   * - administrador altera tudo, inclusive senha e email (recuperação de conta);
+   * - gerente altera dados não sensíveis só de clientes, caixas e vendedores;
+   * - demais cargos não alteram.
+   */
+  private async assertCanUpdate(
+    cpf: string,
+    dto: UpdatePersonDto,
+    user: CurrentUserPayload,
+  ): Promise<void> {
+    if (user.sub === cpf || user.role === Role.ADMINISTRADOR) {
       return;
     }
 
-    const isManager = user.role === Role.GERENTE || user.role === Role.ADMINISTRADOR;
-    if (!isManager) {
+    if (user.role !== Role.GERENTE) {
       throw new ForbiddenException(
         'Apenas gerente ou administrador podem alterar o cadastro de outra pessoa.',
       );
     }
     if (dto.senha !== undefined || dto.email !== undefined) {
-      throw new ForbiddenException('Não é permitido alterar senha ou email de outra pessoa.');
+      throw new ForbiddenException(
+        'Apenas o administrador pode alterar senha ou email de outra pessoa.',
+      );
+    }
+
+    const target = await this.employeesRepository.findOne({ where: { cpf } });
+    if (target && !ROLES_MANAGED_BY_GERENTE.includes(target.role_perfil)) {
+      throw new ForbiddenException(
+        'Gerente só altera o cadastro de clientes, caixas e vendedores.',
+      );
     }
   }
 
   async update(cpf: string, dto: UpdatePersonDto, user: CurrentUserPayload): Promise<IPersonSafe> {
-    this.assertCanUpdate(cpf, dto, user);
+    await this.assertCanUpdate(cpf, dto, user);
 
     const person = await this.peopleRepository.findOne({ where: { cpf } });
     if (!person) {

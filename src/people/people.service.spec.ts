@@ -8,6 +8,7 @@ import { PeopleService } from './people.service';
 import { AddressesService } from '../addresses/addresses.service';
 import { Person } from './entities/person.entity';
 import { Role } from '../common/enums/role.enum';
+import { Employee } from '../employees/entities/employee.entity';
 import { Order } from '../orders/entities/order.entity';
 
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
@@ -52,6 +53,7 @@ describe('PeopleService', () => {
     save: jest.Mock;
     delete: jest.Mock;
   };
+  let employeesRepo: { findOne: jest.Mock };
 
   beforeEach(async () => {
     manager = {
@@ -87,12 +89,17 @@ describe('PeopleService', () => {
             transaction: jest.fn((work: (m: typeof manager) => Promise<unknown>) => work(manager)),
           },
         },
+        {
+          provide: getRepositoryToken(Employee),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+        },
       ],
     }).compile();
 
     service = module.get(PeopleService);
     repo = module.get(getRepositoryToken(Person));
     addressesService = module.get(AddressesService);
+    employeesRepo = module.get(getRepositoryToken(Employee));
   });
 
   describe('registerPerson', () => {
@@ -435,7 +442,14 @@ describe('PeopleService', () => {
         ).rejects.toBeInstanceOf(ForbiddenException);
       });
 
-      it('permite gerente alterar dados não sensíveis de CPF alheio', async () => {
+      it.each([
+        ['cliente', null],
+        ['caixa', Role.CAIXA],
+        ['vendedor', Role.VENDEDOR],
+      ])('permite gerente alterar dados não sensíveis de %s', async (_alvo, cargo) => {
+        employeesRepo.findOne.mockResolvedValue(
+          cargo ? { cpf: mockPerson.cpf, role_perfil: cargo } : null,
+        );
         repo.findOne.mockResolvedValue(mockPerson);
         repo.save.mockResolvedValue({ ...mockPerson, nome: 'Corrigido' });
 
@@ -446,6 +460,47 @@ describe('PeopleService', () => {
         );
 
         expect(result.nome).toBe('Corrigido');
+      });
+
+      it.each([Role.GERENTE, Role.ADMINISTRADOR])(
+        '403 quando gerente altera o cadastro de %s',
+        async (cargo) => {
+          employeesRepo.findOne.mockResolvedValue({ cpf: mockPerson.cpf, role_perfil: cargo });
+
+          await expect(
+            service.update(mockPerson.cpf, { nome: 'X' }, employee(Role.GERENTE)),
+          ).rejects.toBeInstanceOf(ForbiddenException);
+          expect(repo.save).not.toHaveBeenCalled();
+        },
+      );
+
+      it.each([Role.CAIXA, Role.GERENTE, Role.ADMINISTRADOR])(
+        'permite administrador alterar senha e email de %s',
+        async (cargo) => {
+          employeesRepo.findOne.mockResolvedValue({ cpf: mockPerson.cpf, role_perfil: cargo });
+          repo.findOne.mockResolvedValue({ ...mockPerson });
+          repo.save.mockImplementation((p) => Promise.resolve(p as Person));
+
+          const result = await service.update(
+            mockPerson.cpf,
+            { senha: 'novaSenha123', email: 'recuperado@email.com' },
+            employee(Role.ADMINISTRADOR),
+          );
+
+          expect(bcrypt.hash).toHaveBeenCalledWith('novaSenha123', expect.any(Number));
+          expect(result.email).toBe('recuperado@email.com');
+          expect(result).not.toHaveProperty('senha');
+        },
+      );
+
+      it('permite administrador alterar senha de cliente', async () => {
+        repo.findOne.mockResolvedValue({ ...mockPerson });
+        repo.save.mockImplementation((p) => Promise.resolve(p as Person));
+
+        await expect(
+          service.update(mockPerson.cpf, { senha: 'novaSenha123' }, employee(Role.ADMINISTRADOR)),
+        ).resolves.toBeDefined();
+        expect(employeesRepo.findOne).not.toHaveBeenCalled();
       });
     });
 

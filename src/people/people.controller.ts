@@ -125,14 +125,14 @@ export class PeopleController {
   @ApiBearerAuth()
   @ApiOperation({
     summary:
-      'Atualiza dados de uma pessoa (dono do cadastro, ou gerente/administrador para terceiros)',
+      'Atualiza dados de uma pessoa (dono; administrador para qualquer pessoa; gerente para clientes, caixas e vendedores)',
   })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Pessoa atualizada' })
   @ApiResponse({
     status: 403,
     description:
-      'Sem permissão para alterar o cadastro de outra pessoa, ou tentativa de alterar senha/email de terceiro',
+      'Sem permissão para alterar o cadastro desta pessoa, ou gerente tentando alterar senha/email de terceiro',
   })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })
   @ApiResponse({ status: 409, description: 'Email já cadastrado por outra pessoa' })
