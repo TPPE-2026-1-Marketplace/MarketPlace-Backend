@@ -1,23 +1,37 @@
+import { randomBytes } from 'crypto';
+
 import {
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { QueryFailedError, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Like, Not, QueryFailedError, Repository } from 'typeorm';
 
 import { AddressesService } from '../addresses/addresses.service';
-import { BCRYPT_ROUNDS, PG_UNIQUE_VIOLATION } from '../common/constants';
+import {
+  ANONYMIZED_CPF_PREFIX,
+  ANONYMIZED_CPF_RANDOM_BYTES,
+  ANONYMIZED_EMAIL_DOMAIN,
+  ANONYMIZED_PERSON_NAME,
+  BCRYPT_ROUNDS,
+  PG_UNIQUE_VIOLATION,
+} from '../common/constants';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { Person } from './entities/person.entity';
 import { IPersonSafe } from './interfaces/person.interface';
 import { Role } from '../common/enums/role.enum';
+import { Order, OrderStatus } from '../orders/entities/order.entity';
 
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+
+const ORDER_STATUSES_IN_PROGRESS = [OrderStatus.PENDING, OrderStatus.PAID, OrderStatus.SHIPPED];
+
+const NOT_ANONYMIZED = Not(Like(`%@${ANONYMIZED_EMAIL_DOMAIN}`));
 
 @Injectable()
 export class PeopleService {
@@ -25,6 +39,8 @@ export class PeopleService {
     @InjectRepository(Person)
     private readonly peopleRepository: Repository<Person>,
     private readonly addressesService: AddressesService,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -147,6 +163,7 @@ export class PeopleService {
     meta: { page: number; limit: number; total: number; totalPages: number };
   }> {
     const [rows, total] = await this.peopleRepository.findAndCount({
+      where: { email: NOT_ANONYMIZED },
       skip: (page - 1) * limit,
       take: limit,
       order: { nome: 'ASC' },
@@ -219,15 +236,85 @@ export class PeopleService {
     }
   }
 
+  /**
+   * Exclusão do próprio cadastro (LGPD, #197).
+   *
+   * - Sem pedidos: hard delete (endereços e reviews caem em cascata).
+   * - Com pedido em andamento: 409 — a entrega ainda depende dos dados.
+   * - Só com pedidos encerrados: anonimiza. Os pedidos passam para uma Person
+   *   pseudônima e perdem o snapshot pessoal (contato e endereço até o bairro),
+   *   preservando itens, valores, datas, cidade e UF para retenção fiscal.
+   */
   async remove(cpf: string, user: CurrentUserPayload): Promise<void> {
     if (user.sub !== cpf) {
       throw new ForbiddenException('Não é permitido remover o cadastro de outra pessoa.');
     }
 
-    const result = await this.peopleRepository.delete({ cpf });
-    if (result.affected === 0) {
-      throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
+    await this.dataSource.transaction(async (manager) => {
+      const person = await manager.findOne(Person, {
+        where: { cpf },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!person) {
+        throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
+      }
+
+      const linkedOrders = await manager.count(Order, { where: { idUsuario: cpf } });
+      const inProgress = await manager.count(Order, {
+        where: [
+          { idUsuario: cpf, status: In(ORDER_STATUSES_IN_PROGRESS) },
+          { clienteCpfAvulso: cpf, status: In(ORDER_STATUSES_IN_PROGRESS) },
+        ],
+      });
+      if (inProgress > 0) {
+        throw new ConflictException(
+          'Há pedidos em andamento. A conta poderá ser excluída depois que forem entregues ou cancelados.',
+        );
+      }
+
+      await this.redactOrdersOf(manager, cpf, linkedOrders > 0);
+      await manager.delete(Person, { cpf });
+    });
+  }
+
+  private async redactOrdersOf(
+    manager: EntityManager,
+    cpf: string,
+    hasLinkedOrders: boolean,
+  ): Promise<void> {
+    const personalSnapshot: Partial<Order> = {
+      clienteNomeAvulso: null,
+      clienteCpfAvulso: null,
+      clienteEmailAvulso: null,
+      clienteTelefone: null,
+      enderecoCep: null,
+      enderecoRua: null,
+      enderecoNumero: null,
+      enderecoComplemento: null,
+      enderecoBairro: null,
+    };
+
+    await manager.update(Order, { clienteCpfAvulso: cpf }, personalSnapshot);
+
+    if (hasLinkedOrders) {
+      const pseudonym = await manager.save(Person, this.buildPseudonym());
+      await manager.update(
+        Order,
+        { idUsuario: cpf },
+        { ...personalSnapshot, idUsuario: pseudonym.cpf },
+      );
     }
+  }
+
+  private buildPseudonym(): Person {
+    const cpf = ANONYMIZED_CPF_PREFIX + randomBytes(ANONYMIZED_CPF_RANDOM_BYTES).toString('hex');
+    return this.peopleRepository.create({
+      cpf,
+      nome: ANONYMIZED_PERSON_NAME,
+      email: `${cpf.toLowerCase()}@${ANONYMIZED_EMAIL_DOMAIN}`,
+      telefone: null,
+      senha: null,
+    });
   }
 
   async getAllForExport(): Promise<Person[]> {
@@ -235,6 +322,9 @@ export class PeopleService {
       .createQueryBuilder('person')
       .leftJoin('employee', 'emp', 'emp.cpf = person.cpf')
       .where('emp.cpf IS NULL')
+      .andWhere('person.email NOT LIKE :anonymized', {
+        anonymized: `%@${ANONYMIZED_EMAIL_DOMAIN}`,
+      })
       .orderBy('person.nome', 'ASC')
       .getMany();
   }
