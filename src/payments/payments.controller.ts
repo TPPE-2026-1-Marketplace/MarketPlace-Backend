@@ -11,7 +11,7 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
-import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 import { CreatePaymentDto } from './dtos/create-payment.dto';
 import { InfinitePayWebhookDto } from './dtos/infinitepay-webhook.dto';
@@ -30,7 +30,7 @@ export class PaymentsController {
 
   @Post()
   @Throttle(THROTTLE_CHECKOUT)
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(ThrottlerGuard, JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -48,6 +48,7 @@ export class PaymentsController {
   }
 
   @Post('guest')
+  @UseGuards(ThrottlerGuard)
   @Throttle(THROTTLE_CHECKOUT)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -105,7 +106,6 @@ export class PaymentsController {
   }
 
   @Post('webhook')
-  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Webhook para processamento de notificações de pagamento da InfinitePay (Público)',

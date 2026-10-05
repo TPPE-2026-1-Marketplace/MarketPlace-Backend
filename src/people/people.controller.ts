@@ -20,7 +20,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
 import * as csv from 'fast-csv';
 
@@ -85,6 +85,7 @@ export class PeopleController {
   }
 
   @Post('register-user')
+  @UseGuards(ThrottlerGuard)
   @Throttle(THROTTLE_REGISTER)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Registra um usuário no site (Público)' })

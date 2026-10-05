@@ -12,7 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 import { ConfirmPickupDto } from './dtos/confirm-pickup.dto';
 import { CreateInStoreOrderDto } from './dtos/create-in-store-order.dto';
@@ -59,7 +59,7 @@ export class OrdersController {
 
   @Post()
   @Throttle(THROTTLE_CHECKOUT)
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(ThrottlerGuard, JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Cria um novo pedido (Cliente autenticado)' })
@@ -73,6 +73,7 @@ export class OrdersController {
   }
 
   @Post('guest')
+  @UseGuards(ThrottlerGuard)
   @Throttle(THROTTLE_CHECKOUT)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Cria um novo pedido como convidado (sem autenticação)' })

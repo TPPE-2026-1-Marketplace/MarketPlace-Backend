@@ -1,6 +1,5 @@
-import { APP_GUARD } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import request from 'supertest';
 
 import { AuthController } from './auth.controller';
@@ -18,10 +17,7 @@ describe('AuthController rate limiting (#156)', () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [ThrottlerModule.forRoot([THROTTLE_DEFAULT])],
       controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: authService },
-        { provide: APP_GUARD, useClass: ThrottlerGuard },
-      ],
+      providers: [{ provide: AuthService, useValue: authService }],
     }).compile();
 
     app = moduleRef.createNestApplication();

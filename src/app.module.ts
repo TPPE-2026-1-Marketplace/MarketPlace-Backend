@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
@@ -34,6 +33,9 @@ const isProduction = nodeEnv === 'production';
       isGlobal: true,
       validate: validateEnv,
     }),
+    // Sem guard global: o ThrottlerGuard é aplicado só nas rotas de ação manual
+    // (login, cadastro, checkout). Um guard global limitava também o catálogo,
+    // que o frontend carrega com 2 requisições por variante.
     ThrottlerModule.forRoot({
       throttlers: [THROTTLE_DEFAULT],
       // Desliga o rate limiting durante os testes de integração (criam vários
@@ -68,12 +70,6 @@ const isProduction = nodeEnv === 'production';
     SalesGoalsModule,
     ShippingModule,
     HealthModule,
-  ],
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
   ],
 })
 export class AppModule {}
