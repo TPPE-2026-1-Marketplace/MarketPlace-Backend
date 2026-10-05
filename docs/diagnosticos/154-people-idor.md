@@ -11,7 +11,7 @@
 | **Endpoints** | `GET`, `PATCH`, `DELETE /api/people/:cpf` |
 | **Antes** | Qualquer cliente autenticado lia, alterava e apagava a conta de qualquer CPF |
 | **Impacto confirmado** | Vazamento de dados pessoais, takeover de conta de funcionário (escalação a `gerente`), exclusão de funcionário em cascata |
-| **Depois** | Cliente só acessa o próprio CPF; funcionário lê qualquer CPF; só `gerente`/`administrador` altera CPF alheio (sem `senha`/`email`); ninguém apaga CPF alheio |
+| **Depois** | Cliente só acessa o próprio CPF; funcionário lê qualquer CPF; `administrador` altera qualquer cadastro (inclusive `senha`/`email`); `gerente` altera clientes, caixas e vendedores (sem `senha`/`email`); ninguém apaga CPF alheio |
 | **Status** | ✅ Resolvido |
 
 ---
@@ -34,7 +34,7 @@ Separa leitura de escrita (princípio de menor privilégio — OWASP Authorizati
 | Operação | Próprio CPF | CPF alheio |
 |---|---|---|
 | `GET` | todos | qualquer funcionário |
-| `PATCH` | todos (todos os campos) | só `gerente`/`administrador`, exceto `senha`/`email` |
+| `PATCH` | todos (todos os campos) | `administrador`: qualquer pessoa, todos os campos. `gerente`: clientes, caixas e vendedores, exceto `senha`/`email` |
 | `DELETE` | todos | ninguém |
 
 A regra de mercado por trás de cada decisão: funcionário se **desativa** (`ativo=false`), não se apaga (padrão de offboarding — Okta/SCIM, Shopify); o titular pode excluir a própria conta (Apple 5.1.1(v), LGPD art. 18); troca de credencial não é tarefa de edição de perfil por terceiro.
