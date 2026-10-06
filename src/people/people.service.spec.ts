@@ -1,6 +1,6 @@
 import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
+import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { QueryFailedError } from 'typeorm';
 
@@ -9,6 +9,7 @@ import { AddressesService } from '../addresses/addresses.service';
 import { Person } from './entities/person.entity';
 import { Role } from '../common/enums/role.enum';
 import { Employee } from '../employees/entities/employee.entity';
+import { Order } from '../orders/entities/order.entity';
 
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import type { TestingModule } from '@nestjs/testing';
@@ -45,9 +46,23 @@ describe('PeopleService', () => {
   let service: PeopleService;
   let repo: jest.Mocked<Repository<Person>>;
   let addressesService: jest.Mocked<AddressesService>;
+  let manager: {
+    findOne: jest.Mock;
+    count: jest.Mock;
+    update: jest.Mock;
+    save: jest.Mock;
+    delete: jest.Mock;
+  };
   let employeesRepo: { findOne: jest.Mock };
 
   beforeEach(async () => {
+    manager = {
+      findOne: jest.fn(),
+      count: jest.fn().mockResolvedValue(0),
+      update: jest.fn().mockResolvedValue({ affected: 0 }),
+      save: jest.fn((_entity, person: Person) => Promise.resolve(person)),
+      delete: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
     jest.clearAllMocks();
     (bcrypt.hash as jest.Mock).mockResolvedValue('$2b$10$hashedpassword');
     (bcrypt.compare as jest.Mock).mockResolvedValue(true);
@@ -67,6 +82,12 @@ describe('PeopleService', () => {
         {
           provide: AddressesService,
           useValue: { create: jest.fn() },
+        },
+        {
+          provide: getDataSourceToken(),
+          useValue: {
+            transaction: jest.fn((work: (m: typeof manager) => Promise<unknown>) => work(manager)),
+          },
         },
         {
           provide: getRepositoryToken(Employee),
@@ -313,20 +334,72 @@ describe('PeopleService', () => {
     });
   });
 
-  describe('remove', () => {
-    it('remove sem erros quando CPF existe', async () => {
-      repo.delete.mockResolvedValue({ affected: 1, raw: [] });
+  describe('remove (anonimização LGPD #197)', () => {
+    const owner = ownerOf(mockPerson.cpf);
 
-      await expect(
-        service.remove(mockPerson.cpf, ownerOf(mockPerson.cpf)),
-      ).resolves.toBeUndefined();
+    beforeEach(() => {
+      repo.create.mockImplementation((data) => data as Person);
+    });
+
+    it('apaga o cadastro quando não há pedidos vinculados', async () => {
+      manager.findOne.mockResolvedValue(mockPerson);
+
+      await expect(service.remove(mockPerson.cpf, owner)).resolves.toBeUndefined();
+
+      expect(manager.save).not.toHaveBeenCalled();
+      expect(manager.delete).toHaveBeenCalledWith(Person, { cpf: mockPerson.cpf });
     });
 
     it('lança NotFoundException quando CPF não existe', async () => {
-      repo.delete.mockResolvedValue({ affected: 0, raw: [] });
+      manager.findOne.mockResolvedValue(null);
 
-      await expect(service.remove('00000000000', ownerOf('00000000000'))).rejects.toBeInstanceOf(
-        NotFoundException,
+      await expect(service.remove(mockPerson.cpf, owner)).rejects.toBeInstanceOf(NotFoundException);
+      expect(manager.delete).not.toHaveBeenCalled();
+    });
+
+    it('409 quando há pedido em andamento, sem alterar nada', async () => {
+      manager.findOne.mockResolvedValue(mockPerson);
+      manager.count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+
+      await expect(service.remove(mockPerson.cpf, owner)).rejects.toBeInstanceOf(ConflictException);
+      expect(manager.update).not.toHaveBeenCalled();
+      expect(manager.delete).not.toHaveBeenCalled();
+    });
+
+    it('com pedidos encerrados, move os pedidos para um pseudônimo e apaga a pessoa', async () => {
+      manager.findOne.mockResolvedValue(mockPerson);
+      manager.count.mockResolvedValueOnce(3).mockResolvedValueOnce(0);
+
+      await service.remove(mockPerson.cpf, owner);
+
+      const pseudonym = manager.save.mock.calls[0][1] as Person;
+      expect(pseudonym.cpf).toMatch(/^X[0-9a-f]{10}$/);
+      expect(pseudonym.email).toBe(`${pseudonym.cpf.toLowerCase()}@anonimizado.invalid`);
+      expect(pseudonym).toMatchObject({ nome: 'Cliente removido', telefone: null, senha: null });
+
+      expect(manager.update).toHaveBeenCalledWith(
+        Order,
+        { idUsuario: mockPerson.cpf },
+        expect.objectContaining({
+          idUsuario: pseudonym.cpf,
+          clienteTelefone: null,
+          enderecoCep: null,
+          enderecoRua: null,
+          enderecoNumero: null,
+        }),
+      );
+      expect(manager.delete).toHaveBeenCalledWith(Person, { cpf: mockPerson.cpf });
+    });
+
+    it('redige pedidos de loja feitos com o CPF avulso', async () => {
+      manager.findOne.mockResolvedValue(mockPerson);
+
+      await service.remove(mockPerson.cpf, owner);
+
+      expect(manager.update).toHaveBeenCalledWith(
+        Order,
+        { clienteCpfAvulso: mockPerson.cpf },
+        expect.objectContaining({ clienteCpfAvulso: null, clienteNomeAvulso: null }),
       );
     });
   });
@@ -436,14 +509,14 @@ describe('PeopleService', () => {
         await expect(service.remove(mockPerson.cpf, ownerOf('00000000000'))).rejects.toBeInstanceOf(
           ForbiddenException,
         );
-        expect(repo.delete).not.toHaveBeenCalled();
+        expect(manager.findOne).not.toHaveBeenCalled();
       });
 
       it('403 quando funcionário (inclusive admin) remove CPF alheio', async () => {
         await expect(
           service.remove(mockPerson.cpf, employee(Role.ADMINISTRADOR)),
         ).rejects.toBeInstanceOf(ForbiddenException);
-        expect(repo.delete).not.toHaveBeenCalled();
+        expect(manager.findOne).not.toHaveBeenCalled();
       });
     });
   });

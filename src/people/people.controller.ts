@@ -148,11 +148,17 @@ export class PeopleController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove o próprio cadastro (apenas o dono)' })
+  @ApiOperation({
+    summary: 'Remove o próprio cadastro (apenas o dono)',
+    description:
+      'Sem pedidos, o cadastro é apagado. Com pedidos encerrados, os dados pessoais são ' +
+      'anonimizados e o histórico de pedidos é preservado (LGPD + retenção fiscal).',
+  })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
-  @ApiResponse({ status: 204, description: 'Pessoa removida' })
+  @ApiResponse({ status: 204, description: 'Pessoa removida ou anonimizada' })
   @ApiResponse({ status: 403, description: 'Tentativa de remover o cadastro de outra pessoa' })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })
+  @ApiResponse({ status: 409, description: 'Há pedidos em andamento' })
   remove(@Param('cpf') cpf: string, @CurrentUser() user: CurrentUserPayload) {
     return this.peopleService.remove(cpf, user);
   }
