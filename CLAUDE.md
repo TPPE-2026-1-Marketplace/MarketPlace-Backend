@@ -140,11 +140,11 @@ uma variável de ambiente nova e obrigatória, inclua-a nesse schema.
 É usado pelo `HEALTHCHECK` do `Dockerfile` (estágio `runner`) e pelo healthcheck do
 serviço `api` no `compose.prod.yml`.
 
-### Resposta de erro padronizada (pendente)
+### Resposta de erro padronizada
 
-`AllExceptionsFilter` **ainda não implementado** — mencionado no design mas
-ausente em `src/common/filters/`. Erros de validação do Zod retornam o formato
-padrão do `nestjs-zod`. Formato alvo quando implementado:
+`AllExceptionsFilter` (`src/common/filters/`), registrado globalmente em
+`main.ts` (`app.useGlobalFilters`), padroniza toda resposta de erro não
+tratada explicitamente por um controller/service. Formato:
 
 ```json
 {
@@ -153,9 +153,28 @@ padrão do `nestjs-zod`. Formato alvo quando implementado:
   "path": "/api/people",
   "method": "POST",
   "message": "Validation failed",
-  "errors": [{ "field": "email", "message": "Invalid email format" }]
+  "errors": [{ "field": "email", "message": "Invalid email format" }],
+  "requestId": "6f1b7e2a-..."
 }
 ```
+
+`errors` só aparece em falhas de validação do Zod (`ZodValidationException`);
+`requestId` é o `x-request-id` da requisição (ver abaixo). Violação de
+unicidade do banco (`QueryFailedError` código `23505`) não tratada por um
+service vira `409`; qualquer outro erro não mapeado vira `500` com mensagem
+genérica (detalhes só vão pro log, nunca pro cliente). Services que já
+tratam um caso específico (ex.: `ProductsService` com SKU duplicado, issue
+#158) continuam funcionando como antes — o filtro é a rede de segurança
+para o que ainda não tem tratamento próprio, não uma substituição.
+
+### Correlation ID (x-request-id)
+
+`correlationIdMiddleware` (`src/common/middleware/`), registrado em
+`main.ts` antes de tudo (`app.use`), garante que toda requisição tenha um
+`x-request-id`: repassa o header recebido do cliente/proxy quando houver,
+ou gera um novo. Sempre devolvido no header de resposta, e incluído no log
+de erro do `AllExceptionsFilter` — permite ligar uma resposta de erro ao
+log correspondente no servidor.
 
 ---
 
