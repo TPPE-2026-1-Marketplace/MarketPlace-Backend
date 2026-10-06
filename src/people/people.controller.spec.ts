@@ -11,8 +11,15 @@ import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 
+import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import type { TestingModule } from '@nestjs/testing';
 import type { Response } from 'express';
+
+const currentUser: CurrentUserPayload = {
+  sub: '12345678901',
+  email: 'joao@email.com',
+  role: Role.CLIENTE,
+};
 
 const mockPeopleService = {
   registerPerson: jest.fn(),
@@ -183,30 +190,34 @@ describe('PeopleController', () => {
       expect(roles).toBeUndefined();
     });
 
-    it('deve delegar para o service pelo cpf', () => {
+    it('deve delegar cpf e usuário autenticado para o service', () => {
       mockPeopleService.findOne.mockReturnValue({ cpf: '12345678901' });
 
-      void controller.findOne('12345678901');
+      void controller.findOne('12345678901', currentUser);
 
-      expect(mockPeopleService.findOne).toHaveBeenCalledWith('12345678901');
+      expect(mockPeopleService.findOne).toHaveBeenCalledWith('12345678901', currentUser);
     });
   });
 
   describe('update', () => {
-    it('deve delegar cpf e dto para o service', () => {
+    it('deve delegar cpf, dto e usuário autenticado para o service', () => {
       mockPeopleService.update.mockReturnValue({ cpf: '12345678901' });
 
-      void controller.update('12345678901', { nome: 'Novo Nome' });
+      void controller.update('12345678901', { nome: 'Novo Nome' }, currentUser);
 
-      expect(mockPeopleService.update).toHaveBeenCalledWith('12345678901', { nome: 'Novo Nome' });
+      expect(mockPeopleService.update).toHaveBeenCalledWith(
+        '12345678901',
+        { nome: 'Novo Nome' },
+        currentUser,
+      );
     });
   });
 
   describe('remove', () => {
-    it('deve delegar o cpf para o service', () => {
-      void controller.remove('12345678901');
+    it('deve delegar cpf e usuário autenticado para o service', () => {
+      void controller.remove('12345678901', currentUser);
 
-      expect(mockPeopleService.remove).toHaveBeenCalledWith('12345678901');
+      expect(mockPeopleService.remove).toHaveBeenCalledWith('12345678901', currentUser);
     });
   });
 });
