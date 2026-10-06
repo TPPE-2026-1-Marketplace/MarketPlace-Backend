@@ -25,3 +25,11 @@ export const MAX_IMAGE_UPLOAD_BYTES = 5_242_880;
 // Limites usados para gerar código de verificação de 6 dígitos na retirada em loja.
 export const VERIFICATION_CODE_MIN = 100000;
 export const VERIFICATION_CODE_RANGE = 900000;
+
+// Pseudônimo que substitui o CPF de um cliente anonimizado (LGPD, #197):
+// prefixo não numérico + bytes aleatórios em hex = 11 caracteres, cabe em
+// `person.cpf` e nunca colide com um CPF real (só dígitos).
+export const ANONYMIZED_CPF_PREFIX = 'X';
+export const ANONYMIZED_CPF_RANDOM_BYTES = 5;
+export const ANONYMIZED_EMAIL_DOMAIN = 'anonimizado.invalid';
+export const ANONYMIZED_PERSON_NAME = 'Cliente removido';

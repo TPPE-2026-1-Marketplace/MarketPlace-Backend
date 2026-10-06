@@ -1,24 +1,58 @@
+import { Writable } from 'stream';
+
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { PeopleController } from './people.controller';
 import { PeopleService } from './people.service';
+import { THROTTLE_DEFAULT } from '../common/config/throttle.config';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 
+import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import type { TestingModule } from '@nestjs/testing';
+import type { Response } from 'express';
+
+const currentUser: CurrentUserPayload = {
+  sub: '12345678901',
+  email: 'joao@email.com',
+  role: Role.CLIENTE,
+};
 
 const mockPeopleService = {
   registerPerson: jest.fn(),
   registerUser: jest.fn(),
+  getAllForExport: jest.fn(),
   findAll: jest.fn(),
   findOne: jest.fn(),
   update: jest.fn(),
   remove: jest.fn(),
 };
+
+/**
+ * Fake de `Response` que se comporta como um Writable de verdade — necessário
+ * porque `exportPeople` faz `csvStream.pipe(res)`, e `.pipe()` exige que o
+ * destino seja um stream real (não um objeto qualquer com `.write`/`.end`).
+ */
+function createFakeResponse() {
+  const chunks: string[] = [];
+  const writable = new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      chunks.push(chunk.toString());
+      callback();
+    },
+  });
+
+  const res = writable as unknown as Response & { chunks: string[] };
+  res.setHeader = jest.fn();
+  res.chunks = chunks;
+
+  return res;
+}
 
 describe('PeopleController', () => {
   let controller: PeopleController;
@@ -27,6 +61,7 @@ describe('PeopleController', () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [ThrottlerModule.forRoot([THROTTLE_DEFAULT])],
       controllers: [PeopleController],
       providers: [
         {
@@ -74,13 +109,118 @@ describe('PeopleController', () => {
   });
 
   describe('registerUser', () => {
-    it('não deve carregar metadados de guard específico', () => {
+    it('é pública: só tem o ThrottlerGuard, sem autenticação', () => {
       const guards = Reflect.getMetadata(
         GUARDS_METADATA,
         controller.constructor.prototype.registerUser,
       );
 
-      expect(guards).toBeUndefined();
+      expect(guards).toEqual([ThrottlerGuard]);
+    });
+  });
+
+  describe('exportPeople', () => {
+    it('deve exigir JwtAuthGuard, RolesGuard e papel administrador', () => {
+      const guards = Reflect.getMetadata(
+        GUARDS_METADATA,
+        controller.constructor.prototype.exportPeople,
+      );
+      const roles = Reflect.getMetadata(ROLES_KEY, controller.constructor.prototype.exportPeople);
+
+      expect(guards).toEqual([JwtAuthGuard, RolesGuard]);
+      expect(roles).toEqual([Role.ADMINISTRADOR]);
+    });
+
+    it('deve preencher nome e telefone no CSV quando presentes', async () => {
+      mockPeopleService.getAllForExport.mockResolvedValue([
+        { cpf: '11111111111', nome: 'Maria', email: 'maria@email.com', telefone: '61999999999' },
+      ]);
+      const res = createFakeResponse();
+
+      await controller.exportPeople(res);
+      await new Promise((resolve) => res.once('finish', resolve));
+
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv');
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'Content-Disposition',
+        'attachment; filename="clientes.csv"',
+      );
+      const csv = res.chunks.join('');
+      expect(csv).toContain('Maria');
+      expect(csv).toContain('61999999999');
+    });
+
+    it('deve cair no fallback de string vazia quando nome e telefone estão ausentes', async () => {
+      mockPeopleService.getAllForExport.mockResolvedValue([
+        { cpf: '22222222222', nome: null, email: 'sem-dados@email.com', telefone: null },
+      ]);
+      const res = createFakeResponse();
+
+      await controller.exportPeople(res);
+      await new Promise((resolve) => res.once('finish', resolve));
+
+      const csv = res.chunks.join('');
+      expect(csv).toContain('sem-dados@email.com');
+      // fast-csv serializa null/undefined como campo vazio, não como "null".
+      expect(csv).not.toContain('null');
+    });
+  });
+
+  describe('findAll', () => {
+    it('deve exigir JwtAuthGuard e RolesGuard para funcionários', () => {
+      const guards = Reflect.getMetadata(GUARDS_METADATA, controller.constructor.prototype.findAll);
+      const roles = Reflect.getMetadata(ROLES_KEY, controller.constructor.prototype.findAll);
+
+      expect(guards).toEqual([JwtAuthGuard, RolesGuard]);
+      expect(roles).toEqual([Role.CAIXA, Role.VENDEDOR, Role.GERENTE, Role.ADMINISTRADOR]);
+    });
+
+    it('deve repassar page e limit separadamente para o service', () => {
+      mockPeopleService.findAll.mockReturnValue({ data: [], meta: {} });
+
+      void controller.findAll({ page: 2, limit: 10 });
+
+      expect(mockPeopleService.findAll).toHaveBeenCalledWith(2, 10);
+    });
+  });
+
+  describe('findOne', () => {
+    it('deve exigir apenas JwtAuthGuard (sem restrição de role)', () => {
+      const guards = Reflect.getMetadata(GUARDS_METADATA, controller.constructor.prototype.findOne);
+      const roles = Reflect.getMetadata(ROLES_KEY, controller.constructor.prototype.findOne);
+
+      expect(guards).toEqual([JwtAuthGuard]);
+      expect(roles).toBeUndefined();
+    });
+
+    it('deve delegar cpf e usuário autenticado para o service', () => {
+      mockPeopleService.findOne.mockReturnValue({ cpf: '12345678901' });
+
+      void controller.findOne('12345678901', currentUser);
+
+      expect(mockPeopleService.findOne).toHaveBeenCalledWith('12345678901', currentUser);
+    });
+  });
+
+  describe('update', () => {
+    it('deve delegar cpf, dto e usuário autenticado para o service', () => {
+      mockPeopleService.update.mockReturnValue({ cpf: '12345678901' });
+
+      void controller.update('12345678901', { nome: 'Novo Nome' }, currentUser);
+
+      expect(mockPeopleService.update).toHaveBeenCalledWith(
+        '12345678901',
+        { nome: 'Novo Nome' },
+        currentUser,
+      );
+    });
+  });
+
+  describe('remove', () => {
+    it('deve delegar cpf e usuário autenticado para o service', () => {
+      void controller.remove('12345678901', currentUser);
+
+      expect(mockPeopleService.remove).toHaveBeenCalledWith('12345678901', currentUser);
     });
   });
 });

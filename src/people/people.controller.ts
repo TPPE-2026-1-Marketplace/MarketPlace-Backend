@@ -20,6 +20,7 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
 import * as csv from 'fast-csv';
 
@@ -27,11 +28,15 @@ import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { PeopleService } from './people.service';
+import { THROTTLE_REGISTER } from '../common/config/throttle.config';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { PaginationDto } from '../common/dtos';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
+
+import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
 @ApiTags('people')
 @Controller('people')
@@ -83,11 +88,14 @@ export class PeopleController {
   }
 
   @Post('register-user')
+  @UseGuards(ThrottlerGuard)
+  @Throttle(THROTTLE_REGISTER)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Registra um usuário no site (Público)' })
   @ApiResponse({ status: 201, description: 'Usuário registrado com sucesso' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 409, description: 'Email já cadastrado ou CPF já possui conta completa' })
+  @ApiResponse({ status: 429, description: 'Limite de cadastros excedido' })
   @ApiBearerAuth()
   registerUser(@Body() dto: RegisterUserDto) {
     return this.peopleService.registerUser(dto);
@@ -108,35 +116,55 @@ export class PeopleController {
   @Get(':cpf')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Busca uma pessoa por CPF (Cliente autenticado)' })
+  @ApiOperation({ summary: 'Busca uma pessoa por CPF (dono do cadastro ou funcionário)' })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Pessoa encontrada' })
+  @ApiResponse({ status: 403, description: 'Cliente tentando acessar CPF de outra pessoa' })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })
-  findOne(@Param('cpf') cpf: string) {
-    return this.peopleService.findOne(cpf);
+  findOne(@Param('cpf') cpf: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.peopleService.findOne(cpf, user);
   }
 
   @Patch(':cpf')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Atualiza dados de uma pessoa (Cliente autenticado)' })
+  @ApiOperation({
+    summary:
+      'Atualiza dados de uma pessoa (dono; administrador para qualquer pessoa; gerente para clientes, caixas e vendedores)',
+  })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Pessoa atualizada' })
+  @ApiResponse({
+    status: 403,
+    description:
+      'Sem permissão para alterar o cadastro desta pessoa, ou gerente tentando alterar senha/email de terceiro',
+  })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })
   @ApiResponse({ status: 409, description: 'Email já cadastrado por outra pessoa' })
-  update(@Param('cpf') cpf: string, @Body() dto: UpdatePersonDto) {
-    return this.peopleService.update(cpf, dto);
+  update(
+    @Param('cpf') cpf: string,
+    @Body() dto: UpdatePersonDto,
+    @CurrentUser() user: CurrentUserPayload,
+  ) {
+    return this.peopleService.update(cpf, dto, user);
   }
 
   @Delete(':cpf')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove uma pessoa (Cliente autenticado)' })
+  @ApiOperation({
+    summary: 'Remove o próprio cadastro (apenas o dono)',
+    description:
+      'Sem pedidos, o cadastro é apagado. Com pedidos encerrados, os dados pessoais são ' +
+      'anonimizados e o histórico de pedidos é preservado (LGPD + retenção fiscal).',
+  })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
-  @ApiResponse({ status: 204, description: 'Pessoa removida' })
+  @ApiResponse({ status: 204, description: 'Pessoa removida ou anonimizada' })
+  @ApiResponse({ status: 403, description: 'Tentativa de remover o cadastro de outra pessoa' })
   @ApiResponse({ status: 404, description: 'Pessoa não encontrada' })
-  remove(@Param('cpf') cpf: string) {
-    return this.peopleService.remove(cpf);
+  @ApiResponse({ status: 409, description: 'Há pedidos em andamento' })
+  remove(@Param('cpf') cpf: string, @CurrentUser() user: CurrentUserPayload) {
+    return this.peopleService.remove(cpf, user);
   }
 }
