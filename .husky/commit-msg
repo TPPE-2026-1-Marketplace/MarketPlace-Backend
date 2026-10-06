@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+#
+# Shim gerado por "make hooks": delega para .githooks/commit-msg.
+#
+# O shim e um arquivo local (gitignored) e sobrevive a troca de branch,
+# mas .githooks/commit-msg e versionado. Em branches criadas antes dele
+# o alvo nao existe, e um exec direto morre com 127 — bloqueando todo
+# commit na branch. A guarda abaixo faz o hook virar no-op nesse caso.
+hook="$(dirname "$0")/../.githooks/commit-msg"
+
+[ -x "$hook" ] || exit 0
+
+exec "$hook" "$@"
