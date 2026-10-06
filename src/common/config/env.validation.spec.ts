@@ -5,20 +5,20 @@ const validEnv = {
   POSTGRES_USER: 'user',
   POSTGRES_PASSWORD: 'pass',
   POSTGRES_DB: 'db',
-  JWT_SECRET: 'segredo',
+  JWT_SECRET: 'segredo-de-teste-com-pelo-menos-32-caracteres',
 };
 
 describe('validateEnv', () => {
   it('aceita um ambiente com apenas as variáveis obrigatórias', () => {
     const result = validateEnv(validEnv);
     expect(result.POSTGRES_HOST).toBe('localhost');
-    expect(result.JWT_SECRET).toBe('segredo');
+    expect(result.JWT_SECRET).toBe(validEnv.JWT_SECRET);
   });
 
   it('aceita DATABASE_URL no lugar das variáveis POSTGRES_* separadas', () => {
     const result = validateEnv({
       DATABASE_URL: 'postgresql://user:pass@example.neon.tech/db?sslmode=require',
-      JWT_SECRET: 'segredo',
+      JWT_SECRET: validEnv.JWT_SECRET,
     });
 
     expect(result.DATABASE_URL).toBe('postgresql://user:pass@example.neon.tech/db?sslmode=require');
@@ -94,6 +94,27 @@ describe('validateEnv', () => {
       ['só vírgulas', ' , '],
     ])('rejeita CORS_ORIGINS %s', (_caso, value) => {
       expect(() => validateEnv({ ...validEnv, CORS_ORIGINS: value })).toThrow(/CORS_ORIGINS/);
+    });
+  });
+
+  describe('JWT_SECRET', () => {
+    it('aceita um segredo com exatamente 32 caracteres', () => {
+      expect(() => validateEnv({ ...validEnv, JWT_SECRET: 'a'.repeat(32) })).not.toThrow();
+    });
+
+    it.each([
+      ['1 caractere', 'a'],
+      ['31 caracteres', 'a'.repeat(31)],
+    ])('rejeita segredo com %s, citando o mínimo na mensagem', (_caso, secret) => {
+      expect(() => validateEnv({ ...validEnv, JWT_SECRET: secret })).toThrow(
+        /JWT_SECRET deve ter no mínimo 32 caracteres/,
+      );
+    });
+
+    it('aceita o formato gerado por `openssl rand -base64 32`', () => {
+      expect(() =>
+        validateEnv({ ...validEnv, JWT_SECRET: '+WQb1MiZ0YPgkHZyqAL0cn10Cw9ikUzGqGUx7GuJWFI=' }),
+      ).not.toThrow();
     });
   });
 });
