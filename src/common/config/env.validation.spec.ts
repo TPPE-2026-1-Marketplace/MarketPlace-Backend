@@ -73,4 +73,27 @@ describe('validateEnv', () => {
       expect(() => validateEnv({ ...validEnv, SWAGGER_PUBLIC: value })).toThrow(/SWAGGER_PUBLIC/);
     },
   );
+
+  describe('CORS_ORIGINS', () => {
+    it('é opcional', () => {
+      expect(() => validateEnv(validEnv)).not.toThrow();
+    });
+
+    it('aceita uma lista de origens separadas por vírgula (com espaços)', () => {
+      const value = 'http://localhost:5173, https://app.exemplo.com';
+      const result = validateEnv({ ...validEnv, CORS_ORIGINS: value });
+      expect(result.CORS_ORIGINS).toBe(value);
+    });
+
+    it.each([
+      ['sem protocolo', 'app.exemplo.com'],
+      ['com barra final', 'https://app.exemplo.com/'],
+      ['com caminho', 'https://app.exemplo.com/app'],
+      ['uma origem válida e outra inválida', 'https://ok.com,nao-e-url'],
+      ['vazio', ''],
+      ['só vírgulas', ' , '],
+    ])('rejeita CORS_ORIGINS %s', (_caso, value) => {
+      expect(() => validateEnv({ ...validEnv, CORS_ORIGINS: value })).toThrow(/CORS_ORIGINS/);
+    });
+  });
 });
