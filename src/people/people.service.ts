@@ -1,15 +1,40 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { randomBytes } from 'crypto';
+
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
-import { QueryFailedError, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Like, Not, QueryFailedError, Repository } from 'typeorm';
 
 import { AddressesService } from '../addresses/addresses.service';
-import { BCRYPT_ROUNDS, PG_UNIQUE_VIOLATION } from '../common/constants';
+import {
+  ANONYMIZED_CPF_PREFIX,
+  ANONYMIZED_CPF_RANDOM_BYTES,
+  ANONYMIZED_EMAIL_DOMAIN,
+  ANONYMIZED_PERSON_NAME,
+  BCRYPT_ROUNDS,
+  PG_UNIQUE_VIOLATION,
+} from '../common/constants';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { Person } from './entities/person.entity';
 import { IPersonSafe } from './interfaces/person.interface';
+import { Role } from '../common/enums/role.enum';
+import { Employee } from '../employees/entities/employee.entity';
+import { Order, OrderStatus } from '../orders/entities/order.entity';
+
+import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+
+const ORDER_STATUSES_IN_PROGRESS = [OrderStatus.PENDING, OrderStatus.PAID, OrderStatus.SHIPPED];
+
+const NOT_ANONYMIZED = Not(Like(`%@${ANONYMIZED_EMAIL_DOMAIN}`));
+
+const ROLES_MANAGED_BY_GERENTE = [Role.CAIXA, Role.VENDEDOR];
 
 @Injectable()
 export class PeopleService {
@@ -17,6 +42,10 @@ export class PeopleService {
     @InjectRepository(Person)
     private readonly peopleRepository: Repository<Person>,
     private readonly addressesService: AddressesService,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
+    @InjectRepository(Employee)
+    private readonly employeesRepository: Repository<Employee>,
   ) {}
 
   /**
@@ -139,6 +168,7 @@ export class PeopleService {
     meta: { page: number; limit: number; total: number; totalPages: number };
   }> {
     const [rows, total] = await this.peopleRepository.findAndCount({
+      where: { email: NOT_ANONYMIZED },
       skip: (page - 1) * limit,
       take: limit,
       order: { nome: 'ASC' },
@@ -155,7 +185,11 @@ export class PeopleService {
     };
   }
 
-  async findOne(cpf: string): Promise<IPersonSafe> {
+  async findOne(cpf: string, user: CurrentUserPayload): Promise<IPersonSafe> {
+    if (user.role === Role.CLIENTE && user.sub !== cpf) {
+      throw new ForbiddenException('Você só pode acessar o próprio cadastro.');
+    }
+
     const person = await this.peopleRepository.findOne({ where: { cpf } });
     if (!person) {
       throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
@@ -163,7 +197,43 @@ export class PeopleService {
     return this.stripPassword(person);
   }
 
-  async update(cpf: string, dto: UpdatePersonDto): Promise<IPersonSafe> {
+  /**
+   * Cadastro de outra pessoa:
+   * - administrador altera tudo, inclusive senha e email (recuperação de conta);
+   * - gerente altera dados não sensíveis só de clientes, caixas e vendedores;
+   * - demais cargos não alteram.
+   */
+  private async assertCanUpdate(
+    cpf: string,
+    dto: UpdatePersonDto,
+    user: CurrentUserPayload,
+  ): Promise<void> {
+    if (user.sub === cpf || user.role === Role.ADMINISTRADOR) {
+      return;
+    }
+
+    if (user.role !== Role.GERENTE) {
+      throw new ForbiddenException(
+        'Apenas gerente ou administrador podem alterar o cadastro de outra pessoa.',
+      );
+    }
+    if (dto.senha !== undefined || dto.email !== undefined) {
+      throw new ForbiddenException(
+        'Apenas o administrador pode alterar senha ou email de outra pessoa.',
+      );
+    }
+
+    const target = await this.employeesRepository.findOne({ where: { cpf } });
+    if (target && !ROLES_MANAGED_BY_GERENTE.includes(target.role_perfil)) {
+      throw new ForbiddenException(
+        'Gerente só altera o cadastro de clientes, caixas e vendedores.',
+      );
+    }
+  }
+
+  async update(cpf: string, dto: UpdatePersonDto, user: CurrentUserPayload): Promise<IPersonSafe> {
+    await this.assertCanUpdate(cpf, dto, user);
+
     const person = await this.peopleRepository.findOne({ where: { cpf } });
     if (!person) {
       throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
@@ -189,11 +259,85 @@ export class PeopleService {
     }
   }
 
-  async remove(cpf: string): Promise<void> {
-    const result = await this.peopleRepository.delete({ cpf });
-    if (result.affected === 0) {
-      throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
+  /**
+   * Exclusão do próprio cadastro (LGPD, #197).
+   *
+   * - Sem pedidos: hard delete (endereços e reviews caem em cascata).
+   * - Com pedido em andamento: 409 — a entrega ainda depende dos dados.
+   * - Só com pedidos encerrados: anonimiza. Os pedidos passam para uma Person
+   *   pseudônima e perdem o snapshot pessoal (contato e endereço até o bairro),
+   *   preservando itens, valores, datas, cidade e UF para retenção fiscal.
+   */
+  async remove(cpf: string, user: CurrentUserPayload): Promise<void> {
+    if (user.sub !== cpf) {
+      throw new ForbiddenException('Não é permitido remover o cadastro de outra pessoa.');
     }
+
+    await this.dataSource.transaction(async (manager) => {
+      const person = await manager.findOne(Person, {
+        where: { cpf },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!person) {
+        throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
+      }
+
+      const linkedOrders = await manager.count(Order, { where: { idUsuario: cpf } });
+      const inProgress = await manager.count(Order, {
+        where: [
+          { idUsuario: cpf, status: In(ORDER_STATUSES_IN_PROGRESS) },
+          { clienteCpfAvulso: cpf, status: In(ORDER_STATUSES_IN_PROGRESS) },
+        ],
+      });
+      if (inProgress > 0) {
+        throw new ConflictException(
+          'Há pedidos em andamento. A conta poderá ser excluída depois que forem entregues ou cancelados.',
+        );
+      }
+
+      await this.redactOrdersOf(manager, cpf, linkedOrders > 0);
+      await manager.delete(Person, { cpf });
+    });
+  }
+
+  private async redactOrdersOf(
+    manager: EntityManager,
+    cpf: string,
+    hasLinkedOrders: boolean,
+  ): Promise<void> {
+    const personalSnapshot: Partial<Order> = {
+      clienteNomeAvulso: null,
+      clienteCpfAvulso: null,
+      clienteEmailAvulso: null,
+      clienteTelefone: null,
+      enderecoCep: null,
+      enderecoRua: null,
+      enderecoNumero: null,
+      enderecoComplemento: null,
+      enderecoBairro: null,
+    };
+
+    await manager.update(Order, { clienteCpfAvulso: cpf }, personalSnapshot);
+
+    if (hasLinkedOrders) {
+      const pseudonym = await manager.save(Person, this.buildPseudonym());
+      await manager.update(
+        Order,
+        { idUsuario: cpf },
+        { ...personalSnapshot, idUsuario: pseudonym.cpf },
+      );
+    }
+  }
+
+  private buildPseudonym(): Person {
+    const cpf = ANONYMIZED_CPF_PREFIX + randomBytes(ANONYMIZED_CPF_RANDOM_BYTES).toString('hex');
+    return this.peopleRepository.create({
+      cpf,
+      nome: ANONYMIZED_PERSON_NAME,
+      email: `${cpf.toLowerCase()}@${ANONYMIZED_EMAIL_DOMAIN}`,
+      telefone: null,
+      senha: null,
+    });
   }
 
   async getAllForExport(): Promise<Person[]> {
@@ -201,6 +345,9 @@ export class PeopleService {
       .createQueryBuilder('person')
       .leftJoin('employee', 'emp', 'emp.cpf = person.cpf')
       .where('emp.cpf IS NULL')
+      .andWhere('person.email NOT LIKE :anonymized', {
+        anonymized: `%@${ANONYMIZED_EMAIL_DOMAIN}`,
+      })
       .orderBy('person.nome', 'ASC')
       .getMany();
   }
