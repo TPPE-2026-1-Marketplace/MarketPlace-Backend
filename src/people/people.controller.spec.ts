@@ -3,9 +3,11 @@ import { Writable } from 'stream';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
 import { PeopleController } from './people.controller';
 import { PeopleService } from './people.service';
+import { THROTTLE_DEFAULT } from '../common/config/throttle.config';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -59,6 +61,7 @@ describe('PeopleController', () => {
     jest.clearAllMocks();
 
     const module: TestingModule = await Test.createTestingModule({
+      imports: [ThrottlerModule.forRoot([THROTTLE_DEFAULT])],
       controllers: [PeopleController],
       providers: [
         {
@@ -106,13 +109,13 @@ describe('PeopleController', () => {
   });
 
   describe('registerUser', () => {
-    it('não deve carregar metadados de guard específico', () => {
+    it('é pública: só tem o ThrottlerGuard, sem autenticação', () => {
       const guards = Reflect.getMetadata(
         GUARDS_METADATA,
         controller.constructor.prototype.registerUser,
       );
 
-      expect(guards).toBeUndefined();
+      expect(guards).toEqual([ThrottlerGuard]);
     });
   });
 

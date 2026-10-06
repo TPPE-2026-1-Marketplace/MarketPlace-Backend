@@ -3,6 +3,7 @@ import { join } from 'path';
 
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule, getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { ZodValidationPipe } from 'nestjs-zod';
@@ -12,6 +13,7 @@ import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 import { ImagesModule } from './images.module';
 import { AuthModule } from '../auth/auth.module';
 import { CategoriesModule } from '../categories/categories.module';
+import { THROTTLE_DEFAULT } from '../common/config/throttle.config';
 import { BCRYPT_ROUNDS, DEFAULT_POSTGRES_PORT } from '../common/constants';
 import { Role } from '../common/enums/role.enum';
 import { CouponsModule } from '../coupons/coupons.module';
@@ -92,6 +94,7 @@ describe('ImagesModule integration', () => {
         ConfigModule.forRoot({
           isGlobal: true,
         }),
+        ThrottlerModule.forRoot([THROTTLE_DEFAULT]),
         TypeOrmModule.forRoot({
           type: 'postgres',
           host: getPostgresHost(),

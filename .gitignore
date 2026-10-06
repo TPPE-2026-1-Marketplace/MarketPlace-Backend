@@ -19,3 +19,4 @@ openapi.json
 
 # Shim gerado por "make hooks" (delega para .githooks/commit-msg)
 .husky/commit-msg
+.claude/worktrees/

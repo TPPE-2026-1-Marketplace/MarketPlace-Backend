@@ -7,12 +7,19 @@ import { AppModule } from './app.module';
 import { isSwaggerEnabled } from './common/config/swagger.config';
 import { DEFAULT_API_PORT } from './common/constants';
 
+import type { NestExpressApplication } from '@nestjs/platform-express';
+
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   logger.log('Inicializando aplicação NestJS...');
 
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Em produção a API roda atrás do proxy do Render: sem confiar no primeiro
+  // salto de X-Forwarded-For, o rate limiting enxergaria o IP do proxy e o
+  // limite viraria global (todos os clientes compartilhando a mesma contagem).
+  app.set('trust proxy', 1);
 
   app.enableShutdownHooks();
 

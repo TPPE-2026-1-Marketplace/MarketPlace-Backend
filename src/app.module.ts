@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
@@ -7,6 +8,7 @@ import { AddressesModule } from './addresses/addresses.module';
 import { AuthModule } from './auth/auth.module';
 import { CategoriesModule } from './categories/categories.module';
 import { validateEnv } from './common/config/env.validation';
+import { THROTTLE_DEFAULT } from './common/config/throttle.config';
 import { CouponsModule } from './coupons/coupons.module';
 import { buildDatabaseConnectionConfig } from './database/connection-config';
 import { EmployeesModule } from './employees/employees.module';
@@ -30,6 +32,17 @@ const isProduction = nodeEnv === 'production';
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+    }),
+    // Sem guard global: o ThrottlerGuard é aplicado só nas rotas de ação manual
+    // (login, cadastro, checkout). Um guard global limitava também o catálogo,
+    // que o frontend carrega com 2 requisições por variante.
+    ThrottlerModule.forRoot({
+      throttlers: [THROTTLE_DEFAULT],
+      // Desliga o rate limiting durante os testes de integração (criam vários
+      // pedidos/pagamentos em sequência). A flag é setada em jest-setup-envs.js.
+      // O teste dedicado do 429 (auth.throttle.spec) monta o próprio
+      // ThrottlerModule sem skipIf e não é afetado.
+      skipIf: () => process.env.THROTTLE_DISABLED === 'true',
     }),
     TypeOrmModule.forRootAsync({
       useFactory: () => ({
