@@ -1,25 +1,58 @@
 name: Export de métricas
- 
+
 on:
+  # Roda depois do CI, cujo job "sonarcloud" faz a análise. Disparado junto com
+  # o push, o export consultava a API antes de a análise nova existir e gravava
+  # a anterior.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, dev]
   push:
-    branches: [main,dev]
     tags:
       - "v*"
   workflow_dispatch:
 jobs:
   release:
+    # O CI também roda em PRs: exporta só pushes com o CI (e a análise) verde.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
     runs-on: "ubuntu-latest"
+    env:
+      # Em workflow_run, github.ref_name é a branch padrão; a branch analisada
+      # vem do evento.
+      BRANCH: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+      SONAR_COMPONENT: TPPE-2026-1-Marketplace_${{ github.event.repository.name }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
- 
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
       - name: Criar diretório
         run: mkdir analytics-raw-data
- 
+
+      # O scan termina ao enviar o relatório, mas o SonarCloud ainda processa a
+      # análise no servidor. Espera a fila do projeto esvaziar (até 10 min).
+      - name: Aguardar processamento no SonarCloud
+        run: |
+          for attempt in $(seq 1 60); do
+            pending=$(curl -fsS "https://sonarcloud.io/api/ce/component?component=${SONAR_COMPONENT}" \
+              | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("queue", [])) + (d.get("current", {}).get("status") == "IN_PROGRESS"))')
+            if [ "$pending" = "0" ]; then
+              echo "Análise processada."
+              exit 0
+            fi
+            echo "Aguardando ${pending} tarefa(s) do SonarCloud (tentativa ${attempt})..."
+            sleep 10
+          done
+          echo "::warning::SonarCloud ainda processando após 10 min; exportando o que houver."
+
       - name: Coletar métricas no SonarCloud
-        run: python parser.py ${{ github.event.repository.name }} ${{ github.ref_name }}
- 
+        run: python parser.py ${{ github.event.repository.name }} "$BRANCH"
+
       - name: Envia métricas para repo de Doc
         run: |
           git config --global user.email "${{secrets.USER_EMAIL}}"
@@ -29,9 +62,9 @@ jobs:
           cp -R analytics-raw-data/*.json doc/qa-analytics/Analytics/data
           cd doc/qa-analytics/
           git add .
-          git commit -m "Adicionando métricas do repositório ${{ github.event.repository.name }} ${{ github.ref_name }}"
+          git commit -m "Adicionando métricas do repositório ${{ github.event.repository.name }} $BRANCH"
           git push
- 
+
       - name: Envia métricas como assets da release
         if: startsWith(github.ref, 'refs/tags')
         uses: AButler/upload-release-assets@v2.0

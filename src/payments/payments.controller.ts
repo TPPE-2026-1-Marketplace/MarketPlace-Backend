@@ -11,10 +11,12 @@ import {
   ParseIntPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 import { CreatePaymentDto } from './dtos/create-payment.dto';
 import { InfinitePayWebhookDto } from './dtos/infinitepay-webhook.dto';
 import { PaymentsService } from './payments.service';
+import { THROTTLE_CHECKOUT } from '../common/config/throttle.config';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
@@ -27,7 +29,8 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @Throttle(THROTTLE_CHECKOUT)
+  @UseGuards(ThrottlerGuard, JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
@@ -39,11 +42,14 @@ export class PaymentsController {
   @ApiResponse({ status: 403, description: 'Não possui autorização para este pedido' })
   @ApiResponse({ status: 404, description: 'Pedido não encontrado' })
   @ApiResponse({ status: 409, description: 'Pedido já pago' })
+  @ApiResponse({ status: 429, description: 'Limite de requisições excedido' })
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreatePaymentDto) {
     return this.paymentsService.create(user, dto);
   }
 
   @Post('guest')
+  @UseGuards(ThrottlerGuard)
+  @Throttle(THROTTLE_CHECKOUT)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Registra pagamento de pedido de convidado (sem autenticação)',
@@ -55,6 +61,7 @@ export class PaymentsController {
   @ApiResponse({ status: 400, description: 'Pedido não é de convidado ou não está pendente' })
   @ApiResponse({ status: 404, description: 'Pedido não encontrado' })
   @ApiResponse({ status: 409, description: 'Pedido já pago' })
+  @ApiResponse({ status: 429, description: 'Limite de requisições excedido' })
   createGuest(@Body() dto: CreatePaymentDto) {
     return this.paymentsService.createGuest(dto);
   }

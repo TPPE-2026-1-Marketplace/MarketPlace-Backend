@@ -1,7 +1,7 @@
 import { HttpService } from '@nestjs/axios';
-import { Logger } from '@nestjs/common';
+import { Logger, ServiceUnavailableException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { MelhorEnvioTokenManager } from './melhor-envio-token-manager';
 
@@ -164,6 +164,40 @@ describe('MelhorEnvioTokenManager', () => {
       });
       expect(options.headers['User-Agent']).toBe('Test (test@local)');
       expect(options.headers['Content-Type']).toBe('application/json');
+    });
+
+    it('lança ServiceUnavailable e orienta refazer o OAuth2 quando o refresh_token expirou (401)', async () => {
+      const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+      httpServiceMock.post.mockReturnValue(
+        throwError(() => ({
+          message: 'Request failed with status code 401',
+          response: {
+            status: 401,
+            data: { error_description: 'The refresh token is invalid.', hint: 'Token has expired' },
+          },
+        })),
+      );
+
+      const manager = await build();
+
+      await expect(manager.getValidAccessToken()).rejects.toThrow(ServiceUnavailableException);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Token has expired'));
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('docs/melhor-envio-token.md'));
+      errorSpy.mockRestore();
+    });
+
+    it('trata falha de rede no refresh como indisponibilidade, sem pedir novo OAuth2', async () => {
+      const errorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+      httpServiceMock.post.mockReturnValue(
+        throwError(() => ({ message: 'connect ETIMEDOUT', code: 'ETIMEDOUT' })),
+      );
+
+      const manager = await build();
+
+      await expect(manager.getValidAccessToken()).rejects.toThrow(ServiceUnavailableException);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('connect ETIMEDOUT'));
+      expect(errorSpy).not.toHaveBeenCalledWith(expect.stringContaining('refazer o fluxo OAuth2'));
+      errorSpy.mockRestore();
     });
 
     it('renova preemptivamente quando o token atual está perto de expirar', async () => {
