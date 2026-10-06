@@ -9,6 +9,40 @@ import { z } from 'zod';
  * As integrações externas (Melhor Envio, InfinitePay, ImgBB) são opcionais —
  * possuem mocks/fallbacks e não devem impedir o boot em desenvolvimento.
  */
+/**
+ * Lista de origens CORS separadas por vírgula. O CORS compara a origem de forma
+ * exata, então cada item precisa ser uma origem válida (`https://host[:porta]`,
+ * sem caminho nem barra final) — caso contrário o navegador bloqueia o frontend
+ * sem nenhum erro no boot.
+ */
+const CorsOriginsSchema = z.string().superRefine((value, ctx) => {
+  const origins = value
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (origins.length === 0) {
+    ctx.addIssue({ code: 'custom', message: 'CORS_ORIGINS não pode ser vazio quando definido' });
+    return;
+  }
+
+  for (const origin of origins) {
+    let isValidOrigin = false;
+    try {
+      isValidOrigin = new URL(origin).origin === origin;
+    } catch {
+      // URL inválida: cai no addIssue abaixo
+    }
+
+    if (!isValidOrigin) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `CORS_ORIGINS contém origem inválida "${origin}" (use https://host[:porta], sem barra final)`,
+      });
+    }
+  }
+});
+
 export const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
@@ -28,6 +62,10 @@ export const EnvSchema = z
     POSTGRES_DB: z.string().min(1, 'POSTGRES_DB é obrigatório').optional(),
 
     JWT_SECRET: z.string().min(1, 'JWT_SECRET é obrigatório'),
+
+    // Origens liberadas no CORS (lista separada por vírgula). Opcional: sem ela,
+    // o main.ts usa os defaults (dev local + frontends conhecidos no Render).
+    CORS_ORIGINS: CorsOriginsSchema.optional(),
 
     // Integrações externas — todas opcionais (têm mock/fallback). Listadas aqui
     // só para documentar tudo que a app lê num único lugar.
