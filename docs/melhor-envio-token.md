@@ -18,7 +18,7 @@ Resumo do que vive em `.env.development`:
 | `MELHOR_ENVIO_USER_AGENT` | livre, identifica nosso app | — |
 | `MELHOR_ENVIO_CLIENT_ID` | painel sandbox → Área do Desenvolvedor → Aplicativo | permanente |
 | `MELHOR_ENVIO_CLIENT_SECRET` | painel, idem | permanente |
-| `MELHOR_ENVIO_REFRESH_TOKEN` | fluxo OAuth2 (passo 3 abaixo) | sem expiração documentada — renovado por rotação |
+| `MELHOR_ENVIO_REFRESH_TOKEN` | fluxo OAuth2 (passo 3 abaixo) | **expira** (no sandbox respondeu `Token has expired`); ao expirar é preciso refazer o fluxo OAuth2 |
 | `MELHOR_ENVIO_ACCESS_TOKEN` | fluxo OAuth2 ou primeira renovação | **30 dias** |
 | `MELHOR_ENVIO_SERVICE_ID` (opcional) | livre — 1=PAC, 2=SEDEX, etc. | — |
 
@@ -117,11 +117,19 @@ O `MelhorEnvioTokenManager`:
    gravado no env).
 
 **Restart preserva o fluxo**: o seed antigo no env vai expirar em algum
-momento, mas o refresh_token continua válido — o token manager renova no
-primeiro request após restart sem problema. Pode esquecer do
-`MELHOR_ENVIO_ACCESS_TOKEN` por dias/semanas.
+momento, mas enquanto o refresh_token estiver válido o token manager renova
+no primeiro request após restart. Pode esquecer do `MELHOR_ENVIO_ACCESS_TOKEN`
+por dias/semanas. O refresh_token, porém, também expira.
 
 ## Quando intervir manualmente
+
+### Sinal: log `ERROR Melhor Envio recusou o refresh_token`
+
+O refresh_token expirou ou foi revogado (a Melhor Envio responde
+`The refresh token is invalid` / `Token has expired`). A API passa a devolver
+503 em `POST /api/shipping/calculate`, a menos que o fallback por faixa de CEP
+esteja ligado (`SHIPPING_ENABLE_FALLBACK=true`). Correção: refazer o fluxo
+OAuth2 (passos 1 a 3 acima) e reiniciar a API.
 
 ### Sinal: log `WARN Melhor Envio rotacionou o refresh_token`
 
