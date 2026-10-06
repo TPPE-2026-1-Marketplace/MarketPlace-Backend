@@ -61,7 +61,8 @@ ver a API funcionando de ponta a ponta.
 
 Os `.env.*.example` documentam cada variável. Obrigatórias para o boot (validadas
 por `src/common/config/env.validation.ts`, falha rápida se faltarem):
-`POSTGRES_HOST/PORT/USER/PASSWORD/DB` e `JWT_SECRET`. As integrações externas
+`POSTGRES_HOST/PORT/USER/PASSWORD/DB` e `JWT_SECRET` (mínimo de 32 caracteres;
+`make gen-secrets` gera um válido). As integrações externas
 (Melhor Envio, InfinitePay, ImgBB) são opcionais — sem elas, usam mock/fallback.
 
 Em desenvolvimento, `POSTGRES_HOST=postgres` (nome do serviço no compose).

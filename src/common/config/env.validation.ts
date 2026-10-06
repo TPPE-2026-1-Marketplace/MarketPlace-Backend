@@ -43,6 +43,8 @@ const CorsOriginsSchema = z.string().superRefine((value, ctx) => {
   }
 });
 
+const JWT_SECRET_MIN_LENGTH = 32;
+
 export const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
@@ -61,7 +63,15 @@ export const EnvSchema = z
     POSTGRES_PASSWORD: z.string().min(1, 'POSTGRES_PASSWORD é obrigatório').optional(),
     POSTGRES_DB: z.string().min(1, 'POSTGRES_DB é obrigatório').optional(),
 
-    JWT_SECRET: z.string().min(1, 'JWT_SECRET é obrigatório'),
+    // Mínimo de 32 caracteres (256 bits, o tamanho da chave do HS256): segredos
+    // curtos permitem forjar tokens por força bruta. `openssl rand -base64 32` gera 44.
+    JWT_SECRET: z
+      .string()
+      .min(1, 'JWT_SECRET é obrigatório')
+      .min(
+        JWT_SECRET_MIN_LENGTH,
+        `JWT_SECRET deve ter no mínimo ${JWT_SECRET_MIN_LENGTH} caracteres`,
+      ),
 
     // Origens liberadas no CORS (lista separada por vírgula). Opcional: sem ela,
     // o main.ts usa os defaults (dev local + frontends conhecidos no Render).
