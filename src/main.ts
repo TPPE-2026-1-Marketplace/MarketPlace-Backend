@@ -7,6 +7,8 @@ import { ZodValidationPipe, cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module';
 import { isSwaggerEnabled } from './common/config/swagger.config';
 import { DEFAULT_API_PORT } from './common/constants';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { correlationIdMiddleware } from './common/middleware/correlation-id.middleware';
 
 import type { NestExpressApplication } from '@nestjs/platform-express';
 
@@ -24,11 +26,19 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
+  // Precisa vir antes de tudo: todo log/resposta de erro posterior já deve
+  // ter o x-request-id disponível pra correlação (ver AllExceptionsFilter).
+  app.use(correlationIdMiddleware);
+
   // Cabeçalhos de segurança HTTP (X-Content-Type-Options, HSTS, X-Frame-Options etc.)
   app.use(helmet());
 
   // Adicionar ZodValidationPipe globalmente
   app.useGlobalPipes(new ZodValidationPipe());
+
+  // Padroniza toda resposta de erro não tratada explicitamente por um
+  // controller/service (formato documentado no CLAUDE.md).
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   // o prefixo funciona apenas para as controllers
   // como o swagger está por fora, basta acessar apenas pelo prefixo /docs
