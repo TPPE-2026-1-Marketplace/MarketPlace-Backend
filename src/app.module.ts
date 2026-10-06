@@ -10,7 +10,10 @@ import { CategoriesModule } from './categories/categories.module';
 import { validateEnv } from './common/config/env.validation';
 import { THROTTLE_DEFAULT } from './common/config/throttle.config';
 import { CouponsModule } from './coupons/coupons.module';
-import { buildDatabaseConnectionConfig } from './database/connection-config';
+import {
+  buildDatabaseConnectionConfig,
+  buildDatabaseSslConfig,
+} from './database/connection-config';
 import { EmployeesModule } from './employees/employees.module';
 import { HealthModule } from './health/health.module';
 import { ImagesModule } from './images/images.module';
@@ -48,7 +51,7 @@ const isProduction = nodeEnv === 'production';
       useFactory: () => ({
         type: 'postgres',
         ...buildDatabaseConnectionConfig(),
-        ssl: isProduction ? { rejectUnauthorized: false } : false,
+        ssl: buildDatabaseSslConfig(isProduction),
         synchronize: !isProduction,
         autoLoadEntities: true,
         namingStrategy: new SnakeNamingStrategy(),
