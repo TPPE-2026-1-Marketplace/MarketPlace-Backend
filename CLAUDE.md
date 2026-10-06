@@ -166,6 +166,12 @@ padrão do `nestjs-zod`. Formato alvo quando implementado:
 entities automaticamente. Apagar volume do Docker (`make dev-reset`) recria
 do zero.
 
+**TLS em produção:** `rejectUnauthorized: false` por padrão (decisão
+registrada, não omissão — ver `docs/database-tls.md`). `DATABASE_SSL_VERIFY=true`
+ativa verificação real do certificado quando confirmado contra o banco real.
+Lógica compartilhada em `buildDatabaseSslConfig()` (`src/database/connection-config.ts`),
+usada tanto no `TypeOrmModule` quanto no `DataSource` de migrations.
+
 ### Mapeamento diagrama ER → código
 
 Diagrama em português, código em inglês. Colunas mantêm os nomes do diagrama.

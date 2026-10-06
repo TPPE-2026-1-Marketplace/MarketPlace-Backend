@@ -57,6 +57,9 @@ export const EnvSchema = z
     SWAGGER_PUBLIC: z.enum(['true', 'false']).optional(),
 
     DATABASE_URL: z.string().url('DATABASE_URL inválida').optional(),
+    // Ativa verificação real de certificado TLS na conexão com o banco em
+    // produção (default: desabilitada). Ver docs/database-tls.md (issue #171).
+    DATABASE_SSL_VERIFY: z.enum(['true', 'false']).optional(),
     POSTGRES_HOST: z.string().min(1, 'POSTGRES_HOST é obrigatório').optional(),
     POSTGRES_PORT: z.coerce.number().int().positive().optional(),
     POSTGRES_USER: z.string().min(1, 'POSTGRES_USER é obrigatório').optional(),
