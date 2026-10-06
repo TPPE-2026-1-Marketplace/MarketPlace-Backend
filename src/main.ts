@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { ZodValidationPipe, cleanupOpenApiDoc } from 'nestjs-zod';
 
 import { AppModule } from './app.module';
@@ -22,6 +23,9 @@ async function bootstrap() {
   app.set('trust proxy', 1);
 
   app.enableShutdownHooks();
+
+  // Cabeçalhos de segurança HTTP (X-Content-Type-Options, HSTS, X-Frame-Options etc.)
+  app.use(helmet());
 
   // Adicionar ZodValidationPipe globalmente
   app.useGlobalPipes(new ZodValidationPipe());
