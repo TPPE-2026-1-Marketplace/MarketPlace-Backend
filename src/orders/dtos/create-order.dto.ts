@@ -1,6 +1,7 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
+import { CpfSchema, PhoneSchema } from '../../common/dtos';
 import { TipoRetirada } from '../entities/order.entity';
 
 export const CreateOrderItemSchema = z.object({
@@ -18,12 +19,8 @@ export const CreateOrderSchema = z.object({
   tipoRetirada: z.enum(TipoRetirada).default(TipoRetirada.ENTREGA),
   clienteNomeAvulso: z.string().trim().optional().nullable(),
   clienteEmailAvulso: z.string().email('E-mail inválido').optional().nullable(),
-  clienteCpfAvulso: z
-    .string()
-    .regex(/^\d{11}$/, 'CPF deve conter 11 dígitos')
-    .optional()
-    .nullable(),
-  clienteTelefone: z.string().trim().optional().nullable(),
+  clienteCpfAvulso: CpfSchema.optional().nullable(),
+  clienteTelefone: PhoneSchema.optional().nullable(),
   enderecoCep: z.string().trim().optional().nullable(),
   enderecoRua: z.string().trim().optional().nullable(),
   enderecoNumero: z.string().trim().optional().nullable(),
