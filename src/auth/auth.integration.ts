@@ -46,16 +46,23 @@ describe('Auth flow (US02) integration', () => {
   let peopleRepository: Repository<Person>;
 
   const user = {
-    cpf: '70000000001',
+    cpf: '39053344705',
     email: 'auth_flow@example.com',
     senha: 'senhaSegura123',
     nome: 'Auth Flow',
   };
   const newUser = {
-    cpf: '70000000002',
+    cpf: '16899535009',
     email: 'auth_flow_new@example.com',
     senha: 'outraSenha123',
     nome: 'Novo Cadastro',
+  };
+  const phoneUser = {
+    cpf: '52998224725',
+    email: 'auth_flow_phone@example.com',
+    senha: 'telefoneSenha123',
+    nome: 'Telefone Flow',
+    telefone: '(61) 99999-0000',
   };
 
   function login(email: string, senha: string) {
@@ -75,6 +82,7 @@ describe('Auth flow (US02) integration', () => {
 
     await peopleRepository.delete({ cpf: user.cpf });
     await peopleRepository.delete({ cpf: newUser.cpf });
+    await peopleRepository.delete({ cpf: phoneUser.cpf });
 
     // Usuário base usado pelos testes de login e rota protegida.
     await request(app.getHttpServer()).post('/api/people/register-user').send(user).expect(201);
@@ -84,6 +92,7 @@ describe('Auth flow (US02) integration', () => {
     if (peopleRepository) {
       await peopleRepository.delete({ cpf: user.cpf });
       await peopleRepository.delete({ cpf: newUser.cpf });
+      await peopleRepository.delete({ cpf: phoneUser.cpf });
     }
     if (app) {
       await app.close();
@@ -133,5 +142,42 @@ describe('Auth flow (US02) integration', () => {
       .get(`/api/people/${user.cpf}`)
       .set('Authorization', 'Bearer token-invalido')
       .expect(401);
+  });
+
+  it('rejeita auto-cadastro com CPF de dígito verificador inválido (400)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/people/register-user')
+      .send({ ...phoneUser, cpf: '12345678900' })
+      .expect(400);
+
+    expect(JSON.stringify(res.body.errors)).toContain('CPF inválido');
+    expect(await peopleRepository.findOne({ where: { cpf: '12345678900' } })).toBeNull();
+  });
+
+  it('rejeita auto-cadastro com telefone inválido (400)', async () => {
+    await request(app.getHttpServer())
+      .post('/api/people/register-user')
+      .send({ ...phoneUser, telefone: '(00) 99999-0000' })
+      .expect(400);
+  });
+
+  it('persiste o telefone só com dígitos e permite removê-lo com null', async () => {
+    await request(app.getHttpServer())
+      .post('/api/people/register-user')
+      .send(phoneUser)
+      .expect(201);
+
+    const persisted = await peopleRepository.findOne({ where: { cpf: phoneUser.cpf } });
+    expect(persisted?.telefone).toBe('61999990000');
+
+    const token = (await login(phoneUser.email, phoneUser.senha).expect(200)).body.access_token;
+    await request(app.getHttpServer())
+      .patch(`/api/people/${phoneUser.cpf}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ telefone: null })
+      .expect(200);
+
+    const cleared = await peopleRepository.findOne({ where: { cpf: phoneUser.cpf } });
+    expect(cleared?.telefone).toBeNull();
   });
 });

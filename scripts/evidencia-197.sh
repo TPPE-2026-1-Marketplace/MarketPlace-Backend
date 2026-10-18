@@ -20,7 +20,18 @@ TS=$(date +%s)
 BASE=${TS: -9}
 SENHA='Senha@1234'
 
-cpf()  { printf '%02d%s' "$1" "$BASE"; }
+# CPF válido (a API valida os dígitos verificadores) a partir de 9 dígitos-base.
+cpf_with_check_digits() {
+  local base="$1" sum=0 i d1 d2
+  for i in {0..8}; do sum=$((sum + ${base:i:1} * (10 - i))); done
+  d1=$(((sum * 10 % 11) % 10))
+  base="${base}${d1}"
+  sum=0
+  for i in {0..9}; do sum=$((sum + ${base:i:1} * (11 - i))); done
+  d2=$(((sum * 10 % 11) % 10))
+  printf '%s%s' "$base" "$d2"
+}
+cpf()  { cpf_with_check_digits "$(printf '%02d%s' "$1" "${BASE:0:7}")"; }
 mail() { printf 'l%02d.%s@teste.local' "$1" "$TS"; }
 psqlq() { docker exec -i "$PGC" psql -U "$PGU" -d "$PGD" -Atc "$1" 2>/dev/null; }
 code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
