@@ -436,6 +436,40 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
     expect(res.body.data[1].cliente).not.toHaveProperty('cpf');
   });
 
+  // --- LISTAGEM DE MODERAÇÃO (GET /api/reviews/product/:productId/moderation) ---
+
+  it('deve listar avaliações com cpfCliente para gerente e permitir excluir a partir dele', async () => {
+    await reviewsRepository.save({
+      cpfCliente: testCpf1,
+      idProduto: testProductId,
+      nota: 1,
+      comentario: 'Comentário a ser moderado',
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/moderation`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .expect(200);
+
+    expect(res.body.data[0].cpfCliente).toBe(testCpf1);
+
+    await request(app.getHttpServer())
+      .delete(`/api/reviews/${res.body.data[0].cpfCliente}/${testProductId}`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .expect(204);
+  });
+
+  it('deve negar a listagem de moderação para cliente (403) e sem token (401)', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/moderation`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/moderation`)
+      .expect(401);
+  });
+
   it('deve aplicar paginação limitando os resultados corretamente', async () => {
     await reviewsRepository.save([
       {

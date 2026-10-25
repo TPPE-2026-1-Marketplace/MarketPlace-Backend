@@ -154,13 +154,16 @@ export class ReviewsService {
    * - Paginação (padrão 10 itens)
    * - Ordenado por data desc
    * - Retorna média e contagem total de avaliações do produto
-   * - NUNCA expõe o CPF do cliente
+   * - NUNCA expõe o CPF do cliente na listagem pública
+   * - Com `includeClientId = true` (rota de moderação, só gerente/administrador),
+   *   cada item inclui `cpfCliente`, necessário para chamar o DELETE da avaliação
    * - Inclui o histograma de distribuição das estrelas
    */
   async findByProductPaginated(
     idProduto: number,
     page: number,
     limit: number,
+    includeClientId = false,
   ): Promise<{
     data: {
       idProduto: number;
@@ -168,6 +171,8 @@ export class ReviewsService {
       comentario: string | null;
       dataAvaliacao: Date;
       cliente: { nome: string };
+      /** Só presente na listagem de moderação (gerente/administrador). */
+      cpfCliente?: string;
     }[];
     meta: { page: number; limit: number; total: number; totalPages: number };
     media: number;
@@ -223,6 +228,7 @@ export class ReviewsService {
       cliente: {
         nome: r.cliente?.nome || 'Cliente Anônimo',
       },
+      ...(includeClientId ? { cpfCliente: r.cpfCliente } : {}),
     }));
 
     return {

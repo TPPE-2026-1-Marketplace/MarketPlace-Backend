@@ -67,6 +67,32 @@ export class ReviewsController {
     return this.reviewsService.findByProductPaginated(productId, query.page, query.limit);
   }
 
+  @Get('product/:productId/moderation')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Lista as avaliações de um produto incluindo o CPF do autor, para moderação/exclusão (Gerente ou administrador)',
+  })
+  @ApiParam({ name: 'productId', description: 'ID do produto' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Mesma resposta da listagem pública, com `cpfCliente` em cada item (use em DELETE /reviews/:clienteId/:produtoId).',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 403, description: 'Acesso negado para esta role' })
+  @ApiResponse({ status: 404, description: 'Produto não encontrado' })
+  findByProductForModeration(
+    @Param('productId', ParseIntPipe) productId: number,
+    @Query() query: QueryPaginationDto,
+  ) {
+    return this.reviewsService.findByProductPaginated(productId, query.page, query.limit, true);
+  }
+
   @Delete(':clienteId/:produtoId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)

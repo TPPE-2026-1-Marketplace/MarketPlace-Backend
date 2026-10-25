@@ -303,6 +303,16 @@ describe('ReviewsService', () => {
       expect(result.distribuicao).toEqual({ '1': 0, '2': 0, '3': 0, '4': 0, '5': 1 });
     });
 
+    it('inclui o cpfCliente em cada item quando includeClientId é true (moderação)', async () => {
+      productsRepo.findOne.mockResolvedValue(buildProduct());
+      reviewsRepo.findAndCount.mockResolvedValue([[mockReview], 1]);
+      reviewsRepo.createQueryBuilder.mockReturnValue(makeQueryBuilder() as never);
+
+      const result = await service.findByProductPaginated(ID_PRODUTO, 1, 10, true);
+
+      expect(result.data[0].cpfCliente).toBe(mockReview.cpfCliente);
+    });
+
     it('usa "Cliente Anônimo" quando o nome do cliente não está preenchido', async () => {
       productsRepo.findOne.mockResolvedValue(buildProduct());
       reviewsRepo.findAndCount.mockResolvedValue([
