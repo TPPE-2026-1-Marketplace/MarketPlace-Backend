@@ -9,6 +9,7 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, QueryFailedError, Repository } from 'typeorm';
 
 import { CreateReviewDto } from './dtos/create-review.dto';
+import { MotivoAvaliacao, MyReviewStatus } from './dtos/my-review-status.dto';
 import { Review } from './entities/review.entity';
 import { PG_UNIQUE_VIOLATION } from '../common/constants';
 import { Order, OrderStatus } from '../orders/entities/order.entity';
@@ -66,19 +67,7 @@ export class ReviewsService {
       }
 
       // 2.5 Validar se o cliente de fato comprou o produto (Compra Verificada)
-      const hasPurchased = await ordersRepo
-        .createQueryBuilder('order')
-        .innerJoin('order.items', 'item')
-        .innerJoin('item.variant', 'variant')
-        .innerJoin('variant.product', 'product')
-        .where('order.idUsuario = :idCliente', { idCliente })
-        .andWhere('product.idProduto = :idProduto', { idProduto: dto.idProduto })
-        .andWhere('order.status IN (:...statuses)', {
-          statuses: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED],
-        })
-        .getCount();
-
-      if (hasPurchased === 0) {
+      if (!(await this.hasVerifiedPurchase(ordersRepo, idCliente, dto.idProduto))) {
         throw new ForbiddenException(
           'Apenas clientes que compraram e pagaram pelo produto podem avaliá-lo.',
         );
@@ -240,6 +229,46 @@ export class ReviewsService {
   }
 
   /**
+   * Retorna a avaliação do cliente no produto (ou null) e se ele pode avaliá-lo.
+   *
+   * Regras de negócio:
+   * - O produto deve existir no banco.
+   * - Já avaliou: devolve a avaliação, com `podeAvaliar = false`.
+   * - Ainda não avaliou: pode avaliar se tiver compra verificada (mesma regra do create).
+   */
+  async findMine(idCliente: string, idProduto: number): Promise<MyReviewStatus> {
+    const productExists = await this.productsRepository.findOne({
+      where: { idProduto },
+    });
+    if (!productExists) {
+      throw new NotFoundException(`Produto com ID ${idProduto} não encontrado`);
+    }
+
+    const review = await this.reviewsRepository.findOne({
+      where: { cpfCliente: idCliente, idProduto },
+    });
+    if (review) {
+      return {
+        avaliacao: {
+          idProduto: review.idProduto,
+          nota: review.nota,
+          comentario: review.comentario,
+          dataAvaliacao: review.dataAvaliacao,
+        },
+        podeAvaliar: false,
+        motivo: MotivoAvaliacao.JA_AVALIOU,
+      };
+    }
+
+    const purchased = await this.hasVerifiedPurchase(this.ordersRepository, idCliente, idProduto);
+    return {
+      avaliacao: null,
+      podeAvaliar: purchased,
+      motivo: purchased ? MotivoAvaliacao.PODE_AVALIAR : MotivoAvaliacao.SEM_COMPRA_VERIFICADA,
+    };
+  }
+
+  /**
    * Remove uma avaliação de produto (hard delete).
    * Exclusivo para gerentes e administradores.
    */
@@ -262,6 +291,28 @@ export class ReviewsService {
         `Avaliação do produto ID ${idProduto} pelo cliente CPF ${idCliente} foi excluída com sucesso (Hard Delete).`,
       );
     });
+  }
+
+  /**
+   * Compra verificada: o cliente tem pedido pago, enviado ou entregue contendo o produto.
+   */
+  private async hasVerifiedPurchase(
+    ordersRepo: Repository<Order>,
+    idCliente: string,
+    idProduto: number,
+  ): Promise<boolean> {
+    const count = await ordersRepo
+      .createQueryBuilder('order')
+      .innerJoin('order.items', 'item')
+      .innerJoin('item.variant', 'variant')
+      .innerJoin('variant.product', 'product')
+      .where('order.idUsuario = :idCliente', { idCliente })
+      .andWhere('product.idProduto = :idProduto', { idProduto })
+      .andWhere('order.status IN (:...statuses)', {
+        statuses: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED],
+      })
+      .getCount();
+    return count > 0;
   }
 
   /**

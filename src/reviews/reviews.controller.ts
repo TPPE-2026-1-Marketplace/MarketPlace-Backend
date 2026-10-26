@@ -67,6 +67,28 @@ export class ReviewsController {
     return this.reviewsService.findByProductPaginated(productId, query.page, query.limit);
   }
 
+  @Get('product/:productId/mine')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Retorna a avaliação do cliente no produto e se ele pode avaliá-lo (Cliente autenticado)',
+  })
+  @ApiParam({ name: 'productId', description: 'ID do produto' })
+  @ApiResponse({
+    status: 200,
+    description:
+      '`{ avaliacao, podeAvaliar, motivo }`, com `avaliacao` nula se o cliente ainda não avaliou e `motivo` em PODE_AVALIAR, JA_AVALIOU ou SEM_COMPRA_VERIFICADA.',
+  })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 404, description: 'Produto não encontrado' })
+  findMine(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('productId', ParseIntPipe) productId: number,
+  ) {
+    return this.reviewsService.findMine(user.sub, productId);
+  }
+
   @Delete(':clienteId/:produtoId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)

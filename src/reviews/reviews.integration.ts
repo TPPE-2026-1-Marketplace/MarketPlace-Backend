@@ -474,6 +474,67 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
 
   // --- TESTES DE DELETAR AVALIAÇÃO (DELETE /api/reviews/:clienteId/:produtoId) ---
 
+  // --- ESTADO DO CLIENTE NO PRODUTO (GET /api/reviews/product/:productId/mine) ---
+
+  it('deve indicar PODE_AVALIAR e depois JA_AVALIOU com a avaliação do cliente', async () => {
+    const before = await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/mine`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(200);
+
+    expect(before.body).toEqual({ avaliacao: null, podeAvaliar: true, motivo: 'PODE_AVALIAR' });
+
+    await request(app.getHttpServer())
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ idProduto: testProductId, nota: 4, comentario: 'Gostei' })
+      .expect(201);
+
+    const after = await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/mine`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(200);
+
+    expect(after.body.podeAvaliar).toBe(false);
+    expect(after.body.motivo).toBe('JA_AVALIOU');
+    expect(after.body.avaliacao).toMatchObject({
+      idProduto: testProductId,
+      nota: 4,
+      comentario: 'Gostei',
+    });
+    expect(after.body.avaliacao).not.toHaveProperty('cpfCliente');
+  });
+
+  it('deve indicar SEM_COMPRA_VERIFICADA para cliente sem compra do produto', async () => {
+    const tokenSemCompra = jwtService.sign({
+      sub: '77777777777',
+      email: 'nocompra@example.com',
+      role: 'cliente',
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/mine`)
+      .set('Authorization', `Bearer ${tokenSemCompra}`)
+      .expect(200);
+
+    expect(res.body).toEqual({
+      avaliacao: null,
+      podeAvaliar: false,
+      motivo: 'SEM_COMPRA_VERIFICADA',
+    });
+  });
+
+  it('deve retornar 401 sem token e 404 para produto inexistente no estado do cliente', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/mine`)
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get('/api/reviews/product/999999/mine')
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(404);
+  });
+
   it('deve permitir que um gerente ou administrador delete uma avaliação inadequada (retorna 204) e remova da listagem', async () => {
     // 1. Criar avaliação
     await reviewsRepository.save({
