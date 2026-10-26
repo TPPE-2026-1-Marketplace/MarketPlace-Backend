@@ -270,7 +270,7 @@ export class ReviewsService {
 
   /**
    * Remove uma avaliação de produto (hard delete).
-   * Exclusivo para gerentes e administradores.
+   * Usado pela moderação (gerente/administrador) e pelo próprio cliente autor.
    */
   async remove(idCliente: string, idProduto: number): Promise<void> {
     return await this.dataSource.transaction(async (manager) => {

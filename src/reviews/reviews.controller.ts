@@ -89,6 +89,24 @@ export class ReviewsController {
     return this.reviewsService.findMine(user.sub, productId);
   }
 
+  // Declarada antes de ':clienteId/:produtoId': o Express casa as rotas na ordem de
+  // registro, e 'product/:productId' também casaria com aquele padrão (403 de gerente).
+  @Delete('product/:productId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a própria avaliação do produto (Cliente autenticado)' })
+  @ApiParam({ name: 'productId', description: 'ID do produto avaliado' })
+  @ApiResponse({ status: 204, description: 'Avaliação removida com sucesso (Hard Delete)' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 404, description: 'Avaliação não encontrada' })
+  removeMine(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('productId', ParseIntPipe) productId: number,
+  ) {
+    return this.reviewsService.remove(user.sub, productId);
+  }
+
   @Delete(':clienteId/:produtoId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.GERENTE, Role.ADMINISTRADOR)

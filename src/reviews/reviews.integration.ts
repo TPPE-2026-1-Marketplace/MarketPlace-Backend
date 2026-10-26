@@ -535,6 +535,50 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
       .expect(404);
   });
 
+  // --- REMOÇÃO DA PRÓPRIA AVALIAÇÃO (DELETE /api/reviews/product/:productId) ---
+
+  it('deve permitir ao cliente remover a própria avaliação e recalcular média e total', async () => {
+    await request(app.getHttpServer())
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ idProduto: testProductId, nota: 1, comentario: 'Não gostei' })
+      .expect(201);
+    await reviewsRepository.save({
+      cpfCliente: testCpf2,
+      idProduto: testProductId,
+      nota: 5,
+      comentario: 'Excelente',
+    });
+
+    await request(app.getHttpServer())
+      .delete(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(204);
+
+    const own = await reviewsRepository.findOne({
+      where: { cpfCliente: testCpf1, idProduto: testProductId },
+    });
+    expect(own).toBeNull();
+
+    const other = await reviewsRepository.findOne({
+      where: { cpfCliente: testCpf2, idProduto: testProductId },
+    });
+    expect(other).not.toBeNull();
+
+    const product = await productsRepository.findOne({ where: { idProduto: testProductId } });
+    expect(Number(product?.mediaAvaliacao)).toBe(5);
+    expect(product?.totalAvaliacoes).toBe(1);
+  });
+
+  it('deve retornar 404 ao remover a própria avaliação inexistente e 401 sem token', async () => {
+    await request(app.getHttpServer())
+      .delete(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(404);
+
+    await request(app.getHttpServer()).delete(`/api/reviews/product/${testProductId}`).expect(401);
+  });
+
   it('deve permitir que um gerente ou administrador delete uma avaliação inadequada (retorna 204) e remova da listagem', async () => {
     // 1. Criar avaliação
     await reviewsRepository.save({
