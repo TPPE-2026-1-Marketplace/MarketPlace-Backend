@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import { QueryFailedError } from 'typeorm';
 
+import { MotivoAvaliacao } from './dtos/my-review-status.dto';
 import { Review } from './entities/review.entity';
 import { ReviewsService } from './reviews.service';
 import { PG_UNIQUE_VIOLATION } from '../common/constants';
@@ -76,6 +77,7 @@ describe('ReviewsService', () => {
   let service: ReviewsService;
   let reviewsRepo: jest.Mocked<Repository<Review>>;
   let productsRepo: jest.Mocked<Repository<Product>>;
+  let ordersRepo: jest.Mocked<Repository<Order>>;
 
   let managerPeopleRepo: { findOne: jest.Mock };
   let managerProductsRepo: { findOne: jest.Mock };
@@ -129,7 +131,12 @@ describe('ReviewsService', () => {
         ReviewsService,
         {
           provide: getRepositoryToken(Review),
-          useValue: { find: jest.fn(), findAndCount: jest.fn(), createQueryBuilder: jest.fn() },
+          useValue: {
+            find: jest.fn(),
+            findOne: jest.fn(),
+            findAndCount: jest.fn(),
+            createQueryBuilder: jest.fn(),
+          },
         },
         {
           provide: getRepositoryToken(Person),
@@ -153,6 +160,7 @@ describe('ReviewsService', () => {
     service = module.get(ReviewsService);
     reviewsRepo = module.get(getRepositoryToken(Review));
     productsRepo = module.get(getRepositoryToken(Product));
+    ordersRepo = module.get(getRepositoryToken(Order));
   });
 
   const createDto: CreateReviewDto = {
@@ -314,6 +322,64 @@ describe('ReviewsService', () => {
       const result = await service.findByProductPaginated(ID_PRODUTO, 1, 10);
 
       expect(result.data[0].cliente.nome).toBe('Cliente Anônimo');
+    });
+  });
+
+  describe('findMine', () => {
+    it('lança NotFoundException quando o produto não existe', async () => {
+      productsRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.findMine(CPF_CLIENTE, ID_PRODUTO)).rejects.toThrow(NotFoundException);
+    });
+
+    it('devolve a avaliação e JA_AVALIOU quando o cliente já avaliou o produto', async () => {
+      productsRepo.findOne.mockResolvedValue(buildProduct());
+      reviewsRepo.findOne.mockResolvedValue(mockReview);
+
+      const result = await service.findMine(CPF_CLIENTE, ID_PRODUTO);
+
+      expect(result).toEqual({
+        avaliacao: {
+          idProduto: ID_PRODUTO,
+          nota: 5,
+          comentario: 'Ótimo produto',
+          dataAvaliacao: mockReview.dataAvaliacao,
+        },
+        podeAvaliar: false,
+        motivo: MotivoAvaliacao.JA_AVALIOU,
+      });
+      expect(result.avaliacao).not.toHaveProperty('cpfCliente');
+      expect(ordersRepo.createQueryBuilder).not.toHaveBeenCalled();
+    });
+
+    it('devolve PODE_AVALIAR quando o cliente comprou e ainda não avaliou', async () => {
+      productsRepo.findOne.mockResolvedValue(buildProduct());
+      reviewsRepo.findOne.mockResolvedValue(null);
+      ordersRepo.createQueryBuilder.mockReturnValue(makeQueryBuilder() as never);
+
+      const result = await service.findMine(CPF_CLIENTE, ID_PRODUTO);
+
+      expect(result).toEqual({
+        avaliacao: null,
+        podeAvaliar: true,
+        motivo: MotivoAvaliacao.PODE_AVALIAR,
+      });
+    });
+
+    it('devolve SEM_COMPRA_VERIFICADA quando o cliente não comprou o produto', async () => {
+      productsRepo.findOne.mockResolvedValue(buildProduct());
+      reviewsRepo.findOne.mockResolvedValue(null);
+      ordersRepo.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({ getCount: jest.fn().mockResolvedValue(0) }) as never,
+      );
+
+      const result = await service.findMine(CPF_CLIENTE, ID_PRODUTO);
+
+      expect(result).toEqual({
+        avaliacao: null,
+        podeAvaliar: false,
+        motivo: MotivoAvaliacao.SEM_COMPRA_VERIFICADA,
+      });
     });
   });
 
