@@ -10,7 +10,7 @@ export COMPOSE_DOCKER_CLI_BUILD := 1
 	dev-up dev-down dev-logs dev-logs-once dev-logs-api dev-logs-postgres dev-shell dev-build dev-rebuild dev-restart dev-reset dev-test dev-test-integration dev-test-cov \
 	dev-lint dev-lint-fix dev-format dev-typecheck dev-check dev-openapi \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
-	db-shell db-reset db-backup \
+	db-shell db-reset db-backup db-seed db-seed-reset \
 	clean check dev-ci prod-image
 
 help:
@@ -60,6 +60,8 @@ help:
 	@echo "  make db-shell         Abre um psql no container do postgres"
 	@echo "  make db-reset         Apaga apenas o volume do postgres (mantem cache de deps)"
 	@echo "  make db-backup        Gera um dump SQL do banco (backup_<timestamp>.sql)"
+	@echo "  make db-seed          Popula o banco com o seed de desenvolvimento (sem apagar dados)"
+	@echo "  make db-seed-reset    Recria o banco e aplica o seed de desenvolvimento"
 	@echo ""
 	@echo "Utilidades:"
 	@echo "  make demo             Roda o fluxo de compra ponta-a-ponta (recria o ambiente)"
@@ -207,6 +209,21 @@ db-reset:
 	$(COMPOSE_DEV) down
 	docker volume rm $(COMPOSE_PROJECT)_postgres_data || true
 	$(COMPOSE_DEV) up -d
+
+# Seed de desenvolvimento (scripts/seed-dev.sql): usuários por perfil, catálogo,
+# estoque e pedidos dos últimos 6 meses. Idempotente. O schema vem do
+# synchronize do TypeORM, então a API precisa responder antes do seed.
+SEED_FILE := scripts/seed-dev.sql
+API_HEALTH_URL := http://localhost:$${PORT:-3001}/api/health
+
+db-seed:
+	@echo "[seed] Aguardando a API em $(API_HEALTH_URL) (o schema é criado no boot)..."
+	@for i in $$(seq 1 40); do curl -sf $(API_HEALTH_URL) > /dev/null && break; sleep 3; done; \
+		curl -sf $(API_HEALTH_URL) > /dev/null || (echo "[seed] ERRO: API não respondeu. Rode make dev-up e confira make dev-logs-api." && exit 1)
+	$(COMPOSE_DEV) exec -T postgres sh -c 'psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} -v ON_ERROR_STOP=1 -q' < $(SEED_FILE) > /dev/null
+	@echo "[seed] Banco populado. Credenciais de desenvolvimento: README.md, seção \"Seed de desenvolvimento\"."
+
+db-seed-reset: db-reset db-seed
 
 db-backup:
 	$(COMPOSE_DEV) exec -T postgres sh -c 'pg_dump -U $${POSTGRES_USER} -d $${POSTGRES_DB}' > backup_$$(date +%Y%m%d_%H%M%S).sql
