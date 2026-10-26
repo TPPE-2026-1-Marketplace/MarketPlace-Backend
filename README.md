@@ -49,13 +49,44 @@ curl http://localhost:3001/api/health      # -> {"status":"ok",...}
 make dev-test                # unitários
 make dev-test-integration    # integração (Postgres real)
 
-# 6. (Opcional) Rodar o fluxo de compra ponta-a-ponta
+# 6. (Opcional) Popular o banco com dados de desenvolvimento
+make db-seed
+
+# 7. (Opcional) Rodar o fluxo de compra ponta-a-ponta
 make demo
 ```
 
 `make demo` recria o ambiente, semeia um admin, cria catálogo, cadastra um cliente
 e executa **frete → pedido → pagamento (mock) → status**. É o jeito mais rápido de
 ver a API funcionando de ponta a ponta.
+
+### Seed de desenvolvimento
+
+`make db-seed` aplica `scripts/seed-dev.sql` no Postgres do Docker, sem apagar
+nada. `make db-seed-reset` recria o banco e aplica o seed. O seed é idempotente
+(pode rodar várias vezes) e cria:
+
+- um usuário por perfil (tabela abaixo);
+- catálogo com 7 produtos e 12 variantes, incluindo estoque baixo, zerado e um
+  produto sem variantes;
+- cupons, avaliações e metas do mês;
+- 17 pedidos espalhados pelos últimos 6 meses, com todos os status, entrega e
+  retirada na loja, e clientes cadastrados e avulsos (PDV).
+
+É o jeito de validar as telas do frontend (loja, PDV e painel) com dados.
+
+| Perfil        | E-mail                   | Senha         |
+| ------------- | ------------------------ | ------------- |
+| administrador | `admin@demo.com`         | `admin123`    |
+| gerente       | `gerente@dkfashion.dev`  | `gerente123`  |
+| vendedor      | `vendedor@dkfashion.dev` | `vendedor123` |
+| caixa         | `caixa@dkfashion.dev`    | `caixa123`    |
+| cliente       | `cliente@dkfashion.dev`  | `cliente123`  |
+
+> Credenciais **só de desenvolvimento**: nunca aplique o seed em produção.
+
+Alguns testes de integração limpam pedidos e funcionários do banco de
+desenvolvimento. Depois de `make dev-test-integration`, rode `make db-seed` de novo.
 
 ### Variáveis de ambiente
 
@@ -84,6 +115,8 @@ Em desenvolvimento, `POSTGRES_HOST=postgres` (nome do serviço no compose).
 | `make dev-reset`            | Derruba tudo e **apaga os volumes** (banco incluso) |
 | `make db-shell`             | `psql` no Postgres                                  |
 | `make db-backup`            | Dump SQL do banco                                   |
+| `make db-seed`              | Popula o banco com o seed de desenvolvimento        |
+| `make db-seed-reset`        | Recria o banco e aplica o seed                      |
 | `make demo`                 | Fluxo de compra ponta-a-ponta                       |
 
 > Testes e comandos pnpm sempre rodam **dentro do container** (o `node_modules` é

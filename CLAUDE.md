@@ -492,8 +492,30 @@ make db-shell      # psql no container do postgres
 make db-backup     # dump SQL do banco (backup_<timestamp>.sql)
 make dev-reset     # derruba tudo e apaga volumes (banco incluso)
 make dev-test path=<modulo>  # roda testes de um módulo dentro do container
+make db-seed       # popula o banco com scripts/seed-dev.sql (não apaga dados)
+make db-seed-reset # recria o banco e aplica o seed
 make demo          # fluxo de compra ponta-a-ponta (recria o ambiente)
 ```
+
+### Seed de desenvolvimento (`scripts/seed-dev.sql`)
+
+Use `make db-seed` sempre que precisar de dados para validar o frontend (loja, PDV
+e painel). Ele cria um usuário por perfil, catálogo com estoque variado, cupons,
+avaliações, metas e pedidos dos últimos 6 meses. Credenciais na seção "Seed de
+desenvolvimento" do `README.md`.
+
+Ao mexer no seed:
+- **Idempotente:** todo `INSERT` usa `ON CONFLICT`; o arquivo precisa poder rodar
+  várias vezes sem erro nem duplicação.
+- **Sem IDs fixos no catálogo:** produtos, categorias e variantes são ligados por
+  SKU e nome. Pedidos, itens, imagens, pagamentos e metas usam IDs fixos na faixa
+  9000, para não colidir com dados da aplicação nem do `make demo`.
+- **Datas relativas** (`NOW() - INTERVAL ...`), para o seed não envelhecer.
+- **CPFs válidos** e que não aparecem nos testes de integração (ex.: o
+  `11111111111` é usado como "CPF inválido" em `orders.integration.ts`).
+- **Entity mudou?** Atualize o seed no mesmo PR. O teste
+  `src/database/seed-dev.integration.ts` aplica o seed contra o schema atual e
+  quebra no CI se ele ficar incompatível.
 
 **Testes:** sempre usar `make dev-test path=<modulo>` (ex: `make dev-test path=inventory`)
 para unitários e `make dev-test-integration` para integração. Os testes rodam dentro
