@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -21,6 +22,7 @@ import {
 } from '@nestjs/swagger';
 
 import { CreateReviewDto, QueryPaginationDto } from './dtos/create-review.dto';
+import { UpdateReviewDto } from './dtos/update-review.dto';
 import { ReviewsService } from './reviews.service';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -87,6 +89,28 @@ export class ReviewsController {
     @Param('productId', ParseIntPipe) productId: number,
   ) {
     return this.reviewsService.findMine(user.sub, productId);
+  }
+
+  @Patch('product/:productId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Edita a nota e/ou o comentário da própria avaliação (Cliente autenticado)',
+  })
+  @ApiParam({ name: 'productId', description: 'ID do produto avaliado' })
+  @ApiResponse({
+    status: 200,
+    description: 'Avaliação atualizada, com `dataEdicao` preenchida e média/total recalculados',
+  })
+  @ApiResponse({ status: 400, description: 'Corpo vazio ou dados inválidos' })
+  @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({ status: 404, description: 'Avaliação não encontrada' })
+  update(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('productId', ParseIntPipe) productId: number,
+    @Body() dto: UpdateReviewDto,
+  ) {
+    return this.reviewsService.update(user.sub, productId, dto);
   }
 
   // Declarada antes de ':clienteId/:produtoId': o Express casa as rotas na ordem de

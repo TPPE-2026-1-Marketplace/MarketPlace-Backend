@@ -241,6 +241,14 @@ describe('ReviewsService', () => {
       );
     });
 
+    it('grava comentário null quando a avaliação é criada sem comentário', async () => {
+      await service.create(CPF_CLIENTE, { idProduto: ID_PRODUTO, nota: 4 });
+
+      expect(managerReviewsRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ comentario: null }),
+      );
+    });
+
     it('recalcula média e total do produto após criar a avaliação', async () => {
       await service.create(CPF_CLIENTE, createDto);
 
@@ -324,6 +332,60 @@ describe('ReviewsService', () => {
       const result = await service.findByProductPaginated(ID_PRODUTO, 1, 10);
 
       expect(result.data[0].cliente.nome).toBe('Cliente Anônimo');
+    });
+  });
+
+  describe('update', () => {
+    it('lança NotFoundException quando o cliente não avaliou o produto', async () => {
+      managerReviewsRepo.findOne.mockResolvedValueOnce(null);
+
+      await expect(service.update(CPF_CLIENTE, ID_PRODUTO, { nota: 3 })).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(managerReviewsRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('altera só a nota, preserva o comentário e grava a data de edição', async () => {
+      managerReviewsRepo.findOne.mockResolvedValueOnce({ ...mockReview });
+      managerReviewsRepo.save.mockImplementationOnce((review: Review) => Promise.resolve(review));
+
+      const result = await service.update(CPF_CLIENTE, ID_PRODUTO, { nota: 3 });
+
+      expect(result.nota).toBe(3);
+      expect(result.comentario).toBe('Ótimo produto');
+      expect(result.dataEdicao).toBeInstanceOf(Date);
+    });
+
+    it('sanitiza o comentário editado e grava null quando fica vazio', async () => {
+      managerReviewsRepo.findOne.mockResolvedValue({ ...mockReview });
+      managerReviewsRepo.save.mockImplementation((review: Review) => Promise.resolve(review));
+
+      const sanitized = await service.update(CPF_CLIENTE, ID_PRODUTO, {
+        comentario: '<script>x</script>Bom',
+      });
+      expect(sanitized.comentario).toBe('xBom');
+      expect(sanitized.nota).toBe(5);
+
+      const emptied = await service.update(CPF_CLIENTE, ID_PRODUTO, { comentario: '<b></b>' });
+      expect(emptied.comentario).toBeNull();
+
+      const cleared = await service.update(CPF_CLIENTE, ID_PRODUTO, { comentario: '' });
+      expect(cleared.comentario).toBeNull();
+    });
+
+    it('recalcula média e total sem reavaliar a compra verificada', async () => {
+      managerReviewsRepo.findOne.mockResolvedValueOnce({ ...mockReview });
+
+      await service.update(CPF_CLIENTE, ID_PRODUTO, { nota: 4 });
+
+      expect(managerOrdersRepo.createQueryBuilder).not.toHaveBeenCalled();
+      expect(managerFindOne).toHaveBeenCalledWith(
+        Product,
+        expect.objectContaining({ lock: { mode: 'pessimistic_write' } }),
+      );
+      expect(managerSave).toHaveBeenCalledWith(
+        expect.objectContaining({ mediaAvaliacao: 5, totalAvaliacoes: 1 }),
+      );
     });
   });
 

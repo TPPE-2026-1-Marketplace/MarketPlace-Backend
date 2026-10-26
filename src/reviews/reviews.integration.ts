@@ -538,6 +538,54 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
       .expect(404);
   });
 
+  // --- EDIÇÃO DA PRÓPRIA AVALIAÇÃO (PATCH /api/reviews/product/:productId) ---
+
+  it('deve permitir ao cliente editar a própria avaliação e recalcular a média', async () => {
+    await request(app.getHttpServer())
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ idProduto: testProductId, nota: 2, comentario: 'Original' })
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ nota: 4, comentario: '<b>Editado</b>' })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ idProduto: testProductId, nota: 4, comentario: 'Editado' });
+    expect(res.body.dataEdicao).not.toBeNull();
+
+    const product = await productsRepository.findOne({ where: { idProduto: testProductId } });
+    expect(Number(product?.mediaAvaliacao)).toBe(4);
+    expect(product?.totalAvaliacoes).toBe(1);
+
+    const list = await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}`)
+      .expect(200);
+    expect(list.body.data[0].nota).toBe(4);
+    expect(list.body.data[0].dataEdicao).not.toBeNull();
+  });
+
+  it('deve retornar 400 com corpo vazio, 404 sem avaliação e 401 sem token ao editar', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({})
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ nota: 3 })
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .patch(`/api/reviews/product/${testProductId}`)
+      .send({ nota: 3 })
+      .expect(401);
+  });
+
   // --- REMOÇÃO DA PRÓPRIA AVALIAÇÃO (DELETE /api/reviews/product/:productId) ---
 
   it('deve permitir ao cliente remover a própria avaliação e recalcular média e total', async () => {
