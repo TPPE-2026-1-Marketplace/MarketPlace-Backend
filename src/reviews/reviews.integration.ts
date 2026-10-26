@@ -434,6 +434,8 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
     expect(res.body.data[0].cliente).not.toHaveProperty('cpf');
     expect(res.body.data[1]).not.toHaveProperty('cpfCliente');
     expect(res.body.data[1].cliente).not.toHaveProperty('cpf');
+    expect(res.body.data[0]).toHaveProperty('dataEdicao', null);
+    expect(res.body.data[1]).toHaveProperty('dataEdicao', null);
   });
 
   it('deve aplicar paginação limitando os resultados corretamente', async () => {
@@ -501,6 +503,7 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
       idProduto: testProductId,
       nota: 4,
       comentario: 'Gostei',
+      dataEdicao: null,
     });
     expect(after.body.avaliacao).not.toHaveProperty('cpfCliente');
   });

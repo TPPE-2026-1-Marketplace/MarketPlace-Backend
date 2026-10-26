@@ -156,6 +156,7 @@ export class ReviewsService {
       nota: number;
       comentario: string | null;
       dataAvaliacao: Date;
+      dataEdicao: Date | null;
       cliente: { nome: string };
     }[];
     meta: { page: number; limit: number; total: number; totalPages: number };
@@ -209,6 +210,7 @@ export class ReviewsService {
       nota: r.nota,
       comentario: r.comentario,
       dataAvaliacao: r.dataAvaliacao,
+      dataEdicao: r.dataEdicao,
       cliente: {
         nome: r.cliente?.nome || 'Cliente Anônimo',
       },
@@ -254,6 +256,7 @@ export class ReviewsService {
           nota: review.nota,
           comentario: review.comentario,
           dataAvaliacao: review.dataAvaliacao,
+          dataEdicao: review.dataEdicao,
         },
         podeAvaliar: false,
         motivo: MotivoAvaliacao.JA_AVALIOU,

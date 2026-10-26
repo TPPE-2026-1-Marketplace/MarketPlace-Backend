@@ -56,6 +56,7 @@ const mockReview: Review = {
   nota: 5,
   comentario: 'Ótimo produto',
   dataAvaliacao: new Date('2026-01-01'),
+  dataEdicao: null,
   cliente: mockPerson,
   produto: buildProduct(),
 };
@@ -302,6 +303,7 @@ describe('ReviewsService', () => {
           nota: 5,
           comentario: 'Ótimo produto',
           dataAvaliacao: mockReview.dataAvaliacao,
+          dataEdicao: null,
           cliente: { nome: 'Cliente Teste' },
         },
       ]);
@@ -344,6 +346,7 @@ describe('ReviewsService', () => {
           nota: 5,
           comentario: 'Ótimo produto',
           dataAvaliacao: mockReview.dataAvaliacao,
+          dataEdicao: null,
         },
         podeAvaliar: false,
         motivo: MotivoAvaliacao.JA_AVALIOU,

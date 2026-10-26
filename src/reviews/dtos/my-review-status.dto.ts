@@ -14,6 +14,7 @@ export interface MyReviewStatus {
     nota: number;
     comentario: string | null;
     dataAvaliacao: Date;
+    dataEdicao: Date | null;
   } | null;
   podeAvaliar: boolean;
   motivo: MotivoAvaliacao;
