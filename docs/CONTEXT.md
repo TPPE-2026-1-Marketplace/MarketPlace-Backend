@@ -520,9 +520,12 @@ Prefixo global: `/api`. Swagger em `/docs`.
 - `GET /api/inventory/:variantSku/logs` (admin)
 
 ### Avaliações
-- `POST /api/reviews` (autenticado)
-- `GET /api/reviews/product/:productId` (público)
-- `DELETE /api/reviews/:clienteId/:produtoId` (gerente+)
+- `POST /api/reviews` (autenticado) — só com compra verificada (pedido pago, enviado ou entregue)
+- `GET /api/reviews/product/:productId` (público) — paginado, com média, total e distribuição de estrelas
+- `GET /api/reviews/product/:productId/mine` (autenticado) — avaliação do cliente e se ele pode avaliar (`PODE_AVALIAR`, `JA_AVALIOU`, `SEM_COMPRA_VERIFICADA`)
+- `PATCH /api/reviews/product/:productId` (autenticado) — edita a própria avaliação e grava `dataEdicao`
+- `DELETE /api/reviews/product/:productId` (autenticado) — remove a própria avaliação
+- `DELETE /api/reviews/:clienteId/:produtoId` (gerente+) — moderação
 
 ### Cupons
 - `POST /api/coupons` (admin)

@@ -45,6 +45,10 @@ export class ReviewsController {
   @ApiResponse({ status: 201, description: 'Avaliação criada com sucesso' })
   @ApiResponse({ status: 400, description: 'Dados de entrada inválidos' })
   @ApiResponse({ status: 401, description: 'Não autorizado' })
+  @ApiResponse({
+    status: 403,
+    description: 'Cliente sem compra verificada do produto (pedido pago, enviado ou entregue)',
+  })
   @ApiResponse({ status: 404, description: 'Cliente ou Produto não encontrado' })
   @ApiResponse({ status: 409, description: 'O cliente já avaliou este produto' })
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: CreateReviewDto) {
@@ -96,6 +100,8 @@ export class ReviewsController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Edita a nota e/ou o comentário da própria avaliação (Cliente autenticado)',
+    description:
+      'Informe ao menos um dos campos. Comentário vazio (ou só com tags HTML) remove o texto. A compra verificada não é reavaliada.',
   })
   @ApiParam({ name: 'productId', description: 'ID do produto avaliado' })
   @ApiResponse({

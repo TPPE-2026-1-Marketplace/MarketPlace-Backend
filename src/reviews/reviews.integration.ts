@@ -538,6 +538,54 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
       .expect(404);
   });
 
+  // --- FLUXO COMPLETO: criar → editar → remover, conferindo média e total ---
+
+  it('deve manter média e total coerentes no fluxo criar → editar → remover', async () => {
+    const clientToken2 = jwtService.sign({ sub: testCpf2, email: testEmail2, role: 'cliente' });
+    const server = app.getHttpServer();
+    const stats = async () => {
+      const res = await request(server).get(`/api/reviews/product/${testProductId}`).expect(200);
+      return { media: res.body.media, total: res.body.totalAvaliacoes };
+    };
+
+    await request(server)
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ idProduto: testProductId, nota: 2 })
+      .expect(201);
+    await request(server)
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${clientToken2}`)
+      .send({ idProduto: testProductId, nota: 4 })
+      .expect(201);
+    expect(await stats()).toEqual({ media: 3, total: 2 });
+
+    await request(server)
+      .patch(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ nota: 5 })
+      .expect(200);
+    expect(await stats()).toEqual({ media: 4.5, total: 2 });
+
+    await request(server)
+      .delete(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(204);
+    expect(await stats()).toEqual({ media: 4, total: 1 });
+
+    const mine = await request(server)
+      .get(`/api/reviews/product/${testProductId}/mine`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(200);
+    expect(mine.body).toMatchObject({ avaliacao: null, podeAvaliar: true, motivo: 'PODE_AVALIAR' });
+
+    await request(server)
+      .delete(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken2}`)
+      .expect(204);
+    expect(await stats()).toEqual({ media: 0, total: 0 });
+  });
+
   // --- EDIÇÃO DA PRÓPRIA AVALIAÇÃO (PATCH /api/reviews/product/:productId) ---
 
   it('deve permitir ao cliente editar a própria avaliação e recalcular a média', async () => {
