@@ -42,7 +42,7 @@ describe('MeasurementsSchema', () => {
 });
 
 describe('CreateProductVariantSchema — campo medidas', () => {
-  const base = { idProduto: 1, codigo_sku: 'SKU-001', preco_variante: 99.9 };
+  const base = { idProduto: 1, codigoSku: 'SKU-001', precoVariante: 99.9 };
 
   it('aceita variante sem medidas', () => {
     expect(() => CreateProductVariantSchema.parse(base)).not.toThrow();

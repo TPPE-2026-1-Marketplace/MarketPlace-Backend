@@ -28,8 +28,8 @@ export class ProductVariantsService {
     }
 
     const variant = this.variantsRepository.create({
-      codigoSku: dto.codigo_sku,
-      precoVariante: dto.preco_variante,
+      codigoSku: dto.codigoSku,
+      precoVariante: dto.precoVariante,
       ativo: dto.ativo ?? true,
       cor: dto.cor ?? null,
       tamanho: dto.tamanho ?? null,
@@ -82,7 +82,7 @@ export class ProductVariantsService {
     const variant = await this.findOne(sku);
 
     Object.assign(variant, {
-      precoVariante: dto.preco_variante ?? variant.precoVariante,
+      precoVariante: dto.precoVariante ?? variant.precoVariante,
       ativo: dto.ativo ?? variant.ativo,
       cor: dto.cor === undefined ? variant.cor : dto.cor,
       tamanho: dto.tamanho === undefined ? variant.tamanho : dto.tamanho,
