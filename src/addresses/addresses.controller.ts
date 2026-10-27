@@ -35,7 +35,9 @@ export class AddressesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Cadastra um novo endereço para a cliente autenticada (Cliente autenticado)' })
+  @ApiOperation({
+    summary: 'Cadastra um novo endereço para a cliente autenticada (Cliente autenticado)',
+  })
   @ApiResponse({ status: 201, description: 'Endereço criado' })
   @ApiResponse({ status: 400, description: 'Payload inválido' })
   @ApiResponse({ status: 401, description: 'Não autenticado' })

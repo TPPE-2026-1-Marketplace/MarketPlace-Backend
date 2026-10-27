@@ -153,7 +153,9 @@ export class PeopleController {
   @Patch(':cpf/senha')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Troca a senha da própria conta, exigindo a senha atual (Cliente autenticado)' })
+  @ApiOperation({
+    summary: 'Troca a senha da própria conta, exigindo a senha atual (Cliente autenticado)',
+  })
   @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
   @ApiResponse({ status: 200, description: 'Senha atualizada' })
   @ApiResponse({ status: 400, description: 'Senha atual incorreta' })

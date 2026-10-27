@@ -21,7 +21,9 @@ const baseDto: CreateAddressDto = {
   uf: 'DF',
 };
 
-type RepoMock = jest.Mocked<Pick<Repository<Address>, 'create' | 'save' | 'find' | 'findOne' | 'update' | 'delete'>>;
+type RepoMock = jest.Mocked<
+  Pick<Repository<Address>, 'create' | 'save' | 'find' | 'findOne' | 'update' | 'delete'>
+>;
 
 describe('AddressesService', () => {
   let service: AddressesService;

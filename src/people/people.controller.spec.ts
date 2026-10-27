@@ -241,7 +241,11 @@ describe('PeopleController', () => {
 
       const result = await controller.changePassword(currentUser, '12345678901', dto);
 
-      expect(mockPeopleService.changePassword).toHaveBeenCalledWith('12345678901', dto, currentUser);
+      expect(mockPeopleService.changePassword).toHaveBeenCalledWith(
+        '12345678901',
+        dto,
+        currentUser,
+      );
       expect(result).toEqual({ success: true });
     });
   });
