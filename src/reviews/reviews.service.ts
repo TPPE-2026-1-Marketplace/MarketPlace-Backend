@@ -9,6 +9,8 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, QueryFailedError, Repository } from 'typeorm';
 
 import { CreateReviewDto } from './dtos/create-review.dto';
+import { MotivoAvaliacao, MyReviewStatus } from './dtos/my-review-status.dto';
+import { UpdateReviewDto } from './dtos/update-review.dto';
 import { Review } from './entities/review.entity';
 import { PG_UNIQUE_VIOLATION } from '../common/constants';
 import { Order, OrderStatus } from '../orders/entities/order.entity';
@@ -42,7 +44,6 @@ export class ReviewsService {
    * - Lança ConflictException (409) se já existir uma avaliação.
    */
   async create(idCliente: string, dto: CreateReviewDto): Promise<Review> {
-    // eslint-disable-next-line complexity
     return await this.dataSource.transaction(async (manager) => {
       const peopleRepo = manager.getRepository(Person);
       const productsRepo = manager.getRepository(Product);
@@ -66,19 +67,7 @@ export class ReviewsService {
       }
 
       // 2.5 Validar se o cliente de fato comprou o produto (Compra Verificada)
-      const hasPurchased = await ordersRepo
-        .createQueryBuilder('order')
-        .innerJoin('order.items', 'item')
-        .innerJoin('item.variant', 'variant')
-        .innerJoin('variant.product', 'product')
-        .where('order.idUsuario = :idCliente', { idCliente })
-        .andWhere('product.idProduto = :idProduto', { idProduto: dto.idProduto })
-        .andWhere('order.status IN (:...statuses)', {
-          statuses: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED],
-        })
-        .getCount();
-
-      if (hasPurchased === 0) {
+      if (!(await this.hasVerifiedPurchase(ordersRepo, idCliente, dto.idProduto))) {
         throw new ForbiddenException(
           'Apenas clientes que compraram e pagaram pelo produto podem avaliá-lo.',
         );
@@ -95,21 +84,12 @@ export class ReviewsService {
         throw new ConflictException('O cliente já avaliou este produto');
       }
 
-      // Sanitização do comentário para evitar XSS
-      let sanitizedComment: string | null = null;
-      if (dto.comentario) {
-        sanitizedComment = dto.comentario.replace(/<[^>]*>/g, '').trim();
-        if (sanitizedComment.length === 0) {
-          sanitizedComment = null;
-        }
-      }
-
       // 4. Instanciar e salvar a avaliação
       const review = reviewsRepo.create({
         cpfCliente: idCliente,
         idProduto: dto.idProduto,
         nota: dto.nota,
-        comentario: sanitizedComment,
+        comentario: this.sanitizeComment(dto.comentario),
       });
 
       try {
@@ -167,6 +147,7 @@ export class ReviewsService {
       nota: number;
       comentario: string | null;
       dataAvaliacao: Date;
+      dataEdicao: Date | null;
       cliente: { nome: string };
     }[];
     meta: { page: number; limit: number; total: number; totalPages: number };
@@ -220,6 +201,7 @@ export class ReviewsService {
       nota: r.nota,
       comentario: r.comentario,
       dataAvaliacao: r.dataAvaliacao,
+      dataEdicao: r.dataEdicao,
       cliente: {
         nome: r.cliente?.nome || 'Cliente Anônimo',
       },
@@ -240,8 +222,85 @@ export class ReviewsService {
   }
 
   /**
+   * Edita a própria avaliação do cliente (nota e/ou comentário).
+   *
+   * Regras de negócio:
+   * - A avaliação do cliente no produto deve existir (404 caso contrário).
+   * - Mesma sanitização do comentário da criação; vazio após sanitizar vira null.
+   * - Grava a data da edição e recalcula média e total do produto na mesma transação.
+   * - A compra verificada não é reavaliada: o direito de avaliar vem da criação.
+   */
+  async update(idCliente: string, idProduto: number, dto: UpdateReviewDto): Promise<Review> {
+    return await this.dataSource.transaction(async (manager) => {
+      const reviewsRepo = manager.getRepository(Review);
+
+      const review = await reviewsRepo.findOne({
+        where: { cpfCliente: idCliente, idProduto },
+      });
+      if (!review) {
+        throw new NotFoundException(
+          `Avaliação do cliente para o produto ID ${idProduto} não encontrada`,
+        );
+      }
+
+      if (dto.nota !== undefined) {
+        review.nota = dto.nota;
+      }
+      if (dto.comentario !== undefined) {
+        review.comentario = this.sanitizeComment(dto.comentario);
+      }
+      review.dataEdicao = new Date();
+
+      const savedReview = await reviewsRepo.save(review);
+      await this.updateProductStatsTransactional(manager, idProduto);
+      return savedReview;
+    });
+  }
+
+  /**
+   * Retorna a avaliação do cliente no produto (ou null) e se ele pode avaliá-lo.
+   *
+   * Regras de negócio:
+   * - O produto deve existir no banco.
+   * - Já avaliou: devolve a avaliação, com `podeAvaliar = false`.
+   * - Ainda não avaliou: pode avaliar se tiver compra verificada (mesma regra do create).
+   */
+  async findMine(idCliente: string, idProduto: number): Promise<MyReviewStatus> {
+    const productExists = await this.productsRepository.findOne({
+      where: { idProduto },
+    });
+    if (!productExists) {
+      throw new NotFoundException(`Produto com ID ${idProduto} não encontrado`);
+    }
+
+    const review = await this.reviewsRepository.findOne({
+      where: { cpfCliente: idCliente, idProduto },
+    });
+    if (review) {
+      return {
+        avaliacao: {
+          idProduto: review.idProduto,
+          nota: review.nota,
+          comentario: review.comentario,
+          dataAvaliacao: review.dataAvaliacao,
+          dataEdicao: review.dataEdicao,
+        },
+        podeAvaliar: false,
+        motivo: MotivoAvaliacao.JA_AVALIOU,
+      };
+    }
+
+    const purchased = await this.hasVerifiedPurchase(this.ordersRepository, idCliente, idProduto);
+    return {
+      avaliacao: null,
+      podeAvaliar: purchased,
+      motivo: purchased ? MotivoAvaliacao.PODE_AVALIAR : MotivoAvaliacao.SEM_COMPRA_VERIFICADA,
+    };
+  }
+
+  /**
    * Remove uma avaliação de produto (hard delete).
-   * Exclusivo para gerentes e administradores.
+   * Usado pela moderação (gerente/administrador) e pelo próprio cliente autor.
    */
   async remove(idCliente: string, idProduto: number): Promise<void> {
     return await this.dataSource.transaction(async (manager) => {
@@ -262,6 +321,39 @@ export class ReviewsService {
         `Avaliação do produto ID ${idProduto} pelo cliente CPF ${idCliente} foi excluída com sucesso (Hard Delete).`,
       );
     });
+  }
+
+  /**
+   * Remove tags HTML do comentário para evitar XSS; vazio após a limpeza vira null.
+   */
+  private sanitizeComment(comentario?: string): string | null {
+    if (!comentario) {
+      return null;
+    }
+    const sanitized = comentario.replace(/<[^>]*>/g, '').trim();
+    return sanitized.length > 0 ? sanitized : null;
+  }
+
+  /**
+   * Compra verificada: o cliente tem pedido pago, enviado ou entregue contendo o produto.
+   */
+  private async hasVerifiedPurchase(
+    ordersRepo: Repository<Order>,
+    idCliente: string,
+    idProduto: number,
+  ): Promise<boolean> {
+    const count = await ordersRepo
+      .createQueryBuilder('order')
+      .innerJoin('order.items', 'item')
+      .innerJoin('item.variant', 'variant')
+      .innerJoin('variant.product', 'product')
+      .where('order.idUsuario = :idCliente', { idCliente })
+      .andWhere('product.idProduto = :idProduto', { idProduto })
+      .andWhere('order.status IN (:...statuses)', {
+        statuses: [OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED],
+      })
+      .getCount();
+    return count > 0;
   }
 
   /**
