@@ -27,7 +27,7 @@ jobs:
       REPO_NAME: ${{ github.event.repository.name }}
       SONAR_COMPONENT: TPPE-2026-1-Marketplace_${{ github.event.repository.name }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -68,7 +68,7 @@ jobs:
 
       - name: Envia métricas como assets da release
         if: startsWith(github.ref, 'refs/tags')
-        uses: AButler/upload-release-assets@v2.0
+        uses: AButler/upload-release-assets@ec6d3263266dc57eb6645b5f75e827987f7c217d # v2.0
         with:
           files: 'analytics-raw-data/*'
           repo-token: ${{ secrets.TOKEN_GITHUB }}

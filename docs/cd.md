@@ -120,3 +120,26 @@ make prod-up
 ```
 
 Nunca salve `.env.production`, tokens do GHCR ou chaves do Render no Git.
+
+## Actions fixadas por SHA
+
+Todo `uses:` nos workflows (`ci.yml`, `cd.yml`, `qa-metrics.yml`) referencia o
+**SHA completo do commit**, não uma tag (`@v4`). Uma tag pode ser realocada pelo
+mantenedor da action (ou por alguém que comprometa a conta dele) para apontar
+pra um commit diferente sem o número da versão mudar — risco de supply chain.
+A versão legível fica como comentário (`# v4`) só pra referência humana; quem
+decide o que roda é o SHA.
+
+**Como atualizar uma action pra uma versão nova:**
+
+1. Descubra o SHA do commit que a tag da nova versão aponta:
+   ```bash
+   curl -s "https://api.github.com/repos/<owner>/<repo>/commits/<tag>" \
+     | python3 -c "import json,sys; print(json.load(sys.stdin)['sha'])"
+   ```
+2. Troque o SHA **e** o comentário da versão em todas as ocorrências daquela
+   action nos 3 workflows (pode ter mais de uma, em jobs diferentes).
+3. Confirme que o YAML continua válido (`python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` pra cada arquivo mexido) e que o CI passa no PR.
+
+Nunca copie o SHA de um commit arbitrário do histórico da action — sempre
+resolva a partir da tag de release oficial, como no passo 1.
