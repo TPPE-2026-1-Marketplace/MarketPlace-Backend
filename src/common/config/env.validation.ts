@@ -9,19 +9,76 @@ import { z } from 'zod';
  * As integrações externas (Melhor Envio, InfinitePay, ImgBB) são opcionais —
  * possuem mocks/fallbacks e não devem impedir o boot em desenvolvimento.
  */
+/**
+ * Lista de origens CORS separadas por vírgula. O CORS compara a origem de forma
+ * exata, então cada item precisa ser uma origem válida (`https://host[:porta]`,
+ * sem caminho nem barra final) — caso contrário o navegador bloqueia o frontend
+ * sem nenhum erro no boot.
+ */
+const CorsOriginsSchema = z.string().superRefine((value, ctx) => {
+  const origins = value
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (origins.length === 0) {
+    ctx.addIssue({ code: 'custom', message: 'CORS_ORIGINS não pode ser vazio quando definido' });
+    return;
+  }
+
+  for (const origin of origins) {
+    let isValidOrigin = false;
+    try {
+      isValidOrigin = new URL(origin).origin === origin;
+    } catch {
+      // URL inválida: cai no addIssue abaixo
+    }
+
+    if (!isValidOrigin) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `CORS_ORIGINS contém origem inválida "${origin}" (use https://host[:porta], sem barra final)`,
+      });
+    }
+  }
+});
+
+const JWT_SECRET_MIN_LENGTH = 32;
+
 export const EnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).optional(),
     PORT: z.coerce.number().int().positive().optional(),
 
+    // Liga o Swagger (`/docs`) quando NODE_ENV=production. Fora de produção o
+    // Swagger fica sempre disponível; em produção fica desligado por padrão —
+    // essa flag existe para religá-lo como decisão explícita do time (ex.:
+    // período de portfólio). Ver docs/swagger.md.
+    SWAGGER_PUBLIC: z.enum(['true', 'false']).optional(),
+
     DATABASE_URL: z.string().url('DATABASE_URL inválida').optional(),
+    // Ativa verificação real de certificado TLS na conexão com o banco em
+    // produção (default: desabilitada). Ver docs/database-tls.md (issue #171).
+    DATABASE_SSL_VERIFY: z.enum(['true', 'false']).optional(),
     POSTGRES_HOST: z.string().min(1, 'POSTGRES_HOST é obrigatório').optional(),
     POSTGRES_PORT: z.coerce.number().int().positive().optional(),
     POSTGRES_USER: z.string().min(1, 'POSTGRES_USER é obrigatório').optional(),
     POSTGRES_PASSWORD: z.string().min(1, 'POSTGRES_PASSWORD é obrigatório').optional(),
     POSTGRES_DB: z.string().min(1, 'POSTGRES_DB é obrigatório').optional(),
 
-    JWT_SECRET: z.string().min(1, 'JWT_SECRET é obrigatório'),
+    // Mínimo de 32 caracteres (256 bits, o tamanho da chave do HS256): segredos
+    // curtos permitem forjar tokens por força bruta. `openssl rand -base64 32` gera 44.
+    JWT_SECRET: z
+      .string()
+      .min(1, 'JWT_SECRET é obrigatório')
+      .min(
+        JWT_SECRET_MIN_LENGTH,
+        `JWT_SECRET deve ter no mínimo ${JWT_SECRET_MIN_LENGTH} caracteres`,
+      ),
+
+    // Origens liberadas no CORS (lista separada por vírgula). Opcional: sem ela,
+    // o main.ts usa os defaults (dev local + frontends conhecidos no Render).
+    CORS_ORIGINS: CorsOriginsSchema.optional(),
 
     // Integrações externas — todas opcionais (têm mock/fallback). Listadas aqui
     // só para documentar tudo que a app lê num único lugar.

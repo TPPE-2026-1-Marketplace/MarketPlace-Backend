@@ -4,9 +4,11 @@ import { z } from 'zod';
 import { CreateOrderItemSchema } from './create-order.dto';
 
 export const CreateInStoreOrderSchema = z.object({
+  // Pode ser de cliente já cadastrado (qualquer CPF salvo no banco), por isso aqui só
+  // o formato; a validade dos dígitos é checada no service quando o CPF é novo (avulso).
   idUsuario: z
     .string()
-    .length(11, 'O CPF do cliente deve conter exatamente 11 caracteres')
+    .regex(/^\d{11}$/, 'O CPF do cliente deve conter exatamente 11 dígitos numéricos')
     .optional()
     .nullable(),
   codigoVendedor: z

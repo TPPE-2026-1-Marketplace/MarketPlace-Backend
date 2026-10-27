@@ -80,8 +80,8 @@ describe('ProductVariantsService', () => {
 
       const result = await service.create({
         idProduto: 1,
-        codigo_sku: 'CAM-001-P',
-        preco_variante: 99.9,
+        codigoSku: 'CAM-001-P',
+        precoVariante: 99.9,
         tamanho: 'P',
       });
 
@@ -96,7 +96,7 @@ describe('ProductVariantsService', () => {
       variantsRepo.create.mockReturnValue(mockVariant);
       variantsRepo.save.mockResolvedValue(mockVariant);
 
-      await service.create({ idProduto: 1, codigo_sku: 'SKU-X', preco_variante: 50 });
+      await service.create({ idProduto: 1, codigoSku: 'SKU-X', precoVariante: 50 });
 
       expect(variantsRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ ativo: true, cor: null, tamanho: null }),
@@ -107,7 +107,7 @@ describe('ProductVariantsService', () => {
       productsRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.create({ idProduto: 999, codigo_sku: 'SKU-X', preco_variante: 50 }),
+        service.create({ idProduto: 999, codigoSku: 'SKU-X', precoVariante: 50 }),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       expect(variantsRepo.create).not.toHaveBeenCalled();

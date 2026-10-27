@@ -24,7 +24,7 @@ import {
 } from '../common/constants';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Role } from '../common/enums/role.enum';
-import { getMonthDateRange } from '../common/utils';
+import { getMonthDateRange, isValidCpf } from '../common/utils';
 import { Coupon } from '../coupons/entities/coupon.entity';
 import { Employee } from '../employees/entities/employee.entity';
 import { StockLog, MovementType } from '../inventory/entities/stock-log.entity';
@@ -379,7 +379,11 @@ export class OrdersService {
           // Cliente cadastrado → vincular via FK
           idUsuarioFinal = dto.idUsuario;
         } else {
-          // Cliente não cadastrado → salvar CPF no campo avulso (sem FK)
+          // Cliente não cadastrado → salvar CPF no campo avulso (sem FK).
+          // É dado novo entrando no banco, então os dígitos verificadores precisam bater.
+          if (!isValidCpf(dto.idUsuario)) {
+            throw new BadRequestException('CPF do cliente inválido.');
+          }
           clienteCpfAvulso = dto.idUsuario;
         }
       }

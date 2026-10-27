@@ -41,6 +41,10 @@ export class Review {
   @CreateDateColumn({ type: 'timestamp' })
   dataAvaliacao: Date;
 
+  // Nula até o cliente editar a avaliação (PATCH grava a data da última edição).
+  @Column({ type: 'timestamp', nullable: true })
+  dataEdicao: Date | null;
+
   @ManyToOne(() => Person, { nullable: false, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'cpf_cliente' })
   cliente: Person;

@@ -5,20 +5,20 @@ const validEnv = {
   POSTGRES_USER: 'user',
   POSTGRES_PASSWORD: 'pass',
   POSTGRES_DB: 'db',
-  JWT_SECRET: 'segredo',
+  JWT_SECRET: 'segredo-de-teste-com-pelo-menos-32-caracteres',
 };
 
 describe('validateEnv', () => {
   it('aceita um ambiente com apenas as variáveis obrigatórias', () => {
     const result = validateEnv(validEnv);
     expect(result.POSTGRES_HOST).toBe('localhost');
-    expect(result.JWT_SECRET).toBe('segredo');
+    expect(result.JWT_SECRET).toBe(validEnv.JWT_SECRET);
   });
 
   it('aceita DATABASE_URL no lugar das variáveis POSTGRES_* separadas', () => {
     const result = validateEnv({
       DATABASE_URL: 'postgresql://user:pass@example.neon.tech/db?sslmode=require',
-      JWT_SECRET: 'segredo',
+      JWT_SECRET: validEnv.JWT_SECRET,
     });
 
     expect(result.DATABASE_URL).toBe('postgresql://user:pass@example.neon.tech/db?sslmode=require');
@@ -53,5 +53,68 @@ describe('validateEnv', () => {
   it('coage PORT para número quando informado', () => {
     const result = validateEnv({ ...validEnv, PORT: '3001' });
     expect(result.PORT).toBe(3001);
+  });
+
+  it('aceita SWAGGER_PUBLIC ausente (o padrão é não religar o /docs)', () => {
+    const result = validateEnv(validEnv);
+    expect(result.SWAGGER_PUBLIC).toBeUndefined();
+  });
+
+  it.each(['true', 'false'])('aceita SWAGGER_PUBLIC=%s', (value) => {
+    const result = validateEnv({ ...validEnv, SWAGGER_PUBLIC: value });
+    expect(result.SWAGGER_PUBLIC).toBe(value);
+  });
+
+  // A flag decide se o /docs fica público em produção: um valor fora do enum
+  // deve derrubar o boot em vez de virar "false" silenciosamente.
+  it.each(['TRUE', '1', 'yes', 'sim', ''])(
+    'rejeita SWAGGER_PUBLIC fora do enum (%p), citando-a na mensagem',
+    (value) => {
+      expect(() => validateEnv({ ...validEnv, SWAGGER_PUBLIC: value })).toThrow(/SWAGGER_PUBLIC/);
+    },
+  );
+
+  describe('CORS_ORIGINS', () => {
+    it('é opcional', () => {
+      expect(() => validateEnv(validEnv)).not.toThrow();
+    });
+
+    it('aceita uma lista de origens separadas por vírgula (com espaços)', () => {
+      const value = 'http://localhost:5173, https://app.exemplo.com';
+      const result = validateEnv({ ...validEnv, CORS_ORIGINS: value });
+      expect(result.CORS_ORIGINS).toBe(value);
+    });
+
+    it.each([
+      ['sem protocolo', 'app.exemplo.com'],
+      ['com barra final', 'https://app.exemplo.com/'],
+      ['com caminho', 'https://app.exemplo.com/app'],
+      ['uma origem válida e outra inválida', 'https://ok.com,nao-e-url'],
+      ['vazio', ''],
+      ['só vírgulas', ' , '],
+    ])('rejeita CORS_ORIGINS %s', (_caso, value) => {
+      expect(() => validateEnv({ ...validEnv, CORS_ORIGINS: value })).toThrow(/CORS_ORIGINS/);
+    });
+  });
+
+  describe('JWT_SECRET', () => {
+    it('aceita um segredo com exatamente 32 caracteres', () => {
+      expect(() => validateEnv({ ...validEnv, JWT_SECRET: 'a'.repeat(32) })).not.toThrow();
+    });
+
+    it.each([
+      ['1 caractere', 'a'],
+      ['31 caracteres', 'a'.repeat(31)],
+    ])('rejeita segredo com %s, citando o mínimo na mensagem', (_caso, secret) => {
+      expect(() => validateEnv({ ...validEnv, JWT_SECRET: secret })).toThrow(
+        /JWT_SECRET deve ter no mínimo 32 caracteres/,
+      );
+    });
+
+    it('aceita o formato gerado por `openssl rand -base64 32`', () => {
+      expect(() =>
+        validateEnv({ ...validEnv, JWT_SECRET: '+WQb1MiZ0YPgkHZyqAL0cn10Cw9ikUzGqGUx7GuJWFI=' }),
+      ).not.toThrow();
+    });
   });
 });

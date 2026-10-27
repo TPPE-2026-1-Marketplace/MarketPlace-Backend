@@ -140,11 +140,11 @@ uma variável de ambiente nova e obrigatória, inclua-a nesse schema.
 É usado pelo `HEALTHCHECK` do `Dockerfile` (estágio `runner`) e pelo healthcheck do
 serviço `api` no `compose.prod.yml`.
 
-### Resposta de erro padronizada (pendente)
+### Resposta de erro padronizada
 
-`AllExceptionsFilter` **ainda não implementado** — mencionado no design mas
-ausente em `src/common/filters/`. Erros de validação do Zod retornam o formato
-padrão do `nestjs-zod`. Formato alvo quando implementado:
+`AllExceptionsFilter` (`src/common/filters/`), registrado globalmente em
+`main.ts` (`app.useGlobalFilters`), padroniza toda resposta de erro não
+tratada explicitamente por um controller/service. Formato:
 
 ```json
 {
@@ -153,9 +153,28 @@ padrão do `nestjs-zod`. Formato alvo quando implementado:
   "path": "/api/people",
   "method": "POST",
   "message": "Validation failed",
-  "errors": [{ "field": "email", "message": "Invalid email format" }]
+  "errors": [{ "field": "email", "message": "Invalid email format" }],
+  "requestId": "6f1b7e2a-..."
 }
 ```
+
+`errors` só aparece em falhas de validação do Zod (`ZodValidationException`);
+`requestId` é o `x-request-id` da requisição (ver abaixo). Violação de
+unicidade do banco (`QueryFailedError` código `23505`) não tratada por um
+service vira `409`; qualquer outro erro não mapeado vira `500` com mensagem
+genérica (detalhes só vão pro log, nunca pro cliente). Services que já
+tratam um caso específico (ex.: `ProductsService` com SKU duplicado, issue
+#158) continuam funcionando como antes — o filtro é a rede de segurança
+para o que ainda não tem tratamento próprio, não uma substituição.
+
+### Correlation ID (x-request-id)
+
+`correlationIdMiddleware` (`src/common/middleware/`), registrado em
+`main.ts` antes de tudo (`app.use`), garante que toda requisição tenha um
+`x-request-id`: repassa o header recebido do cliente/proxy quando houver,
+ou gera um novo. Sempre devolvido no header de resposta, e incluído no log
+de erro do `AllExceptionsFilter` — permite ligar uma resposta de erro ao
+log correspondente no servidor.
 
 ---
 
@@ -165,6 +184,12 @@ padrão do `nestjs-zod`. Formato alvo quando implementado:
 **Dev:** `synchronize: true` + `autoLoadEntities: true` — schema reflete as
 entities automaticamente. Apagar volume do Docker (`make dev-reset`) recria
 do zero.
+
+**TLS em produção:** `rejectUnauthorized: false` por padrão (decisão
+registrada, não omissão — ver `docs/database-tls.md`). `DATABASE_SSL_VERIFY=true`
+ativa verificação real do certificado quando confirmado contra o banco real.
+Lógica compartilhada em `buildDatabaseSslConfig()` (`src/database/connection-config.ts`),
+usada tanto no `TypeOrmModule` quanto no `DataSource` de migrations.
 
 ### Mapeamento diagrama ER → código
 
@@ -412,6 +437,17 @@ PK composta (cpf_cliente, id_produto) — uma avaliação por cliente por produt
 | `codigo_verificacao_retirada`   | varchar(6)                                               | NULL (só se tipo_retirada=loja)     |
 | `id_funcionario`                | varchar(11)                                              | FK → `employee.cpf`, NULL           |
 | `codigo_rastreamento`           | varchar                                                  | NULL                                |
+| `cliente_nome_avulso`           | varchar(150)                                             | NULL (cliente sem cadastro, PDV)    |
+| `cliente_cpf_avulso`            | varchar(11)                                              | NULL                                |
+| `cliente_email_avulso`          | varchar(255)                                             | NULL                                |
+| `cliente_telefone`              | varchar(20)                                              | NULL                                |
+| `endereco_cep`                  | varchar(9)                                               | NULL (snapshot de endereço no pedido) |
+| `endereco_rua`                  | varchar(255)                                             | NULL                                |
+| `endereco_numero`               | varchar(20)                                              | NULL                                |
+| `endereco_complemento`          | varchar(100)                                             | NULL                                |
+| `endereco_bairro`               | varchar(100)                                             | NULL                                |
+| `endereco_cidade`               | varchar(100)                                             | NULL                                |
+| `endereco_estado`               | varchar(2)                                               | NULL                                |
 
 #### `order_item` (D6)
 
@@ -454,7 +490,7 @@ Regras: `pix` e `debit_card` forçam `installments = 1`. `credit_card` aceita 1-
 | `mes`                   | int            | CHECK BETWEEN 1 AND 12            |
 | `ano`                   | int            |                                   |
 | `valor_meta`            | numeric(12,2)  | NOT NULL                          |
-| `taxa_comissao_bonus`   | numeric(5,4)   | NULL (taxa adicional ao bater meta) |
+| `valor_bonus`           | numeric(5,4)   | NULL (taxa adicional ao bater meta) |
 
 UNIQUE (cpf_funcionario, mes, ano).
 
@@ -472,8 +508,30 @@ make db-shell      # psql no container do postgres
 make db-backup     # dump SQL do banco (backup_<timestamp>.sql)
 make dev-reset     # derruba tudo e apaga volumes (banco incluso)
 make dev-test path=<modulo>  # roda testes de um módulo dentro do container
+make db-seed       # popula o banco com scripts/seed-dev.sql (não apaga dados)
+make db-seed-reset # recria o banco e aplica o seed
 make demo          # fluxo de compra ponta-a-ponta (recria o ambiente)
 ```
+
+### Seed de desenvolvimento (`scripts/seed-dev.sql`)
+
+Use `make db-seed` sempre que precisar de dados para validar o frontend (loja, PDV
+e painel). Ele cria um usuário por perfil, catálogo com estoque variado, cupons,
+avaliações, metas e pedidos dos últimos 6 meses. Credenciais na seção "Seed de
+desenvolvimento" do `README.md`.
+
+Ao mexer no seed:
+- **Idempotente:** todo `INSERT` usa `ON CONFLICT`; o arquivo precisa poder rodar
+  várias vezes sem erro nem duplicação.
+- **Sem IDs fixos no catálogo:** produtos, categorias e variantes são ligados por
+  SKU e nome. Pedidos, itens, imagens, pagamentos e metas usam IDs fixos na faixa
+  9000, para não colidir com dados da aplicação nem do `make demo`.
+- **Datas relativas** (`NOW() - INTERVAL ...`), para o seed não envelhecer.
+- **CPFs válidos** e que não aparecem nos testes de integração (ex.: o
+  `11111111111` é usado como "CPF inválido" em `orders.integration.ts`).
+- **Entity mudou?** Atualize o seed no mesmo PR. O teste
+  `src/database/seed-dev.integration.ts` aplica o seed contra o schema atual e
+  quebra no CI se ele ficar incompatível.
 
 **Testes:** sempre usar `make dev-test path=<modulo>` (ex: `make dev-test path=inventory`)
 para unitários e `make dev-test-integration` para integração. Os testes rodam dentro

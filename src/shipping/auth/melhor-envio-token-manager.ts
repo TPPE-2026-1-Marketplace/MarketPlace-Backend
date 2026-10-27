@@ -3,11 +3,15 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { firstValueFrom } from 'rxjs';
 
 import {
+  HTTP_STATUS_BAD_REQUEST,
+  HTTP_STATUS_UNAUTHORIZED,
   MELHOR_ENVIO_TIMEOUT_MS,
   MELHOR_ENVIO_TOKEN_PATH,
   MELHOR_ENVIO_TOKEN_REFRESH_BUFFER_MS,
 } from '../../common/constants';
 import { IMelhorEnvioTokenResponse } from '../interfaces/melhor-envio.interface';
+
+import type { AxiosError, AxiosResponse } from 'axios';
 
 interface CachedToken {
   accessToken: string;
@@ -140,7 +144,29 @@ export class MelhorEnvioTokenManager {
   private async refreshAccessToken(): Promise<string> {
     this.logger.log('Renovando access_token via refresh_token grant.');
 
-    const response = await firstValueFrom(
+    let response: AxiosResponse<IMelhorEnvioTokenResponse>;
+    try {
+      response = await this.requestTokenRefresh();
+    } catch (error) {
+      this.throwRefreshFailure(error);
+    }
+
+    const { access_token, expires_in, refresh_token: newRefresh } = response.data;
+    const expiresAt = this.computeExpiresAt(access_token, expires_in);
+    this.cached = { accessToken: access_token, expiresAt };
+
+    if (newRefresh && newRefresh !== this.refreshToken) {
+      this.logger.warn(
+        'Melhor Envio rotacionou o refresh_token. Atualize MELHOR_ENVIO_REFRESH_TOKEN ' +
+          'no .env.development senão a próxima renovação após restart vai falhar.',
+      );
+    }
+
+    return access_token;
+  }
+
+  private requestTokenRefresh(): Promise<AxiosResponse<IMelhorEnvioTokenResponse>> {
+    return firstValueFrom(
       this.httpService.post<IMelhorEnvioTokenResponse>(
         `${this.baseUrl}${MELHOR_ENVIO_TOKEN_PATH}`,
         {
@@ -159,19 +185,31 @@ export class MelhorEnvioTokenManager {
         },
       ),
     );
+  }
 
-    const { access_token, expires_in, refresh_token: newRefresh } = response.data;
-    const expiresAt = this.computeExpiresAt(access_token, expires_in);
-    this.cached = { accessToken: access_token, expiresAt };
+  /**
+   * Um 400/401 no refresh significa que o refresh_token foi recusado
+   * (expirado ou revogado): não adianta tentar de novo, é preciso refazer o
+   * fluxo OAuth2. Qualquer outra falha (timeout, 5xx, rede) é transitória.
+   */
+  private throwRefreshFailure(error: unknown): never {
+    const axiosError = error as AxiosError<{ error_description?: string; hint?: string }>;
+    const status = axiosError.response?.status;
 
-    if (newRefresh && newRefresh !== this.refreshToken) {
-      this.logger.warn(
-        'Melhor Envio rotacionou o refresh_token. Atualize MELHOR_ENVIO_REFRESH_TOKEN ' +
-          'no .env.development senão a próxima renovação após restart vai falhar.',
+    if (status === HTTP_STATUS_BAD_REQUEST || status === HTTP_STATUS_UNAUTHORIZED) {
+      const detail = [axiosError.response?.data?.error_description, axiosError.response?.data?.hint]
+        .filter(Boolean)
+        .join(' — ');
+      this.logger.error(
+        `Melhor Envio recusou o refresh_token (HTTP ${status}${detail ? `: ${detail}` : ''}). ` +
+          'É preciso refazer o fluxo OAuth2 e atualizar MELHOR_ENVIO_REFRESH_TOKEN ' +
+          'e MELHOR_ENVIO_ACCESS_TOKEN (docs/melhor-envio-token.md).',
       );
+    } else {
+      this.logger.error(`Falha ao renovar o token da Melhor Envio: ${axiosError.message}`);
     }
 
-    return access_token;
+    throw new ServiceUnavailableException('Falha na autenticação com a Melhor Envio');
   }
 
   /**

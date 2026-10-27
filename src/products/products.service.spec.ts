@@ -1,6 +1,7 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { QueryFailedError } from 'typeorm';
 
 import { Product } from './entities/product.entity';
 import { ProductsService } from './products.service';
@@ -79,6 +80,28 @@ describe('ProductsService', () => {
   });
 
   describe('create', () => {
+    it('lança ConflictException (409) quando o SKU já existe', async () => {
+      productsRepo.create.mockReturnValue(mockProduct);
+      productsRepo.save.mockRejectedValue(
+        new QueryFailedError('INSERT', [], { code: '23505' } as never),
+      );
+
+      const promise = service.create({ titulo: 'Camiseta', preco_base: 99.9, sku: 'CAM-001' });
+
+      await expect(promise).rejects.toBeInstanceOf(ConflictException);
+      await expect(promise).rejects.toThrow('CAM-001');
+    });
+
+    it('propaga erros que não são violação de unicidade', async () => {
+      productsRepo.create.mockReturnValue(mockProduct);
+      const dbDown = new Error('connection lost');
+      productsRepo.save.mockRejectedValue(dbDown);
+
+      await expect(
+        service.create({ titulo: 'Camiseta', preco_base: 99.9, sku: 'CAM-001' }),
+      ).rejects.toBe(dbDown);
+    });
+
     it('cria e retorna o produto', async () => {
       productsRepo.create.mockReturnValue(mockProduct);
       productsRepo.save.mockResolvedValue(mockProduct);

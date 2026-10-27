@@ -151,4 +151,32 @@ describe('OrdersService', () => {
     expect(created.valorFrete).toBe(0);
     expect(created.codigoVerificacaoRetirada).toMatch(/^\d{6}$/);
   });
+
+  describe('createInStore (CPF do cliente)', () => {
+    const seller = { cpf: '22222222222', ativo: true, role_perfil: 'vendedor' };
+    const inStoreDto = {
+      codigoVendedor: 'ANA01',
+      items: [{ variantSku: 'SKU-1', quantidade: 1 }],
+    };
+
+    it('rejeita CPF novo (avulso) com dígito verificador inválido', async () => {
+      manager.findOne.mockResolvedValueOnce(seller).mockResolvedValueOnce(null);
+
+      await expect(
+        service.createInStore({ ...inStoreDto, idUsuario: '12345678900' } as never),
+      ).rejects.toThrow(new BadRequestException('CPF do cliente inválido.'));
+    });
+
+    it('não revalida o CPF de cliente já cadastrado (dado antigo continua vendável)', async () => {
+      manager.findOne
+        .mockResolvedValueOnce(seller)
+        .mockResolvedValueOnce({ cpf: '12345678900' } as Person);
+      variantsRepo.find.mockResolvedValue([]);
+
+      // Passou da checagem de CPF e só parou na variante inexistente.
+      await expect(
+        service.createInStore({ ...inStoreDto, idUsuario: '12345678900' } as never),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
 });

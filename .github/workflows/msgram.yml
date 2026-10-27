@@ -1,0 +1,84 @@
+name: MeasureSoftGram
+
+# Envia as métricas do SonarCloud e do GitHub para o MeasureSoftGram
+# (https://msgram.lappis.rocks), no produto "DK Fashion".
+on:
+  # Roda depois do CI, cujo job "sonarcloud" faz a análise.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  msgram:
+    name: Enviar métricas ao MeasureSoftGram
+    # O CI também roda em PRs: envia só pushes com conclusão verde.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SONAR_COMPONENT: TPPE-2026-1-Marketplace_MarketPlace-Backend
+      MSGRAM_SERVICE_TOKEN: ${{ secrets.MSGRAM_SERVICE_TOKEN }}
+    steps:
+      # Sem o token o envio não tem como autenticar: avisa e encerra sem
+      # quebrar o pipeline enquanto o produto não estiver configurado no MsgRam.
+      - name: Verificar token do MeasureSoftGram
+        id: token
+        run: |
+          if [ -z "${MSGRAM_SERVICE_TOKEN}" ]; then
+            echo "::warning::Secret MSGRAM_SERVICE_TOKEN não configurado; envio ao MeasureSoftGram ignorado."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.token.outputs.configured == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # O scan termina ao enviar o relatório, mas o SonarCloud ainda processa a
+      # análise no servidor. Espera a fila do projeto esvaziar (até 10 min).
+      - name: Aguardar processamento no SonarCloud
+        if: steps.token.outputs.configured == 'true'
+        run: |
+          for attempt in $(seq 1 60); do
+            pending=$(curl -fsS "https://sonarcloud.io/api/ce/component?component=${SONAR_COMPONENT}" \
+              | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("queue", [])) + (d.get("current", {}).get("status") == "IN_PROGRESS"))')
+            if [ "$pending" = "0" ]; then
+              echo "Análise processada."
+              exit 0
+            fi
+            echo "Aguardando ${pending} tarefa(s) do SonarCloud (tentativa ${attempt})..."
+            sleep 10
+          done
+          echo "::warning::SonarCloud ainda processando após 10 min; enviando o que houver."
+
+      - name: Enviar métricas
+        if: steps.token.outputs.configured == 'true'
+        # Fixado no commit da main: as tags publicadas (v2.1, 2.1.5) têm o
+        # endereço do serviço embutido e apontam para instâncias antigas no
+        # Heroku. A main lê MSGRAM_SERVICE_HOST.
+        uses: fga-eps-mds/MeasureSoftGram-Action@b5ce7ec73bb160a505a51f3fe6d15bff32822966
+        env:
+          MSGRAM_SERVICE_HOST: https://msgram.lappis.rocks
+        with:
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          msgramServiceToken: ${{ secrets.MSGRAM_SERVICE_TOKEN }}
+          productName: DK Fashion
+          sonarProjectKey: TPPE-2026-1-Marketplace_MarketPlace-Backend
+          workflowName: CI
+          collectSonarqubeMetrics: true
+          collectGithubMetrics: true
+          usLabel: US

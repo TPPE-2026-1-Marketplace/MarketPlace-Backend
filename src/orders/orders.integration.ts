@@ -658,14 +658,28 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .set('Authorization', `Bearer ${employeeToken}`)
       .send({
         codigoVendedor: testSellerCpf,
-        idUsuario: '11111111111',
+        idUsuario: '11144477735',
         items: [{ variantSku: testSku, quantidade: 1 }],
       })
       .expect(201);
 
     // CPF não cadastrado: idUsuario fica null, CPF fica em clienteCpfAvulso
     expect(res.body.idUsuario).toBeNull();
-    expect(res.body.clienteCpfAvulso).toBe('11111111111');
+    expect(res.body.clienteCpfAvulso).toBe('11144477735');
+  });
+
+  it('deve rejeitar venda presencial com CPF novo de dígito verificador inválido (400)', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/orders/in-store')
+      .set('Authorization', `Bearer ${employeeToken}`)
+      .send({
+        codigoVendedor: testSellerCpf,
+        idUsuario: '11111111111',
+        items: [{ variantSku: testSku, quantidade: 1 }],
+      })
+      .expect(400);
+
+    expect(res.body.message).toContain('CPF do cliente inválido');
   });
 
   // Novos Testes E2E para US18 (Shipping Tracking Code & Order Query)

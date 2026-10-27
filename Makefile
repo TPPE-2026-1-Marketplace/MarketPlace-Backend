@@ -6,15 +6,17 @@ SERVICE := api
 export DOCKER_BUILDKIT := 1
 export COMPOSE_DOCKER_CLI_BUILD := 1
 
-.PHONY: help env-setup gen-secrets install dev lint test build start demo smoke-real \
+.PHONY: help hooks hooks-off env-setup gen-secrets install dev lint test build start demo smoke-real \
 	dev-up dev-down dev-logs dev-logs-once dev-logs-api dev-logs-postgres dev-shell dev-build dev-rebuild dev-restart dev-reset dev-test dev-test-integration dev-test-cov \
 	dev-lint dev-lint-fix dev-format dev-typecheck dev-check dev-openapi \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
-	db-shell db-reset db-backup \
+	db-shell db-reset db-backup db-seed db-seed-reset \
 	clean check dev-ci prod-image
 
 help:
 	@echo "Setup e local:"
+	@echo "  make hooks            Ativa o commit-msg versionado (.githooks) via husky"
+	@echo "  make hooks-off        Desativa o commit-msg versionado"
 	@echo "  make env-setup        Cria .env.development e .env.production a partir dos .example"
 	@echo "  make install          Instala dependencias localmente com pnpm"
 	@echo "  make dev              Sobe o Nest localmente (sem Docker) em modo desenvolvimento"
@@ -58,6 +60,8 @@ help:
 	@echo "  make db-shell         Abre um psql no container do postgres"
 	@echo "  make db-reset         Apaga apenas o volume do postgres (mantem cache de deps)"
 	@echo "  make db-backup        Gera um dump SQL do banco (backup_<timestamp>.sql)"
+	@echo "  make db-seed          Popula o banco com o seed de desenvolvimento (sem apagar dados)"
+	@echo "  make db-seed-reset    Recria o banco e aplica o seed de desenvolvimento"
 	@echo ""
 	@echo "Utilidades:"
 	@echo "  make demo             Roda o fluxo de compra ponta-a-ponta (recria o ambiente)"
@@ -69,6 +73,19 @@ help:
 	@echo "CI/CD:"
 	@echo "  make dev-ci           Roda lint + typecheck + format:check + build + testes no container (espelha o CI)"
 	@echo "  make prod-image       Builda a imagem Docker de producao standalone (espelha o CD)"
+
+# O core.hooksPath aqui pertence ao husky (.husky/_), que já roda o
+# pre-commit/lint-staged. Em vez de sequestrar essa config, instalamos um
+# shim .husky/commit-msg que delega para .githooks/commit-msg — assim os
+# dois hooks convivem e o shim sobrevive a um 'pnpm install'.
+hooks:
+	@printf '%s\n' '#!/usr/bin/env sh' 'exec "$$(dirname "$$0")/../.githooks/commit-msg" "$$@"' > .husky/commit-msg
+	@chmod +x .husky/commit-msg
+	@echo "Hook commit-msg ativado a partir de .githooks/ (shim em .husky/commit-msg)"
+
+hooks-off:
+	@rm -f .husky/commit-msg
+	@echo "Hook commit-msg desativado (husky/pre-commit segue ativo)"
 
 env-setup:
 	cp -n .env.development.example .env.development || true
@@ -192,6 +209,21 @@ db-reset:
 	$(COMPOSE_DEV) down
 	docker volume rm $(COMPOSE_PROJECT)_postgres_data || true
 	$(COMPOSE_DEV) up -d
+
+# Seed de desenvolvimento (scripts/seed-dev.sql): usuários por perfil, catálogo,
+# estoque e pedidos dos últimos 6 meses. Idempotente. O schema vem do
+# synchronize do TypeORM, então a API precisa responder antes do seed.
+SEED_FILE := scripts/seed-dev.sql
+API_HEALTH_URL := http://localhost:$${PORT:-3001}/api/health
+
+db-seed:
+	@echo "[seed] Aguardando a API em $(API_HEALTH_URL) (o schema é criado no boot)..."
+	@for i in $$(seq 1 40); do curl -sf $(API_HEALTH_URL) > /dev/null && break; sleep 3; done; \
+		curl -sf $(API_HEALTH_URL) > /dev/null || (echo "[seed] ERRO: API não respondeu. Rode make dev-up e confira make dev-logs-api." && exit 1)
+	$(COMPOSE_DEV) exec -T postgres sh -c 'psql -U $${POSTGRES_USER} -d $${POSTGRES_DB} -v ON_ERROR_STOP=1 -q' < $(SEED_FILE) > /dev/null
+	@echo "[seed] Banco populado. Credenciais de desenvolvimento: README.md, seção \"Seed de desenvolvimento\"."
+
+db-seed-reset: db-reset db-seed
 
 db-backup:
 	$(COMPOSE_DEV) exec -T postgres sh -c 'pg_dump -U $${POSTGRES_USER} -d $${POSTGRES_DB}' > backup_$$(date +%Y%m%d_%H%M%S).sql

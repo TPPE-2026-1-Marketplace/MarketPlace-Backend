@@ -268,6 +268,11 @@ export class ShippingService {
    * - timeout/5xx/network → ServiceUnavailable (cai no fallback)
    */
   private handleMelhorEnvioError(error: unknown): never {
+    // Já tratado (e logado) na origem, ex.: falha ao renovar o token.
+    if (error instanceof ServiceUnavailableException) {
+      throw error;
+    }
+
     const axiosError = error as AxiosError;
     const status = axiosError.response?.status;
 

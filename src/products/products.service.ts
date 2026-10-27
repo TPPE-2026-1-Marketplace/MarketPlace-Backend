@@ -1,9 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 
 import { Category } from '../categories/entities/category.entity';
-import { PAGINATION_DEFAULT_LIMIT, PAGINATION_DEFAULT_PAGE } from '../common/constants';
+import {
+  PAGINATION_DEFAULT_LIMIT,
+  PAGINATION_DEFAULT_PAGE,
+  PG_UNIQUE_VIOLATION,
+} from '../common/constants';
 import { CreateProductDto } from './dtos/create-product.dto';
 import { QueryProductsDto } from './dtos/query-products.dto';
 import { UpdateProductDto } from './dtos/update-product.dto';
@@ -32,7 +36,21 @@ export class ProductsService {
       sku: dto.sku,
     });
 
-    return this.productsRepository.save(product);
+    return this.saveOrThrowSkuConflict(product);
+  }
+
+  private async saveOrThrowSkuConflict(product: Product): Promise<Product> {
+    try {
+      return await this.productsRepository.save(product);
+    } catch (err) {
+      if (
+        err instanceof QueryFailedError &&
+        (err.driverError as { code?: string })?.code === PG_UNIQUE_VIOLATION
+      ) {
+        throw new ConflictException(`Já existe um produto com o SKU "${product.sku}"`);
+      }
+      throw err;
+    }
   }
 
   async findAll(query: QueryProductsDto): Promise<{

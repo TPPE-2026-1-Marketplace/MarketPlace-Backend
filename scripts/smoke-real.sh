@@ -236,11 +236,22 @@ else
     "{\"titulo\":\"Smoke Produto\",\"preco_base\":79.90,\"sku\":\"PROD-${NOW}\"}"
   PRODUCT_ID="$(json idProduto)"
   call "Criar variante" POST "${API}/product-variants" "$ADMIN_TOKEN" \
-    "{\"idProduto\":${PRODUCT_ID},\"codigo_sku\":\"${SKU}\",\"preco_variante\":79.90,\"cor\":\"preto\",\"tamanho\":\"M\"}"
+    "{\"idProduto\":${PRODUCT_ID},\"codigoSku\":\"${SKU}\",\"precoVariante\":79.90,\"cor\":\"preto\",\"tamanho\":\"M\"}"
   call "Ajustar estoque" PATCH "${API}/inventory/${SKU}" "$ADMIN_TOKEN" \
     "{\"qtdOnline\":10,\"motivo\":\"Carga smoke\"}"
 
-  CLIENT_CPF="$(printf '%011d' "$((10000000000 + NOW % 89999999999))")"
+  # CPF válido (a API valida os dígitos verificadores) a partir de 9 dígitos-base.
+  cpf_with_check_digits() {
+    local base="$1" sum=0 i d1 d2
+    for i in {0..8}; do sum=$((sum + ${base:i:1} * (10 - i))); done
+    d1=$(((sum * 10 % 11) % 10))
+    base="${base}${d1}"
+    sum=0
+    for i in {0..9}; do sum=$((sum + ${base:i:1} * (11 - i))); done
+    d2=$(((sum * 10 % 11) % 10))
+    printf '%s%s' "$base" "$d2"
+  }
+  CLIENT_CPF="$(cpf_with_check_digits "$(printf '%09d' "$((100000000 + NOW % 899999999))")")"
   CLIENT_EMAIL="cliente.smoke.${NOW}@smoke.com"
   CLIENT_PASS="cliente123"
   echo "[smoke] Auto-cadastro + login do cliente (${CLIENT_EMAIL})..."
