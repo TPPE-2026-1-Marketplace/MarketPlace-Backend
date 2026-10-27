@@ -24,6 +24,14 @@ export class Address {
   @JoinColumn({ name: 'cpf_pessoa', referencedColumnName: 'cpf' })
   pessoa: Person;
 
+  /** Rótulo informal dado pela cliente (ex.: "Casa", "Trabalho"). */
+  @Column({ type: 'varchar', length: 60, nullable: true })
+  nome: string | null;
+
+  /** Endereço padrão para entrega; só um por pessoa (ver AddressesService). */
+  @Column({ type: 'boolean', default: false })
+  principal: boolean;
+
   @Column({ type: 'varchar', length: 9 })
   cep: string;
 

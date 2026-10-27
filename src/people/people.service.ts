@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -19,6 +20,7 @@ import {
   BCRYPT_ROUNDS,
   PG_UNIQUE_VIOLATION,
 } from '../common/constants';
+import { ChangePasswordDto } from './dtos/change-password.dto';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
@@ -354,6 +356,32 @@ export class PeopleService {
 
   async validatePassword(plain: string, hashed: string): Promise<boolean> {
     return bcrypt.compare(plain, hashed);
+  }
+
+  /**
+   * Troca a senha de uma cliente autenticada, exigindo a senha atual.
+   * Diferente de `update`, que aceita `senha` sem confirmar a anterior.
+   */
+  async changePassword(
+    cpf: string,
+    dto: ChangePasswordDto,
+    user: CurrentUserPayload,
+  ): Promise<void> {
+    if (user.sub !== cpf) {
+      throw new ForbiddenException('Não é possível trocar a senha de outra conta');
+    }
+
+    const person = await this.peopleRepository.findOne({ where: { cpf } });
+    if (!person) {
+      throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
+    }
+
+    if (!person.senha || !(await this.validatePassword(dto.senhaAtual, person.senha))) {
+      throw new BadRequestException('Senha atual incorreta');
+    }
+
+    person.senha = await bcrypt.hash(dto.novaSenha, BCRYPT_ROUNDS);
+    await this.peopleRepository.save(person);
   }
 
   /**

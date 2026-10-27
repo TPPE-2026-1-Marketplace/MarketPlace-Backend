@@ -1,21 +1,28 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
+import { CpfSchema, PhoneSchema } from '../../common/dtos';
+
 /**
  * Schema para registro de pessoa pelo caixa em `/api/people/register`.
  *
  * Fluxo 1: Funcionário caixa registra uma pessoa na loja física.
  * - Email e nome: obrigatórios (dados básicos para identificação).
- * - CPF: obrigatório (chave primária e base da busca no módulo).
- * - Telefone: opcional.
+ * - CPF: obrigatório (chave primária e base da busca no módulo), com dígitos
+ *   verificadores válidos.
+ * - Telefone: opcional; se informado, precisa ser um telefone BR válido (com DDD).
  * - Sem senha: pessoa não faz login até completar auto-cadastro no site.
  * - Sem endereço: endereço é adicionado apenas no fluxo 2 (auto-cadastro).
  */
 export const RegisterPersonSchema = z.object({
   email: z.email().max(160),
   nome: z.string().min(1).max(120),
-  cpf: z.string().regex(/^\d{11}$/, 'CPF deve conter exatamente 11 dígitos numéricos'),
-  telefone: z.string().max(20).optional(),
+  cpf: CpfSchema,
+  telefone: PhoneSchema.optional(),
+  dataNascimento: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data de nascimento deve estar no formato AAAA-MM-DD')
+    .optional(),
 });
 
 export class RegisterPersonDto extends createZodDto(RegisterPersonSchema) {}

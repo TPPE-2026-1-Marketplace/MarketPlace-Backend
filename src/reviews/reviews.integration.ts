@@ -434,6 +434,8 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
     expect(res.body.data[0].cliente).not.toHaveProperty('cpf');
     expect(res.body.data[1]).not.toHaveProperty('cpfCliente');
     expect(res.body.data[1].cliente).not.toHaveProperty('cpf');
+    expect(res.body.data[0]).toHaveProperty('dataEdicao', null);
+    expect(res.body.data[1]).toHaveProperty('dataEdicao', null);
   });
 
   it('deve aplicar paginação limitando os resultados corretamente', async () => {
@@ -473,6 +475,208 @@ describe('ReviewsModule integration (Full Suite with DELETE)', () => {
   });
 
   // --- TESTES DE DELETAR AVALIAÇÃO (DELETE /api/reviews/:clienteId/:produtoId) ---
+
+  // --- ESTADO DO CLIENTE NO PRODUTO (GET /api/reviews/product/:productId/mine) ---
+
+  it('deve indicar PODE_AVALIAR e depois JA_AVALIOU com a avaliação do cliente', async () => {
+    const before = await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/mine`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(200);
+
+    expect(before.body).toEqual({ avaliacao: null, podeAvaliar: true, motivo: 'PODE_AVALIAR' });
+
+    await request(app.getHttpServer())
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ idProduto: testProductId, nota: 4, comentario: 'Gostei' })
+      .expect(201);
+
+    const after = await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/mine`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(200);
+
+    expect(after.body.podeAvaliar).toBe(false);
+    expect(after.body.motivo).toBe('JA_AVALIOU');
+    expect(after.body.avaliacao).toMatchObject({
+      idProduto: testProductId,
+      nota: 4,
+      comentario: 'Gostei',
+      dataEdicao: null,
+    });
+    expect(after.body.avaliacao).not.toHaveProperty('cpfCliente');
+  });
+
+  it('deve indicar SEM_COMPRA_VERIFICADA para cliente sem compra do produto', async () => {
+    const tokenSemCompra = jwtService.sign({
+      sub: '77777777777',
+      email: 'nocompra@example.com',
+      role: 'cliente',
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/mine`)
+      .set('Authorization', `Bearer ${tokenSemCompra}`)
+      .expect(200);
+
+    expect(res.body).toEqual({
+      avaliacao: null,
+      podeAvaliar: false,
+      motivo: 'SEM_COMPRA_VERIFICADA',
+    });
+  });
+
+  it('deve retornar 401 sem token e 404 para produto inexistente no estado do cliente', async () => {
+    await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}/mine`)
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get('/api/reviews/product/999999/mine')
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(404);
+  });
+
+  // --- FLUXO COMPLETO: criar → editar → remover, conferindo média e total ---
+
+  it('deve manter média e total coerentes no fluxo criar → editar → remover', async () => {
+    const clientToken2 = jwtService.sign({ sub: testCpf2, email: testEmail2, role: 'cliente' });
+    const server = app.getHttpServer();
+    const stats = async () => {
+      const res = await request(server).get(`/api/reviews/product/${testProductId}`).expect(200);
+      return { media: res.body.media, total: res.body.totalAvaliacoes };
+    };
+
+    await request(server)
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ idProduto: testProductId, nota: 2 })
+      .expect(201);
+    await request(server)
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${clientToken2}`)
+      .send({ idProduto: testProductId, nota: 4 })
+      .expect(201);
+    expect(await stats()).toEqual({ media: 3, total: 2 });
+
+    await request(server)
+      .patch(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ nota: 5 })
+      .expect(200);
+    expect(await stats()).toEqual({ media: 4.5, total: 2 });
+
+    await request(server)
+      .delete(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(204);
+    expect(await stats()).toEqual({ media: 4, total: 1 });
+
+    const mine = await request(server)
+      .get(`/api/reviews/product/${testProductId}/mine`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(200);
+    expect(mine.body).toMatchObject({ avaliacao: null, podeAvaliar: true, motivo: 'PODE_AVALIAR' });
+
+    await request(server)
+      .delete(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken2}`)
+      .expect(204);
+    expect(await stats()).toEqual({ media: 0, total: 0 });
+  });
+
+  // --- EDIÇÃO DA PRÓPRIA AVALIAÇÃO (PATCH /api/reviews/product/:productId) ---
+
+  it('deve permitir ao cliente editar a própria avaliação e recalcular a média', async () => {
+    await request(app.getHttpServer())
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ idProduto: testProductId, nota: 2, comentario: 'Original' })
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ nota: 4, comentario: '<b>Editado</b>' })
+      .expect(200);
+
+    expect(res.body).toMatchObject({ idProduto: testProductId, nota: 4, comentario: 'Editado' });
+    expect(res.body.dataEdicao).not.toBeNull();
+
+    const product = await productsRepository.findOne({ where: { idProduto: testProductId } });
+    expect(Number(product?.mediaAvaliacao)).toBe(4);
+    expect(product?.totalAvaliacoes).toBe(1);
+
+    const list = await request(app.getHttpServer())
+      .get(`/api/reviews/product/${testProductId}`)
+      .expect(200);
+    expect(list.body.data[0].nota).toBe(4);
+    expect(list.body.data[0].dataEdicao).not.toBeNull();
+  });
+
+  it('deve retornar 400 com corpo vazio, 404 sem avaliação e 401 sem token ao editar', async () => {
+    await request(app.getHttpServer())
+      .patch(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({})
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ nota: 3 })
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .patch(`/api/reviews/product/${testProductId}`)
+      .send({ nota: 3 })
+      .expect(401);
+  });
+
+  // --- REMOÇÃO DA PRÓPRIA AVALIAÇÃO (DELETE /api/reviews/product/:productId) ---
+
+  it('deve permitir ao cliente remover a própria avaliação e recalcular média e total', async () => {
+    await request(app.getHttpServer())
+      .post('/api/reviews')
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .send({ idProduto: testProductId, nota: 1, comentario: 'Não gostei' })
+      .expect(201);
+    await reviewsRepository.save({
+      cpfCliente: testCpf2,
+      idProduto: testProductId,
+      nota: 5,
+      comentario: 'Excelente',
+    });
+
+    await request(app.getHttpServer())
+      .delete(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(204);
+
+    const own = await reviewsRepository.findOne({
+      where: { cpfCliente: testCpf1, idProduto: testProductId },
+    });
+    expect(own).toBeNull();
+
+    const other = await reviewsRepository.findOne({
+      where: { cpfCliente: testCpf2, idProduto: testProductId },
+    });
+    expect(other).not.toBeNull();
+
+    const product = await productsRepository.findOne({ where: { idProduto: testProductId } });
+    expect(Number(product?.mediaAvaliacao)).toBe(5);
+    expect(product?.totalAvaliacoes).toBe(1);
+  });
+
+  it('deve retornar 404 ao remover a própria avaliação inexistente e 401 sem token', async () => {
+    await request(app.getHttpServer())
+      .delete(`/api/reviews/product/${testProductId}`)
+      .set('Authorization', `Bearer ${clientToken1}`)
+      .expect(404);
+
+    await request(app.getHttpServer()).delete(`/api/reviews/product/${testProductId}`).expect(401);
+  });
 
   it('deve permitir que um gerente ou administrador delete uma avaliação inadequada (retorna 204) e remova da listagem', async () => {
     // 1. Criar avaliação

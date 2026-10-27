@@ -31,6 +31,7 @@ const mockPeopleService = {
   findOne: jest.fn(),
   update: jest.fn(),
   remove: jest.fn(),
+  changePassword: jest.fn(),
 };
 
 /**
@@ -221,6 +222,31 @@ describe('PeopleController', () => {
       void controller.remove('12345678901', currentUser);
 
       expect(mockPeopleService.remove).toHaveBeenCalledWith('12345678901', currentUser);
+    });
+  });
+
+  describe('changePassword', () => {
+    it('deve exigir JwtAuthGuard', () => {
+      const guards = Reflect.getMetadata(
+        GUARDS_METADATA,
+        controller.constructor.prototype.changePassword,
+      );
+
+      expect(guards).toEqual([JwtAuthGuard]);
+    });
+
+    it('delega cpf, dto e usuário autenticado para o service', async () => {
+      mockPeopleService.changePassword.mockResolvedValue(undefined);
+      const dto = { senhaAtual: 'atual123', novaSenha: 'nova12345' };
+
+      const result = await controller.changePassword(currentUser, '12345678901', dto);
+
+      expect(mockPeopleService.changePassword).toHaveBeenCalledWith(
+        '12345678901',
+        dto,
+        currentUser,
+      );
+      expect(result).toEqual({ success: true });
     });
   });
 });

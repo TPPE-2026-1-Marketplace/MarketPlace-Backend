@@ -1,13 +1,14 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
+import { CpfSchema, PhoneSchema } from '../../common/dtos';
 import { Role } from '../../common/enums/role.enum';
 
 export const CreateEmployeeSchema = z.object({
-  cpf: z.string().regex(/^\d{11}$/, 'CPF deve conter exatamente 11 dígitos numéricos'),
+  cpf: CpfSchema,
   nome: z.string().min(1).max(120),
   email: z.email().max(160),
-  telefone: z.string().max(20).optional(),
+  telefone: PhoneSchema.optional(),
   ativo: z.boolean().optional(),
   role_perfil: z.enum(Role),
   taxa_comissao: z.coerce.number().positive().max(1).optional(),

@@ -176,6 +176,26 @@ ou gera um novo. Sempre devolvido no header de resposta, e incluído no log
 de erro do `AllExceptionsFilter` — permite ligar uma resposta de erro ao
 log correspondente no servidor.
 
+### Logging estruturado (nestjs-pino)
+
+`LoggerModule.forRoot(...)` (`app.module.ts`, config em
+`src/common/config/logging.config.ts`) ativa o `nestjs-pino`: JSON puro em
+produção **e em test**, `pino-pretty` (legível/colorido) só quando
+`NODE_ENV=development`. `pino-pretty` roda numa worker thread própria —
+rodar ela em `test` estourou o timeout de 15min do job `coverage` no CI
+(cada um dos ~12 arquivos de integração sobe a `AppModule` do zero,
+`--runInBand`), por isso o pretty fica restrito a dev interativo, não a
+"qualquer coisa que não seja produção". `app.useLogger(...)` em `main.ts`
+faz todo `new Logger(...)` existente (incluindo `AllExceptionsFilter`)
+sair formatado pelo pino, sem precisar trocar nenhum call site —
+`NestFactory.create` usa `bufferLogs: true` pra não perder logs emitidos
+antes do `useLogger` rodar.
+
+`genReqId` reaproveita o mesmo `x-request-id` do `correlationIdMiddleware`
+(lendo o header, já garantido presente em toda requisição) — toda linha de
+log de uma requisição carrega o mesmo id que vai no header de resposta,
+em `req.id`.
+
 ---
 
 ## Estado do banco
@@ -224,19 +244,25 @@ exceção à regra de não nomear manualmente.
 
 PK: `cpf` (varchar 11, sem máscara).
 
-| Coluna     | Tipo          | Constraint        |
-| ---------- | ------------- | ----------------- |
-| `cpf`      | varchar(11)   | PK                |
-| `nome`     | varchar(120)  | NULL              |
-| `email`    | varchar(160)  | UNIQUE, NOT NULL  |
-| `telefone` | varchar(20)   | NULL              |
-| `senha`    | varchar(120)  | NULL (hash bcrypt)|
+| Coluna             | Tipo          | Constraint        |
+| ------------------ | ------------- | ----------------- |
+| `cpf`               | varchar(11)   | PK                |
+| `nome`              | varchar(120)  | NULL              |
+| `email`             | varchar(160)  | UNIQUE, NOT NULL  |
+| `telefone`          | varchar(20)   | NULL              |
+| `senha`             | varchar(120)  | NULL (hash bcrypt)|
+| `data_nascimento`   | date          | NULL              |
 
 **Notas:**
 - `nome` é nullable para suportar auto-cadastro pelo website (US02) — usuário
   pode criar conta com só email + senha e preencher nome depois.
 - `senha` é nullable para suportar cadastro pelo caixa (US11) — cliente sem
   senha não consegue fazer login (validação no AuthService).
+- `data_nascimento` adicionada na migration `AddPersonBirthdateAndAddressLabel`
+  (issue #144 — tela "Meus dados" do Perfil, campo opcional).
+- Troca de senha autenticada: `PATCH /people/:cpf/senha` (`PeopleService.changePassword`)
+  exige a senha atual e só aceita o próprio cpf (`@CurrentUser()` vs. param da rota) —
+  diferente do `PATCH /people/:cpf` genérico, que aceita `senha` sem confirmar a anterior.
 
 #### `employee` ✅ (issue #46)
 
@@ -255,23 +281,33 @@ Especialização 1:1 de `person`. PK = FK.
 - `create` retorna `senha_temporaria` em texto plano para o admin repassar ao funcionário.
 - `eager: true` na relação com `Person` — sempre carrega person aninhada, sem senha.
 
-#### `address` ✅ (issue #45)
+#### `address` ✅ (issue #45, CRUD completo na #144)
 
-| Coluna        | Tipo    | Constraint            |
-| ------------- | ------- | --------------------- |
-| `id`          | serial  | PK                    |
-| `cpf_pessoa`  | varchar(11) | FK → `person.cpf` |
-| `cep`         | varchar(8)  | NOT NULL              |
-| `logradouro`  | varchar | NOT NULL              |
-| `numero`      | varchar | NOT NULL              |
-| `complemento` | varchar | NULL                  |
-| `bairro`      | varchar | NOT NULL              |
-| `cidade`      | varchar | NOT NULL              |
-| `uf`          | varchar(2) | NOT NULL             |
+| Coluna        | Tipo        | Constraint            |
+| ------------- | ----------- | ---------------------- |
+| `id`          | serial      | PK                     |
+| `cpf_pessoa`  | varchar(11) | FK → `person.cpf`      |
+| `nome`        | varchar(60) | NULL (ex.: "Casa")     |
+| `principal`   | boolean     | DEFAULT false          |
+| `cep`         | varchar(8)  | NOT NULL               |
+| `logradouro`  | varchar     | NOT NULL               |
+| `numero`      | varchar     | NOT NULL               |
+| `complemento` | varchar     | NULL                   |
+| `bairro`      | varchar     | NOT NULL               |
+| `cidade`      | varchar     | NOT NULL               |
+| `uf`          | varchar(2)  | NOT NULL               |
 
 **Notas:**
 - Criada junto com `registerUser` (fluxo 2) quando `endereco` vem no payload.
 - `AddressesService.create(cpf, dto)` é o método público — usado pelo `PeopleService`.
+- `nome` e `principal` adicionados na migration `AddPersonBirthdateAndAddressLabel`
+  (issue #144 — tela "Endereços" do Perfil, conforme o Figma).
+- Só um endereço `principal = true` por pessoa: `AddressesService` desmarca os
+  demais antes de gravar um novo principal (`clearPrincipal`).
+- CRUD completo exposto em `/addresses` (`AddressesController`, `JwtAuthGuard`
+  no nível do controller): `GET /addresses/my`, `POST /addresses`,
+  `PATCH /addresses/:id`, `DELETE /addresses/:id` — todas restritas ao cpf do
+  token (`@CurrentUser()`), nunca a um cpf arbitrário.
 
 #### `category` ✅ (issue #D1)
 
@@ -492,8 +528,30 @@ make db-shell      # psql no container do postgres
 make db-backup     # dump SQL do banco (backup_<timestamp>.sql)
 make dev-reset     # derruba tudo e apaga volumes (banco incluso)
 make dev-test path=<modulo>  # roda testes de um módulo dentro do container
+make db-seed       # popula o banco com scripts/seed-dev.sql (não apaga dados)
+make db-seed-reset # recria o banco e aplica o seed
 make demo          # fluxo de compra ponta-a-ponta (recria o ambiente)
 ```
+
+### Seed de desenvolvimento (`scripts/seed-dev.sql`)
+
+Use `make db-seed` sempre que precisar de dados para validar o frontend (loja, PDV
+e painel). Ele cria um usuário por perfil, catálogo com estoque variado, cupons,
+avaliações, metas e pedidos dos últimos 6 meses. Credenciais na seção "Seed de
+desenvolvimento" do `README.md`.
+
+Ao mexer no seed:
+- **Idempotente:** todo `INSERT` usa `ON CONFLICT`; o arquivo precisa poder rodar
+  várias vezes sem erro nem duplicação.
+- **Sem IDs fixos no catálogo:** produtos, categorias e variantes são ligados por
+  SKU e nome. Pedidos, itens, imagens, pagamentos e metas usam IDs fixos na faixa
+  9000, para não colidir com dados da aplicação nem do `make demo`.
+- **Datas relativas** (`NOW() - INTERVAL ...`), para o seed não envelhecer.
+- **CPFs válidos** e que não aparecem nos testes de integração (ex.: o
+  `11111111111` é usado como "CPF inválido" em `orders.integration.ts`).
+- **Entity mudou?** Atualize o seed no mesmo PR. O teste
+  `src/database/seed-dev.integration.ts` aplica o seed contra o schema atual e
+  quebra no CI se ele ficar incompatível.
 
 **Testes:** sempre usar `make dev-test path=<modulo>` (ex: `make dev-test path=inventory`)
 para unitários e `make dev-test-integration` para integração. Os testes rodam dentro
