@@ -147,7 +147,7 @@ PRODUCT_ID="$(json idProduto)"
 
 echo "[demo] 4/8 - Criando variante (SKU ${SKU})..."
 call "Criar variante" POST "${API}/product-variants" "$ADMIN_TOKEN" \
-  "{\"idProduto\":${PRODUCT_ID},\"codigo_sku\":\"${SKU}\",\"preco_variante\":79.90,\"cor\":\"preto\",\"tamanho\":\"M\"}"
+  "{\"idProduto\":${PRODUCT_ID},\"codigoSku\":\"${SKU}\",\"precoVariante\":79.90,\"cor\":\"preto\",\"tamanho\":\"M\"}"
 
 echo "[demo] 5/8 - Definindo estoque online = 50..."
 call "Ajustar estoque" PATCH "${API}/inventory/${SKU}" "$ADMIN_TOKEN" \

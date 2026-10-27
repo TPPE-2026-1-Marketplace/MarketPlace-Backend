@@ -236,7 +236,7 @@ else
     "{\"titulo\":\"Smoke Produto\",\"preco_base\":79.90,\"sku\":\"PROD-${NOW}\"}"
   PRODUCT_ID="$(json idProduto)"
   call "Criar variante" POST "${API}/product-variants" "$ADMIN_TOKEN" \
-    "{\"idProduto\":${PRODUCT_ID},\"codigo_sku\":\"${SKU}\",\"preco_variante\":79.90,\"cor\":\"preto\",\"tamanho\":\"M\"}"
+    "{\"idProduto\":${PRODUCT_ID},\"codigoSku\":\"${SKU}\",\"precoVariante\":79.90,\"cor\":\"preto\",\"tamanho\":\"M\"}"
   call "Ajustar estoque" PATCH "${API}/inventory/${SKU}" "$ADMIN_TOKEN" \
     "{\"qtdOnline\":10,\"motivo\":\"Carga smoke\"}"
 
