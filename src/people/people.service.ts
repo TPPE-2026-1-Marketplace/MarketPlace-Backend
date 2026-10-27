@@ -1,10 +1,11 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
 import { QueryFailedError, Repository } from 'typeorm';
 
 import { AddressesService } from '../addresses/addresses.service';
 import { BCRYPT_ROUNDS, PG_UNIQUE_VIOLATION } from '../common/constants';
+import { ChangePasswordDto } from './dtos/change-password.dto';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
@@ -207,6 +208,24 @@ export class PeopleService {
 
   async validatePassword(plain: string, hashed: string): Promise<boolean> {
     return bcrypt.compare(plain, hashed);
+  }
+
+  /**
+   * Troca a senha de uma cliente autenticada, exigindo a senha atual.
+   * Diferente de `update`, que aceita `senha` sem confirmar a anterior.
+   */
+  async changePassword(cpf: string, dto: ChangePasswordDto): Promise<void> {
+    const person = await this.peopleRepository.findOne({ where: { cpf } });
+    if (!person) {
+      throw new NotFoundException(`Pessoa com CPF ${cpf} não encontrada`);
+    }
+
+    if (!person.senha || !(await this.validatePassword(dto.senhaAtual, person.senha))) {
+      throw new BadRequestException('Senha atual incorreta');
+    }
+
+    person.senha = await bcrypt.hash(dto.novaSenha, BCRYPT_ROUNDS);
+    await this.peopleRepository.save(person);
   }
 
   /**

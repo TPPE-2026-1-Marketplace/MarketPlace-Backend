@@ -39,4 +39,7 @@ export class Person {
    */
   @Column({ type: 'varchar', length: 120, nullable: true })
   senha: string | null;
+
+  @Column({ type: 'date', name: 'data_nascimento', nullable: true })
+  dataNascimento: string | null;
 }

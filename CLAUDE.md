@@ -199,19 +199,25 @@ exceção à regra de não nomear manualmente.
 
 PK: `cpf` (varchar 11, sem máscara).
 
-| Coluna     | Tipo          | Constraint        |
-| ---------- | ------------- | ----------------- |
-| `cpf`      | varchar(11)   | PK                |
-| `nome`     | varchar(120)  | NULL              |
-| `email`    | varchar(160)  | UNIQUE, NOT NULL  |
-| `telefone` | varchar(20)   | NULL              |
-| `senha`    | varchar(120)  | NULL (hash bcrypt)|
+| Coluna             | Tipo          | Constraint        |
+| ------------------ | ------------- | ----------------- |
+| `cpf`               | varchar(11)   | PK                |
+| `nome`              | varchar(120)  | NULL              |
+| `email`             | varchar(160)  | UNIQUE, NOT NULL  |
+| `telefone`          | varchar(20)   | NULL              |
+| `senha`             | varchar(120)  | NULL (hash bcrypt)|
+| `data_nascimento`   | date          | NULL              |
 
 **Notas:**
 - `nome` é nullable para suportar auto-cadastro pelo website (US02) — usuário
   pode criar conta com só email + senha e preencher nome depois.
 - `senha` é nullable para suportar cadastro pelo caixa (US11) — cliente sem
   senha não consegue fazer login (validação no AuthService).
+- `data_nascimento` adicionada na migration `AddPersonBirthdateAndAddressLabel`
+  (issue #144 — tela "Meus dados" do Perfil, campo opcional).
+- Troca de senha autenticada: `PATCH /people/:cpf/senha` (`PeopleService.changePassword`)
+  exige a senha atual e só aceita o próprio cpf (`@CurrentUser()` vs. param da rota) —
+  diferente do `PATCH /people/:cpf` genérico, que aceita `senha` sem confirmar a anterior.
 
 #### `employee` ✅ (issue #46)
 
@@ -230,23 +236,33 @@ Especialização 1:1 de `person`. PK = FK.
 - `create` retorna `senha_temporaria` em texto plano para o admin repassar ao funcionário.
 - `eager: true` na relação com `Person` — sempre carrega person aninhada, sem senha.
 
-#### `address` ✅ (issue #45)
+#### `address` ✅ (issue #45, CRUD completo na #144)
 
-| Coluna        | Tipo    | Constraint            |
-| ------------- | ------- | --------------------- |
-| `id`          | serial  | PK                    |
-| `cpf_pessoa`  | varchar(11) | FK → `person.cpf` |
-| `cep`         | varchar(8)  | NOT NULL              |
-| `logradouro`  | varchar | NOT NULL              |
-| `numero`      | varchar | NOT NULL              |
-| `complemento` | varchar | NULL                  |
-| `bairro`      | varchar | NOT NULL              |
-| `cidade`      | varchar | NOT NULL              |
-| `uf`          | varchar(2) | NOT NULL             |
+| Coluna        | Tipo        | Constraint            |
+| ------------- | ----------- | ---------------------- |
+| `id`          | serial      | PK                     |
+| `cpf_pessoa`  | varchar(11) | FK → `person.cpf`      |
+| `nome`        | varchar(60) | NULL (ex.: "Casa")     |
+| `principal`   | boolean     | DEFAULT false          |
+| `cep`         | varchar(8)  | NOT NULL               |
+| `logradouro`  | varchar     | NOT NULL               |
+| `numero`      | varchar     | NOT NULL               |
+| `complemento` | varchar     | NULL                   |
+| `bairro`      | varchar     | NOT NULL               |
+| `cidade`      | varchar     | NOT NULL               |
+| `uf`          | varchar(2)  | NOT NULL               |
 
 **Notas:**
 - Criada junto com `registerUser` (fluxo 2) quando `endereco` vem no payload.
 - `AddressesService.create(cpf, dto)` é o método público — usado pelo `PeopleService`.
+- `nome` e `principal` adicionados na migration `AddPersonBirthdateAndAddressLabel`
+  (issue #144 — tela "Endereços" do Perfil, conforme o Figma).
+- Só um endereço `principal = true` por pessoa: `AddressesService` desmarca os
+  demais antes de gravar um novo principal (`clearPrincipal`).
+- CRUD completo exposto em `/addresses` (`AddressesController`, `JwtAuthGuard`
+  no nível do controller): `GET /addresses/my`, `POST /addresses`,
+  `PATCH /addresses/:id`, `DELETE /addresses/:id` — todas restritas ao cpf do
+  token (`@CurrentUser()`), nunca a um cpf arbitrário.
 
 #### `category` ✅ (issue #D1)
 

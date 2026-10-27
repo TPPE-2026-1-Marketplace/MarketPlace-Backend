@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
@@ -18,6 +19,7 @@ const mockPeopleService = {
   findOne: jest.fn(),
   update: jest.fn(),
   remove: jest.fn(),
+  changePassword: jest.fn(),
 };
 
 describe('PeopleController', () => {
@@ -81,6 +83,42 @@ describe('PeopleController', () => {
       );
 
       expect(guards).toBeUndefined();
+    });
+  });
+
+  describe('changePassword', () => {
+    it('deve exigir JwtAuthGuard', () => {
+      const guards = Reflect.getMetadata(
+        GUARDS_METADATA,
+        controller.constructor.prototype.changePassword,
+      );
+
+      expect(guards).toEqual([JwtAuthGuard]);
+    });
+
+    it('delega para o service quando o cpf da URL é o da própria cliente', async () => {
+      mockPeopleService.changePassword.mockResolvedValue(undefined);
+      const dto = { senhaAtual: 'atual123', novaSenha: 'nova12345' };
+
+      const result = await controller.changePassword(
+        { sub: '12345678901', email: 'joao@email.com', role: 'cliente' },
+        '12345678901',
+        dto,
+      );
+
+      expect(mockPeopleService.changePassword).toHaveBeenCalledWith('12345678901', dto);
+      expect(result).toEqual({ success: true });
+    });
+
+    it('lança ForbiddenException ao tentar trocar a senha de outra conta', async () => {
+      await expect(
+        controller.changePassword(
+          { sub: '12345678901', email: 'joao@email.com', role: 'cliente' },
+          '00000000000',
+          { senhaAtual: 'x', novaSenha: 'nova12345' },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(mockPeopleService.changePassword).not.toHaveBeenCalled();
     });
   });
 });

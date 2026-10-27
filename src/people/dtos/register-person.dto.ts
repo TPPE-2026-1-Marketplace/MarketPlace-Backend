@@ -16,6 +16,10 @@ export const RegisterPersonSchema = z.object({
   nome: z.string().min(1).max(120),
   cpf: z.string().regex(/^\d{11}$/, 'CPF deve conter exatamente 11 dígitos numéricos'),
   telefone: z.string().max(20).optional(),
+  dataNascimento: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data de nascimento deve estar no formato AAAA-MM-DD')
+    .optional(),
 });
 
 export class RegisterPersonDto extends createZodDto(RegisterPersonSchema) {}

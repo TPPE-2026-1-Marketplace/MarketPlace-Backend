@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -23,10 +24,12 @@ import {
 import { Response } from 'express';
 import * as csv from 'fast-csv';
 
+import { ChangePasswordDto } from './dtos/change-password.dto';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
 import { PeopleService } from './people.service';
+import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { PaginationDto } from '../common/dtos';
 import { Role } from '../common/enums/role.enum';
@@ -126,6 +129,26 @@ export class PeopleController {
   @ApiResponse({ status: 409, description: 'Email já cadastrado por outra pessoa' })
   update(@Param('cpf') cpf: string, @Body() dto: UpdatePersonDto) {
     return this.peopleService.update(cpf, dto);
+  }
+
+  @Patch(':cpf/senha')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Troca a senha da própria conta, exigindo a senha atual (Cliente autenticado)' })
+  @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
+  @ApiResponse({ status: 200, description: 'Senha atualizada' })
+  @ApiResponse({ status: 400, description: 'Senha atual incorreta' })
+  @ApiResponse({ status: 403, description: 'Não é possível trocar a senha de outra conta' })
+  async changePassword(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('cpf') cpf: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    if (user.sub !== cpf) {
+      throw new ForbiddenException('Não é possível trocar a senha de outra conta');
+    }
+    await this.peopleService.changePassword(cpf, dto);
+    return { success: true };
   }
 
   @Delete(':cpf')
