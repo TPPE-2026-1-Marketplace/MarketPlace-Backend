@@ -1,4 +1,9 @@
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 import * as bcrypt from 'bcrypt';
@@ -23,6 +28,7 @@ const mockPerson: Person = {
   email: 'joao@email.com',
   telefone: null,
   senha: 'hash_bcrypt_placeholder',
+  dataNascimento: null,
 };
 
 const ownerOf = (cpf: string): CurrentUserPayload => ({
@@ -532,6 +538,75 @@ describe('PeopleService', () => {
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
       const result = await service.validatePassword('errada', '$2b$10$hash');
       expect(result).toBe(false);
+    });
+  });
+
+  describe('changePassword', () => {
+    it('troca a senha quando a senha atual confere', async () => {
+      repo.findOne.mockResolvedValue({ ...mockPerson });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      repo.save.mockResolvedValue(mockPerson);
+
+      await service.changePassword(
+        mockPerson.cpf,
+        { senhaAtual: 'atual123', novaSenha: 'nova12345' },
+        ownerOf(mockPerson.cpf),
+      );
+
+      expect(bcrypt.compare).toHaveBeenCalledWith('atual123', mockPerson.senha);
+      expect(bcrypt.hash).toHaveBeenCalledWith('nova12345', 10);
+      expect(repo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ senha: '$2b$10$hashedpassword' }),
+      );
+    });
+
+    it('lança ForbiddenException ao tentar trocar a senha de outra conta, sem tocar o repositório', async () => {
+      await expect(
+        service.changePassword(
+          mockPerson.cpf,
+          { senhaAtual: 'x', novaSenha: 'nova12345' },
+          ownerOf('00000000000'),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(repo.findOne).not.toHaveBeenCalled();
+    });
+
+    it('lança BadRequestException quando a senha atual está incorreta', async () => {
+      repo.findOne.mockResolvedValue({ ...mockPerson });
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+      await expect(
+        service.changePassword(
+          mockPerson.cpf,
+          { senhaAtual: 'errada', novaSenha: 'nova12345' },
+          ownerOf(mockPerson.cpf),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repo.save).not.toHaveBeenCalled();
+    });
+
+    it('lança BadRequestException quando a conta não tem senha definida', async () => {
+      repo.findOne.mockResolvedValue({ ...mockPerson, senha: null });
+
+      await expect(
+        service.changePassword(
+          mockPerson.cpf,
+          { senhaAtual: 'qualquer', novaSenha: 'nova12345' },
+          ownerOf(mockPerson.cpf),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('lança NotFoundException quando o CPF não existe', async () => {
+      repo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.changePassword(
+          '00000000000',
+          { senhaAtual: 'x', novaSenha: 'nova12345' },
+          ownerOf('00000000000'),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

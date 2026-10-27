@@ -24,6 +24,7 @@ import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { Response } from 'express';
 import * as csv from 'fast-csv';
 
+import { ChangePasswordDto } from './dtos/change-password.dto';
 import { RegisterPersonDto } from './dtos/register-person.dto';
 import { RegisterUserDto } from './dtos/register-user.dto';
 import { UpdatePersonDto } from './dtos/update-person.dto';
@@ -147,6 +148,25 @@ export class PeopleController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.peopleService.update(cpf, dto, user);
+  }
+
+  @Patch(':cpf/senha')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Troca a senha da própria conta, exigindo a senha atual (Cliente autenticado)',
+  })
+  @ApiParam({ name: 'cpf', description: 'CPF (11 dígitos sem máscara)' })
+  @ApiResponse({ status: 200, description: 'Senha atualizada' })
+  @ApiResponse({ status: 400, description: 'Senha atual incorreta' })
+  @ApiResponse({ status: 403, description: 'Não é possível trocar a senha de outra conta' })
+  async changePassword(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('cpf') cpf: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    await this.peopleService.changePassword(cpf, dto, user);
+    return { success: true };
   }
 
   @Delete(':cpf')
