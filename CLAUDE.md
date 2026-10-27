@@ -180,11 +180,16 @@ log correspondente no servidor.
 
 `LoggerModule.forRoot(...)` (`app.module.ts`, config em
 `src/common/config/logging.config.ts`) ativa o `nestjs-pino`: JSON puro em
-produção, `pino-pretty` (legível/colorido) fora dela. `app.useLogger(...)`
-em `main.ts` faz todo `new Logger(...)` existente (incluindo
-`AllExceptionsFilter`) sair formatado pelo pino, sem precisar trocar
-nenhum call site — `NestFactory.create` usa `bufferLogs: true` pra não
-perder logs emitidos antes do `useLogger` rodar.
+produção **e em test**, `pino-pretty` (legível/colorido) só quando
+`NODE_ENV=development`. `pino-pretty` roda numa worker thread própria —
+rodar ela em `test` estourou o timeout de 15min do job `coverage` no CI
+(cada um dos ~12 arquivos de integração sobe a `AppModule` do zero,
+`--runInBand`), por isso o pretty fica restrito a dev interativo, não a
+"qualquer coisa que não seja produção". `app.useLogger(...)` em `main.ts`
+faz todo `new Logger(...)` existente (incluindo `AllExceptionsFilter`)
+sair formatado pelo pino, sem precisar trocar nenhum call site —
+`NestFactory.create` usa `bufferLogs: true` pra não perder logs emitidos
+antes do `useLogger` rodar.
 
 `genReqId` reaproveita o mesmo `x-request-id` do `correlationIdMiddleware`
 (lendo o header, já garantido presente em toda requisição) — toda linha de

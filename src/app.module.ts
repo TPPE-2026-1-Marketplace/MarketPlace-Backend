@@ -39,7 +39,7 @@ const isProduction = nodeEnv === 'production';
       validate: validateEnv,
     }),
     LoggerModule.forRoot({
-      pinoHttp: buildPinoHttpOptions(isProduction),
+      pinoHttp: buildPinoHttpOptions(nodeEnv),
     }),
     // Sem guard global: o ThrottlerGuard é aplicado só nas rotas de ação manual
     // (login, cadastro, checkout). Um guard global limitava também o catálogo,

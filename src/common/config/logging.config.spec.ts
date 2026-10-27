@@ -12,13 +12,25 @@ function buildRequest(headers: Record<string, string | string[]> = {}): Incoming
 describe('buildPinoHttpOptions', () => {
   describe('transport', () => {
     it('não configura transport (JSON puro) em produção', () => {
-      const options = buildPinoHttpOptions(true);
+      const options = buildPinoHttpOptions('production');
 
       expect(options?.transport).toBeUndefined();
     });
 
-    it('configura pino-pretty fora de produção', () => {
-      const options = buildPinoHttpOptions(false);
+    it('não configura transport (JSON puro) em test — pino-pretty usa worker thread e estourou o timeout do job de coverage no CI', () => {
+      const options = buildPinoHttpOptions('test');
+
+      expect(options?.transport).toBeUndefined();
+    });
+
+    it('não configura transport quando NODE_ENV não está definido (mesmo tratamento de "test"/produção, por segurança)', () => {
+      const options = buildPinoHttpOptions(undefined);
+
+      expect(options?.transport).toBeUndefined();
+    });
+
+    it('configura pino-pretty só em desenvolvimento interativo', () => {
+      const options = buildPinoHttpOptions('development');
 
       expect(options?.transport).toEqual(expect.objectContaining({ target: 'pino-pretty' }));
     });
@@ -26,7 +38,7 @@ describe('buildPinoHttpOptions', () => {
 
   describe('genReqId', () => {
     it('reaproveita o x-request-id já presente no request (setado pelo correlationIdMiddleware)', () => {
-      const options = buildPinoHttpOptions(true);
+      const options = buildPinoHttpOptions('production');
       const req = buildRequest({ [CORRELATION_ID_HEADER]: 'id-ja-definido' });
 
       const id = options?.genReqId?.(req, undefined as never);
@@ -35,7 +47,7 @@ describe('buildPinoHttpOptions', () => {
     });
 
     it('gera um novo id quando o header ainda não foi definido', () => {
-      const options = buildPinoHttpOptions(true);
+      const options = buildPinoHttpOptions('production');
       const req = buildRequest();
 
       const id = options?.genReqId?.(req, undefined as never);
@@ -44,7 +56,7 @@ describe('buildPinoHttpOptions', () => {
     });
 
     it('usa o primeiro valor quando o header vem como array', () => {
-      const options = buildPinoHttpOptions(true);
+      const options = buildPinoHttpOptions('production');
       const req = buildRequest({ [CORRELATION_ID_HEADER]: ['primeiro', 'segundo'] });
 
       const id = options?.genReqId?.(req, undefined as never);
