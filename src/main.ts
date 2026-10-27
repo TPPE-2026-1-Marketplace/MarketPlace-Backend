@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { Logger as PinoLogger } from 'nestjs-pino';
 import { ZodValidationPipe, cleanupOpenApiDoc } from 'nestjs-zod';
 
 import { AppModule } from './app.module';
@@ -17,7 +18,16 @@ async function bootstrap() {
 
   logger.log('Inicializando aplicação NestJS...');
 
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // bufferLogs: segura os logs emitidos antes do useLogger() abaixo (em vez
+  // de perdê-los) e os despeja no pino assim que ele estiver pronto.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  });
+
+  // A partir daqui, todo new Logger(...).log(...) do NestJS (incluindo o
+  // `logger` deste arquivo) passa a sair formatado pelo pino — JSON em
+  // produção, pino-pretty em dev. Ver LoggerModule em app.module.ts.
+  app.useLogger(app.get(PinoLogger));
 
   // Em produção a API roda atrás do proxy do Render: sem confiar no primeiro
   // salto de X-Forwarded-For, o rate limiting enxergaria o IP do proxy e o
