@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { LoggerModule } from 'nestjs-pino';
 import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
 import { AddressesModule } from './addresses/addresses.module';
 import { AuthModule } from './auth/auth.module';
 import { CategoriesModule } from './categories/categories.module';
 import { validateEnv } from './common/config/env.validation';
+import { buildPinoHttpOptions } from './common/config/logging.config';
 import { THROTTLE_DEFAULT } from './common/config/throttle.config';
 import { CouponsModule } from './coupons/coupons.module';
 import {
@@ -35,6 +37,9 @@ const isProduction = nodeEnv === 'production';
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+    }),
+    LoggerModule.forRoot({
+      pinoHttp: buildPinoHttpOptions(isProduction),
     }),
     // Sem guard global: o ThrottlerGuard é aplicado só nas rotas de ação manual
     // (login, cadastro, checkout). Um guard global limitava também o catálogo,

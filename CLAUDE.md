@@ -176,6 +176,21 @@ ou gera um novo. Sempre devolvido no header de resposta, e incluído no log
 de erro do `AllExceptionsFilter` — permite ligar uma resposta de erro ao
 log correspondente no servidor.
 
+### Logging estruturado (nestjs-pino)
+
+`LoggerModule.forRoot(...)` (`app.module.ts`, config em
+`src/common/config/logging.config.ts`) ativa o `nestjs-pino`: JSON puro em
+produção, `pino-pretty` (legível/colorido) fora dela. `app.useLogger(...)`
+em `main.ts` faz todo `new Logger(...)` existente (incluindo
+`AllExceptionsFilter`) sair formatado pelo pino, sem precisar trocar
+nenhum call site — `NestFactory.create` usa `bufferLogs: true` pra não
+perder logs emitidos antes do `useLogger` rodar.
+
+`genReqId` reaproveita o mesmo `x-request-id` do `correlationIdMiddleware`
+(lendo o header, já garantido presente em toda requisição) — toda linha de
+log de uma requisição carrega o mesmo id que vai no header de resposta,
+em `req.id`.
+
 ---
 
 ## Estado do banco
