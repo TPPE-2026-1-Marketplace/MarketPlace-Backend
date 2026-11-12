@@ -117,16 +117,19 @@ lista o que falta ou sobra, sem mostrar valores.
 
 ## Comandos úteis (Makefile)
 
-`make help` lista todos. Principais:
+`make help` lista todos, agrupados por seção. Os nomes e as seções são os mesmos
+do `Makefile` do frontend; o que é só do backend fica em "Específicos do backend".
+Principais:
 
 | Comando                     | O que faz                                           |
 | --------------------------- | --------------------------------------------------- |
 | `make dev-up` / `dev-down`  | Sobe / derruba o ambiente de desenvolvimento        |
 | `make dev-shell`            | Shell no container da API                           |
-| `make dev-logs-api`         | Logs apenas da API                                  |
+| `make dev-logs svc=api`     | Logs apenas da API (`svc=postgres` para o banco)    |
 | `make dev-test path=<mod>`  | Testes unitários (filtrando por módulo)             |
 | `make dev-test-integration` | Testes de integração                                |
 | `make dev-check`            | lint + typecheck + format:check (espelha o CI)      |
+| `make dev-ci`               | dev-check + build + testes (espelha o CI)           |
 | `make dev-reset`            | Derruba tudo e **apaga os volumes** (banco incluso) |
 | `make dev-up DEBUG=1`       | Sobe com o inspector do Node (ver `docs/debug.md`)  |
 | `make env-check`            | Compara os `.env` com os `.example` (só nomes)      |

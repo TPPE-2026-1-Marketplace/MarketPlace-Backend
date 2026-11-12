@@ -519,10 +519,12 @@ UNIQUE (cpf_funcionario, mes, ano).
 ## Comandos do projeto
 
 ```bash
+make help          # lista todos os comandos, por seção
 make dev-up        # sobe Docker dev
 make dev-restart   # reinicia sem rebuild
 make dev-logs      # acompanha logs
-make dev-logs-api  # logs só da API (dev-logs-postgres p/ o banco)
+make dev-logs svc=api  # logs só da API (svc=postgres p/ o banco)
+make dev-up DEBUG=1    # sobe com o inspector do Node em 127.0.0.1:9229 (docs/debug.md)
 make dev-shell     # shell no container da API
 make db-shell      # psql no container do postgres
 make db-backup     # dump SQL do banco (backup_<timestamp>.sql)
