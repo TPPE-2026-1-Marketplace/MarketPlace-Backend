@@ -98,6 +98,21 @@ por `src/common/config/env.validation.ts`, falha rápida se faltarem):
 
 Em desenvolvimento, `POSTGRES_HOST=postgres` (nome do serviço no compose).
 
+### Arquivos de ambiente
+
+| Arquivo            | Quem lê                                                              | Observação                                                        |
+| ------------------ | -------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `.env.development` | `make dev-*` (compose), `make dev` (local) e os testes de integração | Valores de desenvolvimento: porta 3001, pagamento `mock`, sandbox |
+| `.env.production`  | só `make prod-*`, que roda a imagem de produção **localmente**       | Não altera o deploy: o Render usa as variáveis do próprio serviço |
+
+O Docker lê cada arquivo de duas formas: o `--env-file` do `Makefile` interpola
+os `${VAR}` dentro do `compose.*.yml` (portas, `POSTGRES_*` do healthcheck), e o
+`env_file:` do compose injeta as variáveis no processo do container. Nenhum
+`.env.*` entra na imagem (`.dockerignore`).
+
+`make env-check` compara as chaves dos seus arquivos com as dos `.example` e
+lista o que falta ou sobra, sem mostrar valores.
+
 ---
 
 ## Comandos úteis (Makefile)
@@ -113,6 +128,7 @@ Em desenvolvimento, `POSTGRES_HOST=postgres` (nome do serviço no compose).
 | `make dev-test-integration` | Testes de integração                                |
 | `make dev-check`            | lint + typecheck + format:check (espelha o CI)      |
 | `make dev-reset`            | Derruba tudo e **apaga os volumes** (banco incluso) |
+| `make env-check`            | Compara os `.env` com os `.example` (só nomes)      |
 | `make db-shell`             | `psql` no Postgres                                  |
 | `make db-backup`            | Dump SQL do banco                                   |
 | `make db-seed`              | Popula o banco com o seed de desenvolvimento        |
