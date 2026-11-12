@@ -128,6 +128,7 @@ lista o que falta ou sobra, sem mostrar valores.
 | `make dev-test-integration` | Testes de integração                                |
 | `make dev-check`            | lint + typecheck + format:check (espelha o CI)      |
 | `make dev-reset`            | Derruba tudo e **apaga os volumes** (banco incluso) |
+| `make dev-up DEBUG=1`       | Sobe com o inspector do Node (ver `docs/debug.md`)  |
 | `make env-check`            | Compara os `.env` com os `.example` (só nomes)      |
 | `make db-shell`             | `psql` no Postgres                                  |
 | `make db-backup`            | Dump SQL do banco                                   |
