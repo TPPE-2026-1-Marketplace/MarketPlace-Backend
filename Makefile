@@ -6,7 +6,7 @@ SERVICE := api
 export DOCKER_BUILDKIT := 1
 export COMPOSE_DOCKER_CLI_BUILD := 1
 
-.PHONY: help hooks hooks-off env-setup gen-secrets install dev lint test build start demo smoke-real \
+.PHONY: help hooks hooks-off env-setup env-check gen-secrets install dev lint test build start demo smoke-real \
 	dev-up dev-down dev-logs dev-logs-once dev-logs-api dev-logs-postgres dev-shell dev-build dev-rebuild dev-restart dev-reset dev-test dev-test-integration dev-test-cov \
 	dev-lint dev-lint-fix dev-format dev-typecheck dev-check dev-openapi \
 	prod-up prod-down prod-logs prod-build prod-rebuild \
@@ -18,8 +18,9 @@ help:
 	@echo "  make hooks            Ativa o commit-msg versionado (.githooks) via husky"
 	@echo "  make hooks-off        Desativa o commit-msg versionado"
 	@echo "  make env-setup        Cria .env.development e .env.production a partir dos .example"
+	@echo "  make env-check        Compara as chaves dos .env com as dos .example (sem mostrar valores)"
 	@echo "  make install          Instala dependencias localmente com pnpm"
-	@echo "  make dev              Sobe o Nest localmente (sem Docker) em modo desenvolvimento"
+	@echo "  make dev              Sobe o Nest localmente (sem Docker) com o .env.development"
 	@echo "  make lint             Executa o lint do projeto"
 	@echo "  make test             Executa os testes"
 	@echo "  make build            Gera o build local de producao"
@@ -94,6 +95,9 @@ env-setup:
 	@echo "Edite-os com os valores reais antes de subir o ambiente."
 	@echo "Execute 'make gen-secrets' para gerar o JWT_SECRET automaticamente."
 
+env-check:
+	@sh scripts/env-check.sh
+
 gen-secrets:
 	$(eval SECRET := $(shell openssl rand -base64 32))
 	@for env_file in .env.development .env.production; do \
@@ -110,8 +114,11 @@ gen-secrets:
 install:
 	pnpm install
 
+# Sem Docker o Nest não lê .env.* sozinho (o ConfigModule não tem envFilePath):
+# carregamos o .env.development no shell e apontamos o banco para o host.
+# Precisa de um Postgres em localhost, ex.: $(COMPOSE_DEV) up -d postgres
 dev:
-	pnpm start:dev
+	set -a && . ./.env.development && set +a && POSTGRES_HOST=localhost pnpm start:dev
 
 lint:
 	pnpm lint
