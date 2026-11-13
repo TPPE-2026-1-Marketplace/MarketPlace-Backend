@@ -1,5 +1,7 @@
 COMPOSE_PROJECT := marketplace-backend
-COMPOSE_DEV := docker compose -p $(COMPOSE_PROJECT) --env-file .env.development -f compose.dev.yml
+# DEBUG=1 soma o compose.debug.yml: mesma API de dev, com o inspector do Node
+# em 127.0.0.1:9229 (ver docs/debug.md). Ex.: make dev-up DEBUG=1
+COMPOSE_DEV := docker compose -p $(COMPOSE_PROJECT) --env-file .env.development -f compose.dev.yml $(if $(DEBUG),-f compose.debug.yml)
 COMPOSE_PROD := docker compose -p $(COMPOSE_PROJECT) --env-file .env.production -f compose.prod.yml
 SERVICE := api
 
@@ -28,6 +30,7 @@ help:
 	@echo ""
 	@echo "Desenvolvimento (Docker):"
 	@echo "  make dev-up           Sobe o ambiente Docker de desenvolvimento"
+	@echo "  make dev-up DEBUG=1   Sobe com o inspector do Node em 127.0.0.1:9229 (vale para dev-rebuild/dev-restart)"
 	@echo "  make dev-down         Derruba o ambiente Docker de desenvolvimento"
 	@echo "  make dev-logs         Exibe logs do ambiente Docker de desenvolvimento"
 	@echo "  make dev-logs-once    Exibe logs (uma vez) do ambiente Docker de desenvolvimento"
