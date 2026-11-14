@@ -1,6 +1,7 @@
 # Envio de e-mail (Gmail)
 
-Issue #247. A API envia por e-mail o **código de 6 dígitos de retirada na loja**:
+A API envia dois e-mails: o **link de recuperação de senha** (#250, seção
+própria abaixo) e o **código de 6 dígitos de retirada na loja** (#247):
 
 - **Automaticamente**, quando o pagamento de um pedido `tipoRetirada = "loja"` é
   confirmado (webhook da InfinitePay, aprovação imediata do gateway mock ou
@@ -24,6 +25,30 @@ pedido (`codigo_verificacao_retirada`), o que o `confirm-pickup` valida.
 
 O código fica em `src/mail/` (`MailService` + template) e
 `OrdersService.sendPickupCode` / `notifyPickupCode`.
+
+## Recuperação de senha (#250)
+
+O mesmo `MailService` envia o link de "Esqueci minha senha":
+
+1. `POST /api/auth/forgot-password` `{ email }` (público, 5 por 15 min). Resposta
+   **sempre** `200 { message: "Se o e-mail estiver cadastrado..." }`, exista a conta
+   ou não; a geração do token e o envio rodam fora da resposta, então nem o
+   tempo revela se o e-mail tem conta. Sem e-mail configurado no servidor: `503`.
+2. O e-mail traz `${FRONTEND_URL}/redefinir-senha?token=...`. O token tem 32
+   bytes aleatórios, vale **30 minutos** e é de **uso único**; no banco
+   (`password_reset_token`) fica só o hash SHA-256. Pedir um link novo invalida
+   os anteriores.
+3. `POST /api/auth/reset-password` `{ token, novaSenha }` (8 a 72 caracteres):
+   grava a senha com bcrypt e invalida todos os links pendentes da pessoa.
+   Link inexistente, usado ou vencido: `400`.
+
+Serve clientes e funcionários (mesmo login) e permite que a cliente cadastrada
+pelo caixa, que ainda não tem senha, defina a primeira. Contas anonimizadas
+(LGPD) são ignoradas. Os JWT já emitidos continuam válidos até expirar (24 h):
+a API não tem revogação de token.
+
+`FRONTEND_URL` (sem barra final) define o domínio do link; padrão
+`http://localhost:3000`.
 
 ## Escolha do transporte
 

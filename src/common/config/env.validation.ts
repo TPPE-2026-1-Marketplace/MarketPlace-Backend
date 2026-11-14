@@ -108,6 +108,9 @@ export const EnvSchema = z
     // + senha de app); `gmail-api` = mesma conta via HTTPS, para hosts que bloqueiam
     // SMTP (plano free do Render). Omitido: detecta pelo que estiver preenchido.
     MAIL_TRANSPORT: z.enum(['smtp', 'gmail-api']).optional(),
+    // Endereço público do frontend, usado nos links enviados por e-mail (ex.: redefinição
+    // de senha, #250). Sem barra final. Padrão: http://localhost:3000.
+    FRONTEND_URL: z.string().url('FRONTEND_URL inválida').optional(),
     MAIL_FROM: z.string().optional(),
     SMTP_HOST: z.string().optional(),
     SMTP_PORT: z.coerce.number().int().positive().optional(),
