@@ -6,3 +6,5 @@ export const THROTTLE_DEFAULT = { ttl: ONE_MINUTE_MS, limit: 60 };
 export const THROTTLE_AUTH = { default: { ttl: FIFTEEN_MINUTES_MS, limit: 5 } };
 export const THROTTLE_REGISTER = { default: { ttl: FIFTEEN_MINUTES_MS, limit: 5 } };
 export const THROTTLE_CHECKOUT = { default: { ttl: ONE_MINUTE_MS, limit: 10 } };
+// Envio do código de retirada por e-mail: evita disparos repetidos (spam na caixa da cliente).
+export const THROTTLE_PICKUP_CODE_EMAIL = { default: { ttl: ONE_MINUTE_MS, limit: 5 } };

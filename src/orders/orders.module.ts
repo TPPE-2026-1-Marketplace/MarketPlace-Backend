@@ -9,6 +9,7 @@ import { CouponsModule } from '../coupons/coupons.module';
 import { StockLog } from '../inventory/entities/stock-log.entity';
 import { Stock } from '../inventory/entities/stock.entity';
 import { InventoryModule } from '../inventory/inventory.module';
+import { MailModule } from '../mail/mail.module';
 import { PeopleModule } from '../people/people.module';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 
@@ -18,6 +19,7 @@ import { ProductVariant } from '../product-variants/entities/product-variant.ent
     CouponsModule,
     PeopleModule,
     InventoryModule,
+    MailModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

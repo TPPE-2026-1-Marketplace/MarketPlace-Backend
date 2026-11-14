@@ -21,7 +21,7 @@ import { ListOrdersQueryDto } from './dtos/list-orders-query.dto';
 import { UpdateStatusDto } from './dtos/update-status.dto';
 import { UpdateTrackingDto } from './dtos/update-tracking.dto';
 import { OrdersService } from './orders.service';
-import { THROTTLE_CHECKOUT } from '../common/config/throttle.config';
+import { THROTTLE_CHECKOUT, THROTTLE_PICKUP_CODE_EMAIL } from '../common/config/throttle.config';
 import { CurrentUser, CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Role } from '../common/enums/role.enum';
@@ -184,6 +184,34 @@ export class OrdersController {
     @CurrentUser() user: CurrentUserPayload,
   ) {
     return this.ordersService.getVerificationCode(id, user);
+  }
+
+  @Post(':id/send-pickup-code')
+  @Throttle(THROTTLE_PICKUP_CODE_EMAIL)
+  @UseGuards(ThrottlerGuard, JwtAuthGuard, RolesGuard)
+  @Roles(Role.CAIXA, Role.GERENTE, Role.ADMINISTRADOR)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Envia ou reenvia por e-mail o código de retirada na loja para a cliente (Caixa, gerente ou administrador)',
+  })
+  @ApiParam({ name: 'id', description: 'ID do pedido' })
+  @ApiResponse({
+    status: 200,
+    description: 'Código enviado. Retorna { idPedido, destinatario (mascarado), enviadoEm }',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Pedido não é de retirada na loja, não está pago ou não tem e-mail da cliente',
+  })
+  @ApiResponse({ status: 401, description: 'Não autenticado' })
+  @ApiResponse({ status: 403, description: 'Não possui autorização (Requer Caixa+)' })
+  @ApiResponse({ status: 404, description: 'Pedido não encontrado' })
+  @ApiResponse({ status: 429, description: 'Limite de envios excedido' })
+  @ApiResponse({ status: 503, description: 'Envio de e-mail não configurado ou indisponível' })
+  sendPickupCode(@Param('id', ParseIntPipe) id: number) {
+    return this.ordersService.sendPickupCode(id);
   }
 
   @Post(':id/confirm-pickup')
