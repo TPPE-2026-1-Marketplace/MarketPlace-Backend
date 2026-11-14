@@ -22,7 +22,8 @@ PostgreSQL**. Projeto da disciplina **TPPE (UnB)**.
 | Infra       | Docker Compose, pnpm 10, Node 22 Alpine             |
 
 Integrações externas: **Melhor Envio** (frete), **InfinitePay** (pagamento),
-**ImgBB** (upload de imagens) — todas com mock/fallback para desenvolvimento.
+**ImgBB** (upload de imagens) e **Gmail** (código de retirada por e-mail,
+[docs/email.md](docs/email.md)) — todas com mock/fallback para desenvolvimento.
 
 ---
 
@@ -94,7 +95,7 @@ Os `.env.*.example` documentam cada variável. Obrigatórias para o boot (valida
 por `src/common/config/env.validation.ts`, falha rápida se faltarem):
 `POSTGRES_HOST/PORT/USER/PASSWORD/DB` e `JWT_SECRET` (mínimo de 32 caracteres;
 `make gen-secrets` gera um válido). As integrações externas
-(Melhor Envio, InfinitePay, ImgBB) são opcionais — sem elas, usam mock/fallback.
+(Melhor Envio, InfinitePay, ImgBB, e-mail) são opcionais — sem elas, usam mock/fallback.
 
 Em desenvolvimento, `POSTGRES_HOST=postgres` (nome do serviço no compose).
 

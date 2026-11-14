@@ -131,7 +131,7 @@ antes de chegar ao controller — sem precisar de `@UsePipes()` no endpoint.
 `ConfigModule.forRoot({ validate: validateEnv })` valida o `process.env` no boot
 via Zod (`src/common/config/env.validation.ts`). Faltando uma variável obrigatória
 (`POSTGRES_*`, `JWT_SECRET`), a app falha rápido com mensagem listando o que falta.
-Integrações externas (Melhor Envio, InfinitePay, ImgBB) são opcionais. Ao adicionar
+Integrações externas (Melhor Envio, InfinitePay, ImgBB, e-mail) são opcionais. Ao adicionar
 uma variável de ambiente nova e obrigatória, inclua-a nesse schema.
 
 ### Health check
@@ -608,6 +608,7 @@ Constantes compartilhadas vivem em `src/common/constants/` (reexportadas em `ind
 - `business.constants.ts` — `EMPLOYEE_DEFAULT_COMMISSION_RATE`, `DEFAULT_API_PORT` (3001), `DEFAULT_POSTGRES_PORT` (5432), `PERCENTAGE_MAX` (100), `CENTS_PER_CURRENCY_UNIT` (100), `MAX_IMAGE_UPLOAD_BYTES`, `VERIFICATION_CODE_*`
 - `http-status.constants.ts` — `HTTP_STATUS_UNAUTHORIZED` (401), `HTTP_STATUS_UNPROCESSABLE_ENTITY` (422)
 - `shipping.constants.ts` — timeouts, TTL de cache e defaults de pacote do Melhor Envio
+- `mail.constants.ts` — timeouts SMTP, portas e URLs/timeout da API do Gmail
 
 Para criar nova constante de domínio compartilhado, adicione no arquivo correspondente (ou crie novo `<topico>.constants.ts` e reexporte no `index.ts`). Importe via `from '../common/constants'`.
 
@@ -664,6 +665,14 @@ Decisões pendentes que mudam a forma da implementação. Confirmar antes:
   erro) caem no fallback `src/shipping/data/cep-ranges.ts` (6 faixas
   regionais com origem em Brasília); 422 (payload inválido) sobe como
   `BadRequestException`. Como obter/renovar token: `docs/melhor-envio-token.md`.
+
+- **E-mail (#247):** `MailService` (`src/mail/`) envia por SMTP (Gmail com
+  senha de app) ou pela API do Gmail via HTTPS (`MAIL_TRANSPORT=gmail-api`),
+  necessária no Render free, que bloqueia as portas SMTP. Sem credenciais fica
+  desabilitado (503 no endpoint, aviso no boot). Usado pelo código de retirada:
+  `POST /orders/:id/send-pickup-code` e envio automático após o pagamento
+  (`PaymentsService` → `OrdersService.notifyPickupCode`, fora da transação).
+  Passo a passo: `docs/email.md`.
 
 ---
 

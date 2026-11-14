@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getDataSourceToken, getRepositoryToken } from '@nestjs/typeorm';
 
@@ -8,6 +13,7 @@ import { OrdersService } from './orders.service';
 import { CouponsService } from '../coupons/coupons.service';
 import { StockLog } from '../inventory/entities/stock-log.entity';
 import { Stock } from '../inventory/entities/stock.entity';
+import { MailService } from '../mail/mail.service';
 import { PeopleService } from '../people/people.service';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 
@@ -39,6 +45,8 @@ describe('OrdersService', () => {
   let variantsRepo: { find: jest.Mock };
   let stockRepo: { find: jest.Mock; create: jest.Mock; save: jest.Mock };
   let stockLogRepo: { create: jest.Mock; save: jest.Mock };
+  let ordersRepository: { findOne: jest.Mock };
+  let mailService: { isEnabled: jest.Mock; send: jest.Mock };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -63,6 +71,9 @@ describe('OrdersService', () => {
       }),
     };
 
+    ordersRepository = { findOne: jest.fn() };
+    mailService = { isEnabled: jest.fn(() => true), send: jest.fn().mockResolvedValue(undefined) };
+
     const mockDataSource = {
       transaction: jest.fn((cb: (m: typeof manager) => Promise<unknown>) => cb(manager)),
     };
@@ -70,11 +81,12 @@ describe('OrdersService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
-        { provide: getRepositoryToken(Order), useValue: {} },
+        { provide: getRepositoryToken(Order), useValue: ordersRepository },
         { provide: getRepositoryToken(OrderItem), useValue: {} },
         { provide: getRepositoryToken(ProductVariant), useValue: {} },
         { provide: CouponsService, useValue: { validate: jest.fn(), incrementUsage: jest.fn() } },
         { provide: PeopleService, useValue: {} },
+        { provide: MailService, useValue: mailService },
         { provide: getDataSourceToken(), useValue: mockDataSource },
       ],
     }).compile();
@@ -177,6 +189,93 @@ describe('OrdersService', () => {
       await expect(
         service.createInStore({ ...inStoreDto, idUsuario: '12345678900' } as never),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+  describe('sendPickupCode (#247)', () => {
+    function pickupOrder(overrides: Partial<Order> = {}): Order {
+      return {
+        idPedido: 42,
+        tipoRetirada: TipoRetirada.LOJA,
+        status: OrderStatus.PAID,
+        codigoVerificacaoRetirada: '123456',
+        user: { nome: 'Maria Silva', email: 'maria@cliente.com' },
+        clienteNomeAvulso: null,
+        clienteEmailAvulso: null,
+        ...overrides,
+      } as Order;
+    }
+
+    it('envia o código para o e-mail da cliente cadastrada', async () => {
+      ordersRepository.findOne.mockResolvedValue(pickupOrder());
+
+      const result = await service.sendPickupCode(42);
+
+      expect(result).toMatchObject({ idPedido: 42, destinatario: 'ma***@cliente.com' });
+      const message = mailService.send.mock.calls[0][0];
+      expect(message.to).toBe('maria@cliente.com');
+      expect(message.subject).toContain('#42');
+      expect(message.text).toContain('123456');
+      expect(message.text).toContain('Olá, Maria!');
+    });
+
+    it('usa o e-mail informado no checkout do pedido de convidado', async () => {
+      ordersRepository.findOne.mockResolvedValue(
+        pickupOrder({
+          user: null,
+          clienteNomeAvulso: 'Ana',
+          clienteEmailAvulso: 'ana@convidada.com',
+        }),
+      );
+
+      await service.sendPickupCode(42);
+
+      expect(mailService.send.mock.calls[0][0].to).toBe('ana@convidada.com');
+    });
+
+    it.each([
+      ['pedido com entrega', { tipoRetirada: TipoRetirada.ENTREGA }],
+      ['pedido pendente', { status: OrderStatus.PENDING }],
+      ['pedido já retirado', { status: OrderStatus.DELIVERED }],
+      ['venda do PDV sem código', { codigoVerificacaoRetirada: null }],
+      ['pedido sem e-mail', { user: null, clienteEmailAvulso: null }],
+    ])('recusa %s com 400 e não envia', async (_label, overrides) => {
+      ordersRepository.findOne.mockResolvedValue(pickupOrder(overrides as Partial<Order>));
+
+      await expect(service.sendPickupCode(42)).rejects.toThrow(BadRequestException);
+      expect(mailService.send).not.toHaveBeenCalled();
+    });
+
+    it('lança NotFoundException quando o pedido não existe', async () => {
+      ordersRepository.findOne.mockResolvedValue(null);
+      await expect(service.sendPickupCode(42)).rejects.toThrow(NotFoundException);
+    });
+
+    it('repassa a falha do envio', async () => {
+      ordersRepository.findOne.mockResolvedValue(pickupOrder());
+      mailService.send.mockRejectedValue(new ServiceUnavailableException());
+      await expect(service.sendPickupCode(42)).rejects.toThrow(ServiceUnavailableException);
+    });
+  });
+
+  describe('notifyPickupCode (#247)', () => {
+    it('não consulta o pedido quando o e-mail está desabilitado', async () => {
+      mailService.isEnabled.mockReturnValue(false);
+      await service.notifyPickupCode(42);
+      expect(ordersRepository.findOne).not.toHaveBeenCalled();
+    });
+
+    it('engole a falha do envio para não afetar o pagamento', async () => {
+      ordersRepository.findOne.mockResolvedValue({
+        idPedido: 42,
+        tipoRetirada: TipoRetirada.LOJA,
+        status: OrderStatus.PAID,
+        codigoVerificacaoRetirada: '123456',
+        user: { nome: 'Maria', email: 'maria@cliente.com' },
+      });
+      mailService.send.mockRejectedValue(new ServiceUnavailableException());
+
+      await expect(service.notifyPickupCode(42)).resolves.toBeUndefined();
+      expect(mailService.send).toHaveBeenCalledTimes(1);
     });
   });
 });
