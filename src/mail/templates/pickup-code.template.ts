@@ -22,8 +22,7 @@ function escapeHtml(value: string): string {
 
 /** Só o primeiro nome, como no restante da comunicação da loja. */
 function firstName(nome?: string | null): string | null {
-  const first = nome?.trim().split(/\s+/)[0];
-  return first ? first : null;
+  return nome?.trim().split(/\s+/)[0] || null;
 }
 
 /**

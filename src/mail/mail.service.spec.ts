@@ -26,20 +26,15 @@ const message = { to: 'cliente@ex.com', subject: 'Assunto', text: 'texto', html:
 describe('MailService', () => {
   const savedEnv = { ...process.env };
   let smtpSendMail: jest.Mock;
-  let composerSendMail: jest.Mock;
   let http: { post: jest.Mock };
 
   beforeEach(() => {
+    jest.clearAllMocks();
     MAIL_ENV_KEYS.forEach((key) => delete process.env[key]);
     smtpSendMail = jest.fn().mockResolvedValue({});
-    composerSendMail = jest.fn().mockResolvedValue({ message: Buffer.from('MIME bruto') });
-    // O primeiro createTransport do serviço é o composer (streamTransport); o SMTP vem depois.
     jest
       .mocked(createTransport)
-      .mockImplementation(((options: { streamTransport?: boolean }) =>
-        options.streamTransport
-          ? { sendMail: composerSendMail }
-          : { sendMail: smtpSendMail }) as unknown as typeof createTransport);
+      .mockReturnValue({ sendMail: smtpSendMail } as unknown as ReturnType<typeof createTransport>);
     http = { post: jest.fn() };
   });
 
@@ -143,10 +138,14 @@ describe('MailService', () => {
 
       const [sendUrl, sendBody, sendConfig] = http.post.mock.calls[1];
       expect(sendUrl).toBe('https://gmail.googleapis.com/gmail/v1/users/me/messages/send');
-      expect(sendBody).toEqual({ raw: Buffer.from('MIME bruto').toString('base64url') });
       expect(sendConfig.headers.Authorization).toBe('Bearer token-1');
+      // O corpo é a mensagem MIME montada pelo MailComposer, em base64url.
+      const mime = Buffer.from(sendBody.raw, 'base64url').toString();
+      expect(mime).toContain('To: cliente@ex.com');
+      expect(mime).toContain('Subject: Assunto');
       // Sem MAIL_FROM, o Gmail preenche o remetente com a conta autenticada.
-      expect(composerSendMail).toHaveBeenCalledWith({ ...message, from: undefined });
+      expect(mime).not.toMatch(/^From:/m);
+      expect(createTransport).not.toHaveBeenCalled();
     });
 
     it('reaproveita o access_token enquanto ele é válido', async () => {

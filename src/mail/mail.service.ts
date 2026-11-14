@@ -1,6 +1,7 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { createTransport } from 'nodemailer';
+import MailComposer from 'nodemailer/lib/mail-composer';
 import { firstValueFrom } from 'rxjs';
 
 import {
@@ -49,8 +50,6 @@ export class MailService {
   private readonly from?: string;
   private readonly smtp?: Transporter;
   private readonly gmail?: GmailCredentials;
-  // Monta a mensagem MIME sem enviar; usada pelo transporte gmail-api.
-  private readonly composer = createTransport({ streamTransport: true, buffer: true });
   private gmailToken: CachedToken | null = null;
 
   constructor(private readonly httpService: HttpService) {
@@ -150,8 +149,9 @@ export class MailService {
   }
 
   private async sendViaGmailApi(message: MailMessage): Promise<void> {
-    const composed = await this.composer.sendMail({ ...message, from: this.from });
-    const raw = (composed.message as Buffer).toString('base64url');
+    // Só monta a mensagem MIME (sem rede); o envio é pela API do Gmail.
+    const mime = await new MailComposer({ ...message, from: this.from }).compile().build();
+    const raw = mime.toString('base64url');
     const token = await this.getGmailAccessToken();
 
     await firstValueFrom(
