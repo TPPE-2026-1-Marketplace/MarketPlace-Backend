@@ -1,3 +1,5 @@
+import { escapeHtml, firstName } from './template.utils';
+
 import type { MailMessage } from '../interfaces/mail-message.interface';
 
 export interface PickupCodeEmailData {
@@ -6,23 +8,6 @@ export interface PickupCodeEmailData {
   nome?: string | null;
   idPedido: number;
   codigo: string;
-}
-
-const HTML_ESCAPES: Record<string, string> = {
-  '&': '&amp;',
-  '<': '&lt;',
-  '>': '&gt;',
-  '"': '&quot;',
-  "'": '&#39;',
-};
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char]);
-}
-
-/** Só o primeiro nome, como no restante da comunicação da loja. */
-function firstName(nome?: string | null): string | null {
-  return nome?.trim().split(/\s+/)[0] || null;
 }
 
 /**

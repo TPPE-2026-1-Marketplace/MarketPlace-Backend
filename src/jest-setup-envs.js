@@ -19,6 +19,12 @@ if (fs.existsSync(envPath)) {
   }
 }
 
+// Testes nunca enviam e-mail de verdade, mesmo com credenciais no .env.development:
+// sem a senha/refresh token, o MailService sobe desabilitado. String vazia (e não
+// delete) porque alguns *.integration.ts recarregam o .env com `??=`.
+process.env.SMTP_PASS = '';
+process.env.GMAIL_REFRESH_TOKEN = '';
+
 // Force the mock payment gateway to be used during tests to ensure deterministic and hermetic test runs.
 process.env.PAYMENT_GATEWAY_PROVIDER = 'mock';
 

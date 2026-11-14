@@ -673,6 +673,9 @@ Decisões pendentes que mudam a forma da implementação. Confirmar antes:
   `POST /orders/:id/send-pickup-code` e envio automático após o pagamento
   (`PaymentsService` → `OrdersService.notifyPickupCode`, fora da transação).
   Passo a passo: `docs/email.md`.
+- **Recuperação de senha (#250):** `POST /auth/forgot-password` e
+  `POST /auth/reset-password` (`AuthService`). Tabela `password_reset_token`
+  (só hash SHA-256, 30 min, uso único). Link montado com `FRONTEND_URL`.
 
 ---
 

@@ -30,9 +30,11 @@ describe('rate limiting por rota (#156)', () => {
     .flatMap(handlersOf)
     .filter(({ handler }) => Reflect.getMetadata(THROTTLE_LIMIT_KEY, handler) !== undefined);
 
-  it('aplica limite em login, cadastro, checkout e envio do código de retirada', () => {
+  it('aplica limite em login, cadastro, recuperação de senha, checkout e código de retirada', () => {
     expect(throttled.map(({ name }) => name).sort()).toEqual([
+      'AuthController.forgotPassword',
       'AuthController.login',
+      'AuthController.resetPassword',
       'OrdersController.create',
       'OrdersController.createGuest',
       'OrdersController.sendPickupCode',
