@@ -5,6 +5,36 @@ import { CORRELATION_ID_HEADER } from '../middleware/correlation-id.middleware';
 import type { Params } from 'nestjs-pino';
 import type { IncomingMessage } from 'node:http';
 
+const REDACTED = '[REDACTED]';
+
+interface SerializedRequest {
+  url?: string;
+  query?: Record<string, unknown>;
+  headers?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/**
+ * O webhook da InfinitePay carrega o segredo em `?secret=` (e aceita o header
+ * `x-webhook-secret`). O pino-http loga url, query e headers, então mascaramos
+ * esses campos para o segredo não parar nos logs. O pino-http entrega este
+ * serializer o `req` já serializado (wrapRequestSerializer).
+ */
+export function redactRequest(req: SerializedRequest): SerializedRequest {
+  const redacted: SerializedRequest = { ...req };
+
+  if (typeof redacted.url === 'string') {
+    redacted.url = redacted.url.replace(/([?&]secret=)[^&#]*/gi, `$1${REDACTED}`);
+  }
+  if (redacted.query && 'secret' in redacted.query) {
+    redacted.query = { ...redacted.query, secret: REDACTED };
+  }
+  if (redacted.headers && 'x-webhook-secret' in redacted.headers) {
+    redacted.headers = { ...redacted.headers, 'x-webhook-secret': REDACTED };
+  }
+  return redacted;
+}
+
 /**
  * Configuração do nestjs-pino (issue #165): JSON puro em produção e em
  * test, pino-pretty (legível/colorido) só em desenvolvimento interativo.
@@ -32,6 +62,7 @@ export function buildPinoHttpOptions(nodeEnv: string | undefined): Params['pinoH
   const usePrettyTransport = nodeEnv === 'development';
 
   return {
+    serializers: { req: redactRequest },
     genReqId: (req: IncomingMessage) => {
       const header = req.headers[CORRELATION_ID_HEADER];
       const value = Array.isArray(header) ? header[0] : header;

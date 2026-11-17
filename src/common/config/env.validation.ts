@@ -91,6 +91,9 @@ export const EnvSchema = z
     // Segredo compartilhado para validar o webhook de pagamento.
     // Opcional em dev/test; obrigatório em produção (validado em PaymentsService).
     INFINITEPAY_WEBHOOK_SECRET: z.string().optional(),
+    // URL pública do webhook (POST /api/payments/webhook), enviada como `webhook_url`
+    // a cada link de checkout — a InfinitePay não tem cadastro global de webhook.
+    INFINITEPAY_WEBHOOK_URL: z.url().optional(),
 
     // Imagens (ImgBB)
     IMGBB_API_KEY: z.string().optional(),

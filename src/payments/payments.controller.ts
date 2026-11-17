@@ -9,8 +9,16 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  Query,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiParam } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 import { CreatePaymentDto } from './dtos/create-payment.dto';
@@ -110,13 +118,20 @@ export class PaymentsController {
   @ApiOperation({
     summary: 'Webhook para processamento de notificações de pagamento da InfinitePay (Público)',
     description:
-      'Autenticado por segredo compartilhado no header "x-webhook-secret" ' +
-      '(INFINITEPAY_WEBHOOK_SECRET). Obrigatório em produção.',
+      'Autenticado por segredo compartilhado (INFINITEPAY_WEBHOOK_SECRET), enviado no ' +
+      'header "x-webhook-secret" ou no query param "secret" (a InfinitePay não envia ' +
+      'headers customizados: o segredo vai embutido no webhook_url). Obrigatório em produção.',
   })
+  @ApiQuery({ name: 'secret', required: false, description: 'Segredo compartilhado do webhook' })
   @ApiResponse({ status: 200, description: 'Webhook processado com sucesso' })
   @ApiResponse({ status: 401, description: 'Segredo do webhook ausente ou inválido' })
   @ApiResponse({ status: 404, description: 'Pagamento associado não encontrado' })
-  handleWebhook(@Headers('x-webhook-secret') secret: string, @Body() dto: InfinitePayWebhookDto) {
+  handleWebhook(
+    @Headers('x-webhook-secret') headerSecret: string | undefined,
+    @Query('secret') querySecret: unknown,
+    @Body() dto: InfinitePayWebhookDto,
+  ) {
+    const secret = headerSecret ?? (typeof querySecret === 'string' ? querySecret : undefined);
     return this.paymentsService.handleWebhook(dto, secret);
   }
 }
