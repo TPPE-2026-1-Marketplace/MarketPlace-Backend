@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
@@ -24,16 +25,27 @@ import {
 } from '../common/constants';
 import { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { Role } from '../common/enums/role.enum';
-import { getMonthDateRange, isValidCpf } from '../common/utils';
+import { getMonthDateRange, isValidCpf, maskEmail } from '../common/utils';
 import { Coupon } from '../coupons/entities/coupon.entity';
 import { Employee } from '../employees/entities/employee.entity';
 import { StockLog, MovementType } from '../inventory/entities/stock-log.entity';
 import { Stock } from '../inventory/entities/stock.entity';
+import { MailService } from '../mail/mail.service';
+import { buildPickupCodeEmail } from '../mail/templates/pickup-code.template';
 import { Person } from '../people/entities/person.entity';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 
+export interface PickupCodeDelivery {
+  idPedido: number;
+  /** E-mail de destino mascarado ("ma***@gmail.com"). */
+  destinatario: string;
+  enviadoEm: Date;
+}
+
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     @InjectRepository(Order)
     private readonly ordersRepository: Repository<Order>,
@@ -43,6 +55,7 @@ export class OrdersService {
     private readonly productVariantsRepository: Repository<ProductVariant>,
     private readonly couponsService: CouponsService,
     private readonly peopleService: PeopleService,
+    private readonly mailService: MailService,
     @InjectDataSource()
     private readonly dataSource: DataSource,
   ) {}
@@ -647,6 +660,77 @@ export class OrdersService {
   }
 
   /**
+   * Envia (ou reenvia) por e-mail o código de retirada de um pedido pago com
+   * retirada na loja (issue #247). Destino: e-mail da conta da cliente ou, no
+   * pedido de convidado, o e-mail informado no checkout.
+   */
+  async sendPickupCode(idPedido: number): Promise<PickupCodeDelivery> {
+    const order = await this.ordersRepository.findOne({
+      where: { idPedido },
+      relations: ['user'],
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Pedido com ID ${idPedido} não foi encontrado.`);
+    }
+
+    if (order.tipoRetirada !== TipoRetirada.LOJA) {
+      throw new BadRequestException(
+        'Este pedido não está configurado para retirada na loja física.',
+      );
+    }
+
+    if (order.status !== OrderStatus.PAID) {
+      throw new BadRequestException(
+        `O código só é enviado para pedidos pagos aguardando retirada. Status atual: "${order.status}".`,
+      );
+    }
+
+    // Venda presencial (PDV) já sai entregue no balcão e não tem código.
+    if (!order.codigoVerificacaoRetirada) {
+      throw new BadRequestException('Este pedido não possui código de retirada.');
+    }
+
+    const email = pickupCodeRecipient(order);
+    if (!email) {
+      throw new BadRequestException('O pedido não possui e-mail de cliente para envio do código.');
+    }
+
+    await this.mailService.send(
+      buildPickupCodeEmail({
+        to: email,
+        nome: order.user?.nome ?? order.clienteNomeAvulso,
+        idPedido: order.idPedido,
+        codigo: order.codigoVerificacaoRetirada,
+      }),
+    );
+
+    this.logger.log(`Código de retirada do pedido #${idPedido} enviado para ${maskEmail(email)}.`);
+    return { idPedido, destinatario: maskEmail(email), enviadoEm: new Date() };
+  }
+
+  /**
+   * Envio automático do código quando o pagamento de um pedido com retirada na
+   * loja é confirmado. Nunca lança: falha de e-mail não pode desfazer nem
+   * atrasar a confirmação do pagamento — a equipe reenvia pelo painel.
+   */
+  async notifyPickupCode(idPedido: number): Promise<void> {
+    if (!this.mailService.isEnabled()) {
+      return;
+    }
+
+    try {
+      await this.sendPickupCode(idPedido);
+    } catch (error) {
+      this.logger.warn(
+        `Envio automático do código de retirada do pedido #${idPedido} falhou: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  /**
    * Confirma a retirada física de um pedido pelo cliente via validação do PIN (US15).
    * Altera status do pedido para 'delivered' se tipoRetirada for 'loja' e o pedido estiver pago.
    */
@@ -840,4 +924,9 @@ export class OrdersService {
 
     return parseFloat(Number(result?.sum ?? 0).toFixed(2));
   }
+}
+
+/** E-mail da cliente: o da conta cadastrada ou, no pedido de convidado, o informado no checkout. */
+function pickupCodeRecipient(order: Order): string | null {
+  return order.user?.email || order.clienteEmailAvulso || null;
 }

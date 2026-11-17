@@ -1,0 +1,8 @@
+# Override do compose.dev.yml para depurar a API (make dev-up DEBUG=1).
+# Mantém volume, Postgres e hot reload; só troca o comando e publica o inspector.
+services:
+  api:
+    command: ["pnpm", "start:debug"]
+    ports:
+      # Só no loopback do host: quem alcança o inspector executa código na API.
+      - "127.0.0.1:9229:9229"

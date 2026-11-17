@@ -7,9 +7,10 @@ import { PaymentsService } from './payments.service';
 import { InfinitePayProvider } from './providers/infinitepay.provider';
 import { MockPaymentProvider } from './providers/mock.provider';
 import { PAYMENT_GATEWAY_TOKEN } from './providers/payment-gateway.interface';
+import { OrdersModule } from '../orders/orders.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment])],
+  imports: [TypeOrmModule.forFeature([Payment]), OrdersModule],
   controllers: [PaymentsController],
   providers: [
     PaymentsService,

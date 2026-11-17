@@ -22,7 +22,8 @@ PostgreSQL**. Projeto da disciplina **TPPE (UnB)**.
 | Infra       | Docker Compose, pnpm 10, Node 22 Alpine             |
 
 Integrações externas: **Melhor Envio** (frete), **InfinitePay** (pagamento),
-**ImgBB** (upload de imagens) — todas com mock/fallback para desenvolvimento.
+**ImgBB** (upload de imagens) e **Gmail** (código de retirada por e-mail,
+[docs/email.md](docs/email.md)) — todas com mock/fallback para desenvolvimento.
 
 ---
 
@@ -94,25 +95,45 @@ Os `.env.*.example` documentam cada variável. Obrigatórias para o boot (valida
 por `src/common/config/env.validation.ts`, falha rápida se faltarem):
 `POSTGRES_HOST/PORT/USER/PASSWORD/DB` e `JWT_SECRET` (mínimo de 32 caracteres;
 `make gen-secrets` gera um válido). As integrações externas
-(Melhor Envio, InfinitePay, ImgBB) são opcionais — sem elas, usam mock/fallback.
+(Melhor Envio, InfinitePay, ImgBB, e-mail) são opcionais — sem elas, usam mock/fallback.
 
 Em desenvolvimento, `POSTGRES_HOST=postgres` (nome do serviço no compose).
+
+### Arquivos de ambiente
+
+| Arquivo            | Quem lê                                                              | Observação                                                        |
+| ------------------ | -------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `.env.development` | `make dev-*` (compose), `make dev` (local) e os testes de integração | Valores de desenvolvimento: porta 3001, pagamento `mock`, sandbox |
+| `.env.production`  | só `make prod-*`, que roda a imagem de produção **localmente**       | Não altera o deploy: o Render usa as variáveis do próprio serviço |
+
+O Docker lê cada arquivo de duas formas: o `--env-file` do `Makefile` interpola
+os `${VAR}` dentro do `compose.*.yml` (portas, `POSTGRES_*` do healthcheck), e o
+`env_file:` do compose injeta as variáveis no processo do container. Nenhum
+`.env.*` entra na imagem (`.dockerignore`).
+
+`make env-check` compara as chaves dos seus arquivos com as dos `.example` e
+lista o que falta ou sobra, sem mostrar valores.
 
 ---
 
 ## Comandos úteis (Makefile)
 
-`make help` lista todos. Principais:
+`make help` lista todos, agrupados por seção. Os nomes e as seções são os mesmos
+do `Makefile` do frontend; o que é só do backend fica em "Específicos do backend".
+Principais:
 
 | Comando                     | O que faz                                           |
 | --------------------------- | --------------------------------------------------- |
 | `make dev-up` / `dev-down`  | Sobe / derruba o ambiente de desenvolvimento        |
 | `make dev-shell`            | Shell no container da API                           |
-| `make dev-logs-api`         | Logs apenas da API                                  |
+| `make dev-logs svc=api`     | Logs apenas da API (`svc=postgres` para o banco)    |
 | `make dev-test path=<mod>`  | Testes unitários (filtrando por módulo)             |
 | `make dev-test-integration` | Testes de integração                                |
 | `make dev-check`            | lint + typecheck + format:check (espelha o CI)      |
+| `make dev-ci`               | dev-check + build + testes (espelha o CI)           |
 | `make dev-reset`            | Derruba tudo e **apaga os volumes** (banco incluso) |
+| `make dev-up DEBUG=1`       | Sobe com o inspector do Node (ver `docs/debug.md`)  |
+| `make env-check`            | Compara os `.env` com os `.example` (só nomes)      |
 | `make db-shell`             | `psql` no Postgres                                  |
 | `make db-backup`            | Dump SQL do banco                                   |
 | `make db-seed`              | Popula o banco com o seed de desenvolvimento        |

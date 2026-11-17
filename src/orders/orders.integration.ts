@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
+import { ServiceUnavailableException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -15,6 +16,7 @@ import { Coupon } from '../coupons/entities/coupon.entity';
 import { Employee } from '../employees/entities/employee.entity';
 import { StockLog } from '../inventory/entities/stock-log.entity';
 import { Stock } from '../inventory/entities/stock.entity';
+import { MailService } from '../mail/mail.service';
 import { Person } from '../people/entities/person.entity';
 import { ProductVariant } from '../product-variants/entities/product-variant.entity';
 import { Product } from '../products/entities/product.entity';
@@ -71,13 +73,18 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
   let sellerToken: string;
   let testProduct: Product;
   let _testVariant: ProductVariant;
+  const mailMock = { isEnabled: jest.fn(() => true), send: jest.fn() };
 
   beforeAll(async () => {
     loadDevelopmentEnv();
 
     moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      // Sem SMTP de verdade nos testes: o envio do código de retirada é verificado pelo mock.
+      .overrideProvider(MailService)
+      .useValue(mailMock)
+      .compile();
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ZodValidationPipe());
@@ -1105,5 +1112,77 @@ describe('OrdersModule E2E Checkout, Store Pickup, Stock Reduction, In-Store Ven
       .expect(200);
 
     expect(second.body.status).toBe('delivered');
+  });
+  describe('POST /api/orders/:id/send-pickup-code (#247)', () => {
+    async function createPaidPickupOrder() {
+      const orderRes = await request(app.getHttpServer())
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({ items: [{ variantSku: testSku, quantidade: 1 }], tipoRetirada: 'loja' })
+        .expect(201);
+      await ordersRepository.update(
+        { idPedido: orderRes.body.idPedido },
+        { status: OrderStatus.PAID },
+      );
+      return orderRes.body as { idPedido: number; codigoVerificacaoRetirada: string };
+    }
+
+    beforeEach(() => {
+      mailMock.send.mockReset();
+      mailMock.send.mockResolvedValue(undefined);
+    });
+
+    it('envia o código para o e-mail da cliente e devolve o destino mascarado', async () => {
+      const order = await createPaidPickupOrder();
+
+      const res = await request(app.getHttpServer())
+        .post(`/api/orders/${order.idPedido}/send-pickup-code`)
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .expect(200);
+
+      expect(res.body).toMatchObject({
+        idPedido: order.idPedido,
+        destinatario: 'ch***@example.com',
+      });
+      expect(mailMock.send).toHaveBeenCalledTimes(1);
+      const message = mailMock.send.mock.calls[0][0];
+      expect(message.to).toBe('checkout_teste@example.com');
+      expect(message.text).toContain(order.codigoVerificacaoRetirada);
+    });
+
+    it('recusa cliente (403) e pedido ainda não pago (400)', async () => {
+      const orderRes = await request(app.getHttpServer())
+        .post('/api/orders')
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({ items: [{ variantSku: testSku, quantidade: 1 }], tipoRetirada: 'loja' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/api/orders/${orderRes.body.idPedido}/send-pickup-code`)
+        .set('Authorization', `Bearer ${clientToken}`)
+        .expect(403);
+      await request(app.getHttpServer())
+        .post(`/api/orders/${orderRes.body.idPedido}/send-pickup-code`)
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .expect(400);
+      expect(mailMock.send).not.toHaveBeenCalled();
+    });
+
+    it('responde 404 para pedido inexistente', async () => {
+      await request(app.getHttpServer())
+        .post('/api/orders/999999/send-pickup-code')
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .expect(404);
+    });
+
+    it('repassa 503 quando o envio de e-mail falha', async () => {
+      const order = await createPaidPickupOrder();
+      mailMock.send.mockRejectedValue(new ServiceUnavailableException('indisponível'));
+
+      await request(app.getHttpServer())
+        .post(`/api/orders/${order.idPedido}/send-pickup-code`)
+        .set('Authorization', `Bearer ${employeeToken}`)
+        .expect(503);
+    });
   });
 });

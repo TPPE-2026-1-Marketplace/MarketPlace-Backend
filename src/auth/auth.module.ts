@@ -6,14 +6,17 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { PasswordResetToken } from './entities/password-reset-token.entity';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { Employee } from '../employees/entities/employee.entity';
+import { MailModule } from '../mail/mail.module';
 import { PeopleModule } from '../people/people.module';
 
 @Module({
   imports: [
     PeopleModule,
-    TypeOrmModule.forFeature([Employee]),
+    TypeOrmModule.forFeature([Employee, PasswordResetToken]),
+    MailModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],

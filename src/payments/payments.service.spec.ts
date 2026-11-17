@@ -14,6 +14,7 @@ import { Role } from '../common/enums/role.enum';
 import { StockLog } from '../inventory/entities/stock-log.entity';
 import { Stock } from '../inventory/entities/stock.entity';
 import { Order, OrderStatus, TipoRetirada } from '../orders/entities/order.entity';
+import { OrdersService } from '../orders/orders.service';
 
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import type { TestingModule } from '@nestjs/testing';
@@ -42,6 +43,7 @@ describe('PaymentsService', () => {
   let txStockLogRepo: { create: jest.Mock; save: jest.Mock };
   let dsOrdersRepo: { findOne: jest.Mock };
   let dsPaymentsRepo: { findOne: jest.Mock };
+  let ordersService: { notifyPickupCode: jest.Mock };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -75,6 +77,7 @@ describe('PaymentsService', () => {
     };
 
     gateway = { charge: jest.fn() };
+    ordersService = { notifyPickupCode: jest.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -82,6 +85,7 @@ describe('PaymentsService', () => {
         { provide: getRepositoryToken(Payment), useValue: {} },
         { provide: getDataSourceToken(), useValue: mockDataSource },
         { provide: PAYMENT_GATEWAY_TOKEN, useValue: gateway },
+        { provide: OrdersService, useValue: ordersService },
       ],
     }).compile();
 
@@ -243,6 +247,66 @@ describe('PaymentsService', () => {
       // O estoque só é debitado na confirmação do pagamento; numa falha não há o que estornar.
       expect(txStockRepo.save).not.toHaveBeenCalled();
       expect(txStockLogRepo.save).not.toHaveBeenCalled();
+    });
+  });
+  describe('código de retirada por e-mail (#247)', () => {
+    const paidWebhook = { order_nsu: 'NSU-1', status: 'paid' } as never;
+
+    beforeEach(() => {
+      txStockRepo.findOne.mockResolvedValue({
+        codigoSku: 'SKU-1',
+        qtdOnline: 10,
+        qtdLojaFisica: 10,
+      });
+    });
+
+    it('dispara o envio depois de confirmar o pagamento de pedido com retirada na loja', async () => {
+      txPaymentsRepo.findOne.mockResolvedValue({
+        status: PaymentStatus.PENDING,
+        amount: 100,
+        order: buildOrder({ idPedido: 7, tipoRetirada: TipoRetirada.LOJA }),
+      });
+
+      await service.handleWebhook(paidWebhook);
+
+      expect(ordersService.notifyPickupCode).toHaveBeenCalledWith(7);
+    });
+
+    it('não dispara para pedido com entrega', async () => {
+      txPaymentsRepo.findOne.mockResolvedValue({
+        status: PaymentStatus.PENDING,
+        amount: 100,
+        order: buildOrder({ tipoRetirada: TipoRetirada.ENTREGA }),
+      });
+
+      await service.handleWebhook(paidWebhook);
+
+      expect(ordersService.notifyPickupCode).not.toHaveBeenCalled();
+    });
+
+    it('não dispara enquanto o pagamento segue pendente', async () => {
+      txOrdersRepo.findOne.mockResolvedValue(buildOrder({ tipoRetirada: TipoRetirada.LOJA }));
+      gateway.charge.mockResolvedValue({ status: PaymentStatus.PENDING, orderNsu: 'NSU-1' });
+
+      await service.create(cliente, {
+        idPedido: 1,
+        captureMethod: CaptureMethod.PIX,
+        installments: 1,
+      });
+
+      expect(ordersService.notifyPickupCode).not.toHaveBeenCalled();
+    });
+
+    it('não dispara quando a transação falha', async () => {
+      txPaymentsRepo.findOne.mockResolvedValue({
+        status: PaymentStatus.PENDING,
+        amount: 100,
+        order: buildOrder({ tipoRetirada: TipoRetirada.LOJA }),
+      });
+      txStockRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.handleWebhook(paidWebhook)).rejects.toThrow();
+      expect(ordersService.notifyPickupCode).not.toHaveBeenCalled();
     });
   });
 });

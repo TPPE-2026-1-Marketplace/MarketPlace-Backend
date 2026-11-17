@@ -6,7 +6,7 @@ import { z } from 'zod';
  * quando uma variável obrigatória está ausente ou inválida.
  *
  * Obrigatórias: conexão com o Postgres e o segredo do JWT.
- * As integrações externas (Melhor Envio, InfinitePay, ImgBB) são opcionais —
+ * As integrações externas (Melhor Envio, InfinitePay, ImgBB, e-mail) são opcionais —
  * possuem mocks/fallbacks e não devem impedir o boot em desenvolvimento.
  */
 /**
@@ -91,6 +91,9 @@ export const EnvSchema = z
     // Segredo compartilhado para validar o webhook de pagamento.
     // Opcional em dev/test; obrigatório em produção (validado em PaymentsService).
     INFINITEPAY_WEBHOOK_SECRET: z.string().optional(),
+    // URL pública do webhook (POST /api/payments/webhook), enviada como `webhook_url`
+    // a cada link de checkout — a InfinitePay não tem cadastro global de webhook.
+    INFINITEPAY_WEBHOOK_URL: z.union([z.url(), z.literal('')]).optional(),
 
     // Imagens (ImgBB)
     IMGBB_API_KEY: z.string().optional(),
@@ -103,8 +106,35 @@ export const EnvSchema = z
     MELHOR_ENVIO_REFRESH_TOKEN: z.string().optional(),
     MELHOR_ENVIO_ACCESS_TOKEN: z.string().optional(),
     MELHOR_ENVIO_SERVICE_ID: z.coerce.number().int().positive().optional(),
+
+    // E-mail (código de retirada, #247). `smtp` = SMTP comum (Gmail: smtp.gmail.com
+    // + senha de app); `gmail-api` = mesma conta via HTTPS, para hosts que bloqueiam
+    // SMTP (plano free do Render). Omitido: detecta pelo que estiver preenchido.
+    MAIL_TRANSPORT: z.enum(['smtp', 'gmail-api']).optional(),
+    // Endereço público do frontend, usado nos links enviados por e-mail (ex.: redefinição
+    // de senha, #250). Sem barra final. Padrão: http://localhost:3000.
+    FRONTEND_URL: z.string().url('FRONTEND_URL inválida').optional(),
+    MAIL_FROM: z.string().optional(),
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().int().positive().optional(),
+    SMTP_SECURE: z.enum(['true', 'false']).optional(),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    GMAIL_CLIENT_ID: z.string().optional(),
+    GMAIL_CLIENT_SECRET: z.string().optional(),
+    GMAIL_REFRESH_TOKEN: z.string().optional(),
   })
   .superRefine((env, ctx) => {
+    // Sem fallback de handle: com o gateway real, a conta que recebe o dinheiro
+    // tem que ser configurada explicitamente — nunca um valor padrão no código.
+    if (env.PAYMENT_GATEWAY_PROVIDER === 'infinitepay' && !env.INFINITEPAY_HANDLE?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['INFINITEPAY_HANDLE'],
+        message: 'INFINITEPAY_HANDLE é obrigatório quando PAYMENT_GATEWAY_PROVIDER=infinitepay',
+      });
+    }
+
     if (env.DATABASE_URL) {
       return;
     }

@@ -39,8 +39,9 @@ o `runtime` de um serviço existente, um serviço antigo criado como Git-backed
 3. Crie um novo Blueprint a partir deste repositório e confirme o `render.yaml`.
 4. Informe `DATABASE_URL`, `LOJA_CEP_ORIGEM` e `PAYMENT_GATEWAY_PROVIDER`
    (produção usa `infinitepay`). O Render gera `JWT_SECRET`.
-5. Adicione as credenciais opcionais de InfinitePay, ImgBB e Melhor Envio apenas
-   quando essas integrações forem habilitadas.
+5. Adicione as credenciais opcionais de InfinitePay, ImgBB, Melhor Envio e e-mail
+   apenas quando essas integrações forem habilitadas. E-mail no plano free do
+   Render: `MAIL_TRANSPORT=gmail-api` (o SMTP é bloqueado; ver `docs/email.md`).
 6. Depois de validar o novo serviço, remova o serviço Git-backed anterior ou
    troque os nomes durante a migração para evitar conflito.
 

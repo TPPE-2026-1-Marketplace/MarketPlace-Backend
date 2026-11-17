@@ -24,6 +24,7 @@ import { Role } from '../common/enums/role.enum';
 import { StockLog, MovementType } from '../inventory/entities/stock-log.entity';
 import { Stock } from '../inventory/entities/stock.entity';
 import { Order, OrderStatus, TipoRetirada } from '../orders/entities/order.entity';
+import { OrdersService } from '../orders/orders.service';
 
 @Injectable()
 export class PaymentsService {
@@ -36,6 +37,7 @@ export class PaymentsService {
     private readonly dataSource: DataSource,
     @Inject(PAYMENT_GATEWAY_TOKEN)
     private readonly paymentGateway: IPaymentGateway,
+    private readonly ordersService: OrdersService,
   ) {}
 
   /**
@@ -44,7 +46,7 @@ export class PaymentsService {
    * Comunica com o Gateway de Pagamento injetado para processar a cobrança.
    */
   async create(user: CurrentUserPayload, dto: CreatePaymentDto): Promise<Payment> {
-    return await this.dataSource.transaction(async (manager) => {
+    return await this.transactionWithPickupNotice(async (manager, confirmed) => {
       const paymentsRepo = manager.getRepository(Payment);
       const ordersRepo = manager.getRepository(Order);
 
@@ -104,7 +106,7 @@ export class PaymentsService {
       // 6. Se aprovado imediatamente (ex.: gateway mock), marca o pedido como pago
       //    e dá baixa no estoque agora (a baixa não ocorre mais na criação do pedido).
       if (chargeResult.status === PaymentStatus.PAID) {
-        await this.confirmPaidOrder(manager, order);
+        await this.confirmPaidOrder(manager, order, confirmed);
       }
 
       return savedPayment;
@@ -117,7 +119,7 @@ export class PaymentsService {
    * (idUsuario = null). Não verifica ownership — o convidado não tem token JWT.
    */
   async createGuest(dto: CreatePaymentDto): Promise<Payment> {
-    return await this.dataSource.transaction(async (manager) => {
+    return await this.transactionWithPickupNotice(async (manager, confirmed) => {
       const paymentsRepo = manager.getRepository(Payment);
       const ordersRepo = manager.getRepository(Order);
 
@@ -171,7 +173,7 @@ export class PaymentsService {
       const savedPayment = await paymentsRepo.save(payment);
 
       if (chargeResult.status === PaymentStatus.PAID) {
-        await this.confirmPaidOrder(manager, order);
+        await this.confirmPaidOrder(manager, order, confirmed);
       }
 
       return savedPayment;
@@ -224,7 +226,7 @@ export class PaymentsService {
     // 0. Autenticidade: só processa notificações que comprovadamente vêm do gateway.
     this.assertWebhookAuthentic(providedSecret);
 
-    await this.dataSource.transaction(async (manager) => {
+    await this.transactionWithPickupNotice(async (manager, confirmed) => {
       const paymentsRepo = manager.getRepository(Payment);
       const ordersRepo = manager.getRepository(Order);
 
@@ -257,7 +259,7 @@ export class PaymentsService {
         if (dto.receipt_url) payment.receiptUrl = dto.receipt_url;
         await paymentsRepo.save(payment);
 
-        await this.confirmPaidOrder(manager, order);
+        await this.confirmPaidOrder(manager, order, confirmed);
       } else if (this.isFailedNotification(dto)) {
         if (payment.status !== PaymentStatus.PENDING) {
           return;
@@ -291,7 +293,7 @@ export class PaymentsService {
    * status atual no gateway (quando suportado) e aplica o desfecho.
    */
   async reconcile(idPedido: number): Promise<Payment> {
-    return await this.dataSource.transaction(async (manager) => {
+    return await this.transactionWithPickupNotice(async (manager, confirmed) => {
       const paymentsRepo = manager.getRepository(Payment);
 
       const payment = await paymentsRepo.findOne({
@@ -321,7 +323,7 @@ export class PaymentsService {
         payment.status = PaymentStatus.PAID;
         payment.paidAmount = Number(payment.amount);
         await paymentsRepo.save(payment);
-        await this.confirmPaidOrder(manager, payment.order);
+        await this.confirmPaidOrder(manager, payment.order, confirmed);
       } else if (status === PaymentStatus.FAILED) {
         payment.status = PaymentStatus.FAILED;
         await paymentsRepo.save(payment);
@@ -333,11 +335,34 @@ export class PaymentsService {
     });
   }
 
+  /**
+   * Roda `work` numa transação e, só depois do commit, dispara o e-mail com o
+   * código de retirada dos pedidos "loja" que ela confirmou como pagos (#247).
+   * O envio é assíncrono e não bloqueia nem desfaz a confirmação do pagamento.
+   */
+  private async transactionWithPickupNotice<T>(
+    work: (manager: EntityManager, confirmed: Order[]) => Promise<T>,
+  ): Promise<T> {
+    const confirmed: Order[] = [];
+    const result = await this.dataSource.transaction((manager) => work(manager, confirmed));
+
+    confirmed
+      .filter((order) => order.tipoRetirada === TipoRetirada.LOJA)
+      .forEach((order) => void this.ordersService.notifyPickupCode(order.idPedido));
+
+    return result;
+  }
+
   /** Marca o pedido como pago e dá baixa no estoque na mesma transação. */
-  private async confirmPaidOrder(manager: EntityManager, order: Order): Promise<void> {
+  private async confirmPaidOrder(
+    manager: EntityManager,
+    order: Order,
+    confirmed: Order[],
+  ): Promise<void> {
     order.status = OrderStatus.PAID;
     await manager.getRepository(Order).save(order);
     await this.debitOrderStock(manager, order);
+    confirmed.push(order);
   }
 
   /**
