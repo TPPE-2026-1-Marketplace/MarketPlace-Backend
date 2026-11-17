@@ -44,7 +44,7 @@ export class InfinitePayProvider implements IPaymentGateway {
     installments: number,
     order?: Order,
   ): Promise<TransactionResult> {
-    const handle = process.env.INFINITEPAY_HANDLE || 'pabloserrapxx';
+    const handle = this.resolveHandle();
     const redirectUrl = this.buildRedirectUrl(order);
 
     const payload: {
@@ -97,6 +97,15 @@ export class InfinitePayProvider implements IPaymentGateway {
       this.logger.error(`Erro ao criar link de pagamento na InfinitePay: ${message}`);
       throw new Error(`Falha no Gateway de Pagamento InfinitePay: ${message}`);
     }
+  }
+
+  /** Sem fallback: o handle é sempre o configurado (a conta que recebe o dinheiro). */
+  private resolveHandle(): string {
+    const handle = process.env.INFINITEPAY_HANDLE?.trim().replace(/^\$/, '');
+    if (!handle) {
+      throw new Error('INFINITEPAY_HANDLE não configurado: defina o handle da conta InfinitePay.');
+    }
+    return handle;
   }
 
   private toCents(value: number): number {

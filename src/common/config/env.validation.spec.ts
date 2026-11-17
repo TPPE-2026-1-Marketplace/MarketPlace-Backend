@@ -117,4 +117,29 @@ describe('validateEnv', () => {
       ).not.toThrow();
     });
   });
+  describe('INFINITEPAY_HANDLE', () => {
+    it('é obrigatório quando PAYMENT_GATEWAY_PROVIDER=infinitepay', () => {
+      expect(() => validateEnv({ ...validEnv, PAYMENT_GATEWAY_PROVIDER: 'infinitepay' })).toThrow(
+        /INFINITEPAY_HANDLE/,
+      );
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          PAYMENT_GATEWAY_PROVIDER: 'infinitepay',
+          INFINITEPAY_HANDLE: '  ',
+        }),
+      ).toThrow(/INFINITEPAY_HANDLE/);
+    });
+
+    it('aceita com o handle definido, e dispensa-o no mock', () => {
+      expect(() =>
+        validateEnv({
+          ...validEnv,
+          PAYMENT_GATEWAY_PROVIDER: 'infinitepay',
+          INFINITEPAY_HANDLE: 'shiocompany',
+        }),
+      ).not.toThrow();
+      expect(() => validateEnv({ ...validEnv, PAYMENT_GATEWAY_PROVIDER: 'mock' })).not.toThrow();
+    });
+  });
 });

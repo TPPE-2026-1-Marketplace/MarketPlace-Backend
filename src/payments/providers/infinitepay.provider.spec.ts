@@ -158,4 +158,24 @@ describe('InfinitePayProvider', () => {
       expect(payload).not.toHaveProperty('webhook_url');
     });
   });
+  describe('handle', () => {
+    it('remove o $ inicial e espaços do handle', async () => {
+      process.env.INFINITEPAY_HANDLE = '  $Shiocompany ';
+      mockedAxios.post.mockResolvedValueOnce({ data: { id: 'abc', payment_link: 'https://p/a' } });
+
+      await provider.charge(100, CaptureMethod.PIX, 1, orderComItens);
+
+      expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({ handle: 'Shiocompany' });
+    });
+
+    it.each([undefined, '', '   '])('recusa criar o checkout sem handle (%j)', async (value) => {
+      if (value === undefined) delete process.env.INFINITEPAY_HANDLE;
+      else process.env.INFINITEPAY_HANDLE = value;
+
+      await expect(provider.charge(100, CaptureMethod.PIX, 1, orderComItens)).rejects.toThrow(
+        /INFINITEPAY_HANDLE não configurado/,
+      );
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+    });
+  });
 });

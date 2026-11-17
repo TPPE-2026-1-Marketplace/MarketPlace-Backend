@@ -125,6 +125,16 @@ export const EnvSchema = z
     GMAIL_REFRESH_TOKEN: z.string().optional(),
   })
   .superRefine((env, ctx) => {
+    // Sem fallback de handle: com o gateway real, a conta que recebe o dinheiro
+    // tem que ser configurada explicitamente — nunca um valor padrão no código.
+    if (env.PAYMENT_GATEWAY_PROVIDER === 'infinitepay' && !env.INFINITEPAY_HANDLE?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['INFINITEPAY_HANDLE'],
+        message: 'INFINITEPAY_HANDLE é obrigatório quando PAYMENT_GATEWAY_PROVIDER=infinitepay',
+      });
+    }
+
     if (env.DATABASE_URL) {
       return;
     }
