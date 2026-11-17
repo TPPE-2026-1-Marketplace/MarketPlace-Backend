@@ -1,4 +1,4 @@
-import { buildPinoHttpOptions } from './logging.config';
+import { buildPinoHttpOptions, redactRequest } from './logging.config';
 import { CORRELATION_ID_HEADER } from '../middleware/correlation-id.middleware';
 
 import type { IncomingMessage } from 'node:http';
@@ -63,5 +63,35 @@ describe('buildPinoHttpOptions', () => {
 
       expect(id).toBe('primeiro');
     });
+  });
+});
+
+describe('redactRequest', () => {
+  it('mascara o query param secret na url e no query', () => {
+    const result = redactRequest({
+      url: '/api/payments/webhook?secret=abc123&x=1',
+      query: { secret: 'abc123', x: '1' },
+    });
+
+    expect(result.url).toBe('/api/payments/webhook?secret=[REDACTED]&x=1');
+    expect(result.query).toEqual({ secret: '[REDACTED]', x: '1' });
+  });
+
+  it('mascara o header x-webhook-secret sem tocar nos demais', () => {
+    const result = redactRequest({
+      headers: { 'x-webhook-secret': 'abc123', 'user-agent': 'jest' },
+    });
+
+    expect(result.headers).toEqual({ 'x-webhook-secret': '[REDACTED]', 'user-agent': 'jest' });
+  });
+
+  it('mantém intacta uma requisição sem dados sensíveis', () => {
+    const req = { url: '/api/products?page=2', query: { page: '2' }, headers: { host: 'x' } };
+
+    expect(redactRequest(req)).toEqual(req);
+  });
+
+  it('registra o serializer no pinoHttp', () => {
+    expect(buildPinoHttpOptions('production')).toHaveProperty('serializers.req', redactRequest);
   });
 });

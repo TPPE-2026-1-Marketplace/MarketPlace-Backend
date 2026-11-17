@@ -120,4 +120,62 @@ describe('InfinitePayProvider', () => {
       /InfinitePay: handle inválido/,
     );
   });
+  describe('webhook_url', () => {
+    const chargeAndGetPayload = async () => {
+      mockedAxios.post.mockResolvedValueOnce({
+        data: { id: 'abc', payment_link: 'https://pay/abc' },
+      });
+      await provider.charge(100, CaptureMethod.PIX, 1, orderComItens);
+      return mockedAxios.post.mock.calls[0][1] as { webhook_url?: string };
+    };
+
+    it('envia webhook_url com o segredo anexado em ?secret=', async () => {
+      process.env.INFINITEPAY_WEBHOOK_URL = 'https://api.test/api/payments/webhook';
+      process.env.INFINITEPAY_WEBHOOK_SECRET = 'segredo+/=abc';
+
+      const payload = await chargeAndGetPayload();
+
+      const url = new URL(payload.webhook_url as string);
+      expect(url.origin + url.pathname).toBe('https://api.test/api/payments/webhook');
+      expect(url.searchParams.get('secret')).toBe('segredo+/=abc');
+    });
+
+    it('envia webhook_url sem query quando não há segredo', async () => {
+      process.env.INFINITEPAY_WEBHOOK_URL = 'https://api.test/api/payments/webhook';
+      delete process.env.INFINITEPAY_WEBHOOK_SECRET;
+
+      const payload = await chargeAndGetPayload();
+
+      expect(payload.webhook_url).toBe('https://api.test/api/payments/webhook');
+    });
+
+    it('não envia webhook_url quando INFINITEPAY_WEBHOOK_URL não está definida', async () => {
+      delete process.env.INFINITEPAY_WEBHOOK_URL;
+      process.env.INFINITEPAY_WEBHOOK_SECRET = 'segredo';
+
+      const payload = await chargeAndGetPayload();
+
+      expect(payload).not.toHaveProperty('webhook_url');
+    });
+  });
+  describe('handle', () => {
+    it('remove o $ inicial e espaços do handle', async () => {
+      process.env.INFINITEPAY_HANDLE = '  $Shiocompany ';
+      mockedAxios.post.mockResolvedValueOnce({ data: { id: 'abc', payment_link: 'https://p/a' } });
+
+      await provider.charge(100, CaptureMethod.PIX, 1, orderComItens);
+
+      expect(mockedAxios.post.mock.calls[0][1]).toMatchObject({ handle: 'Shiocompany' });
+    });
+
+    it.each([undefined, '', '   '])('recusa criar o checkout sem handle (%j)', async (value) => {
+      if (value === undefined) delete process.env.INFINITEPAY_HANDLE;
+      else process.env.INFINITEPAY_HANDLE = value;
+
+      await expect(provider.charge(100, CaptureMethod.PIX, 1, orderComItens)).rejects.toThrow(
+        /INFINITEPAY_HANDLE não configurado/,
+      );
+      expect(mockedAxios.post).not.toHaveBeenCalled();
+    });
+  });
 });

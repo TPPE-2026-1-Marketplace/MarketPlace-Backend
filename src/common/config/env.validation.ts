@@ -91,6 +91,9 @@ export const EnvSchema = z
     // Segredo compartilhado para validar o webhook de pagamento.
     // Opcional em dev/test; obrigatório em produção (validado em PaymentsService).
     INFINITEPAY_WEBHOOK_SECRET: z.string().optional(),
+    // URL pública do webhook (POST /api/payments/webhook), enviada como `webhook_url`
+    // a cada link de checkout — a InfinitePay não tem cadastro global de webhook.
+    INFINITEPAY_WEBHOOK_URL: z.union([z.url(), z.literal('')]).optional(),
 
     // Imagens (ImgBB)
     IMGBB_API_KEY: z.string().optional(),
@@ -122,6 +125,16 @@ export const EnvSchema = z
     GMAIL_REFRESH_TOKEN: z.string().optional(),
   })
   .superRefine((env, ctx) => {
+    // Sem fallback de handle: com o gateway real, a conta que recebe o dinheiro
+    // tem que ser configurada explicitamente — nunca um valor padrão no código.
+    if (env.PAYMENT_GATEWAY_PROVIDER === 'infinitepay' && !env.INFINITEPAY_HANDLE?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['INFINITEPAY_HANDLE'],
+        message: 'INFINITEPAY_HANDLE é obrigatório quando PAYMENT_GATEWAY_PROVIDER=infinitepay',
+      });
+    }
+
     if (env.DATABASE_URL) {
       return;
     }

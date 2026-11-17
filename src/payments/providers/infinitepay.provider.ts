@@ -44,13 +44,14 @@ export class InfinitePayProvider implements IPaymentGateway {
     installments: number,
     order?: Order,
   ): Promise<TransactionResult> {
-    const handle = process.env.INFINITEPAY_HANDLE || 'pabloserrapxx';
+    const handle = this.resolveHandle();
     const redirectUrl = this.buildRedirectUrl(order);
 
     const payload: {
       handle: string;
       redirect_url: string;
       order_nsu: string;
+      webhook_url?: string;
       items: InfinitePayItem[];
       customer?: InfinitePayCustomer;
       address?: InfinitePayAddress;
@@ -60,6 +61,11 @@ export class InfinitePayProvider implements IPaymentGateway {
       order_nsu: String(order?.idPedido ?? Date.now()),
       items: this.buildLineItems(amount, order),
     };
+
+    const webhookUrl = this.buildWebhookUrl();
+    if (webhookUrl) {
+      payload.webhook_url = webhookUrl;
+    }
 
     const customer = this.buildCustomer(order);
     if (customer) {
@@ -91,6 +97,15 @@ export class InfinitePayProvider implements IPaymentGateway {
       this.logger.error(`Erro ao criar link de pagamento na InfinitePay: ${message}`);
       throw new Error(`Falha no Gateway de Pagamento InfinitePay: ${message}`);
     }
+  }
+
+  /** Sem fallback: o handle é sempre o configurado (a conta que recebe o dinheiro). */
+  private resolveHandle(): string {
+    const handle = process.env.INFINITEPAY_HANDLE?.trim().replace(/^\$/, '');
+    if (!handle) {
+      throw new Error('INFINITEPAY_HANDLE não configurado: defina o handle da conta InfinitePay.');
+    }
+    return handle;
   }
 
   private toCents(value: number): number {
@@ -132,6 +147,28 @@ export class InfinitePayProvider implements IPaymentGateway {
       price: this.toCents(shippingAmount),
       quantity: 1,
     };
+  }
+
+  /**
+   * A InfinitePay não assina nem envia headers customizados no webhook: ele é
+   * configurado por link, em `webhook_url`. Por isso o segredo compartilhado
+   * vai na query (`?secret=`), validado por `PaymentsService`. Nunca logar o valor.
+   */
+  private buildWebhookUrl(): string | undefined {
+    const base = process.env.INFINITEPAY_WEBHOOK_URL;
+    if (!base) {
+      this.logger.warn(
+        'INFINITEPAY_WEBHOOK_URL não definido — o link é criado sem webhook_url e o pagamento não será confirmado automaticamente.',
+      );
+      return undefined;
+    }
+
+    const url = new URL(base);
+    const secret = process.env.INFINITEPAY_WEBHOOK_SECRET;
+    if (secret) {
+      url.searchParams.set('secret', secret);
+    }
+    return url.toString();
   }
 
   private buildRedirectUrl(order?: Order): string {
