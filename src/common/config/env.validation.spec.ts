@@ -142,4 +142,15 @@ describe('validateEnv', () => {
       expect(() => validateEnv({ ...validEnv, PAYMENT_GATEWAY_PROVIDER: 'mock' })).not.toThrow();
     });
   });
+  describe('INFINITEPAY_WEBHOOK_URL', () => {
+    it('trata o valor vazio como ausente', () => {
+      expect(() => validateEnv({ ...validEnv, INFINITEPAY_WEBHOOK_URL: '' })).not.toThrow();
+    });
+
+    it('recusa um valor que não é URL', () => {
+      expect(() => validateEnv({ ...validEnv, INFINITEPAY_WEBHOOK_URL: 'nao-e-url' })).toThrow(
+        /INFINITEPAY_WEBHOOK_URL/,
+      );
+    });
+  });
 });

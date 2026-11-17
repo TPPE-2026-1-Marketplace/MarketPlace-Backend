@@ -93,7 +93,7 @@ export const EnvSchema = z
     INFINITEPAY_WEBHOOK_SECRET: z.string().optional(),
     // URL pública do webhook (POST /api/payments/webhook), enviada como `webhook_url`
     // a cada link de checkout — a InfinitePay não tem cadastro global de webhook.
-    INFINITEPAY_WEBHOOK_URL: z.url().optional(),
+    INFINITEPAY_WEBHOOK_URL: z.union([z.url(), z.literal('')]).optional(),
 
     // Imagens (ImgBB)
     IMGBB_API_KEY: z.string().optional(),
